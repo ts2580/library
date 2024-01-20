@@ -4,13 +4,15 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 import com.proxy.library.book.model.dto.Book;
-import org.springframework.stereotype.Repository;
+
+import java.util.Map;
 
 @Mapper
-@Repository
 public interface ProxyRepository {
 
-    @Select("SELECT * FROM devint.book__c limit 1")
+	@Select("select * from devint.book__c limit 1")
 	Book findBook();
+
+	int books(Map<String, Object> mapBooks);
 
 }

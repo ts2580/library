@@ -5,17 +5,17 @@ import java.util.Date;
 
 @Data
 public class Book {
-    private String sOriginalkey;
-    private String totalVolume;
-    private String type;
+    private String sOriginalkeyC;
+    private String totalVolumeC;
+    private String typeC;
     private String name;
-    private String order;
+    private String orderC;
     private Date createdDate;
     private String sfid;
     private Integer id;
-    private String cover;
-    private String sync;
+    private String coverC;
+    private String syncC;
     private Date lastModifiedDate;
-    private String description;
-    private String author;
+    private String descriptionC;
+    private String authorC;
 }

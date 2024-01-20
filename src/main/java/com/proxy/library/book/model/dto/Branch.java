@@ -7,8 +7,8 @@ import java.util.Date;
 public class Branch {
     private String name;
     private Date createdDate;
-    private Double totalpriceint;
-    private String totalprice;
+    private Double totalpriceintC;
+    private String totalpriceC;
     private String sfid;
     private Integer id;
 }
