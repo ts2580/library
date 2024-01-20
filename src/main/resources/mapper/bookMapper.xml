@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="board.mapper.CareersBoardMapper">
+<mapper namespace="com.proxy.library.book.model.repository.ProxyRepository">
 
-    <select id="findBook" resultType="com.proxy.library.book.model.dto.Book">
-    	<![CDATA[
-        select * from devint.book__c
-        ]]>
-	</select>
+    <insert id="books" parameterType="java.util.Map">
+        INSERT INTO devint.book__c(
+                name,
+                type__c
+            )
+        VALUES
+        <foreach item="book" index="index" collection="paramBooks" separator=",">
+            (
+                #{book.name},
+                #{book.typeC}
+            )
+        </foreach>
+
+	</insert>
 
 </mapper>
