@@ -1,6 +1,8 @@
 package com.proxy.library.book.model.service;
 
 import com.proxy.library.book.model.dto.Book;
+import com.proxy.library.book.model.dto.BookByVolume;
+import com.proxy.library.book.model.dto.Branchbook;
 import com.proxy.library.book.model.repository.ProxyRepository;
 import org.springframework.stereotype.Service;
 
@@ -20,12 +22,28 @@ public class ProxyServiceImpl implements ProxyService {
         return proxyRepository.findBook();
 	}
 
-    public int books(List<Book> paramBooks){
+    public int insertBooks(List<Book> paramBooks){
 
         Map<String, Object> mapBooks = new HashMap<>();
         mapBooks.put("paramBooks", paramBooks);
 
-        return proxyRepository.books(mapBooks);
+        return proxyRepository.insertBooks(mapBooks);
+    }
+
+    public int insertBookByVolume(List<BookByVolume> paramBooks){
+
+        Map<String, Object> mapBooks = new HashMap<>();
+        mapBooks.put("paramBooks", paramBooks);
+
+        return proxyRepository.insertBookByVolume(mapBooks);
+    }
+
+    public int insertStock(List<Branchbook> paramBooks){
+
+        Map<String, Object> mapBooks = new HashMap<>();
+        mapBooks.put("paramBooks", paramBooks);
+
+        return proxyRepository.insertStock(mapBooks);
     }
     
 

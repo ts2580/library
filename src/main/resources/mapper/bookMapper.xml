@@ -2,19 +2,85 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.proxy.library.book.model.repository.ProxyRepository">
 
-    <insert id="books" parameterType="java.util.Map">
+    <insert id="insertBooks" parameterType="java.util.Map">
         INSERT INTO devint.book__c(
                 name,
-                type__c
+                type__c,
+                cover__c,
+                description__c,
+                author__c
             )
         VALUES
         <foreach item="book" index="index" collection="paramBooks" separator=",">
             (
                 #{book.name},
-                #{book.typeC}
+                #{book.typeC},
+                #{book.coverC},
+                #{book.descriptionC},
+                #{book.authorC}
             )
         </foreach>
 
 	</insert>
+
+    <insert id="insertBookByVolume" parameterType="java.util.Map">
+        INSERT INTO devext.bookbyvolume(
+                book,
+                cover,
+                isbn13,
+                price,
+                ispurchased,
+                name,
+                type,
+                volume,
+                noneedtobuy,
+                description,
+                link,
+                pubdate,
+                author
+            )
+        VALUES
+        <foreach item="book" index="index" collection="paramBooks" separator=",">
+            (
+                #{book.book},
+                #{book.cover},
+                #{book.isbn13},
+                #{book.price},
+                #{book.ispurchased},
+                #{book.name},
+                #{book.type},
+                #{book.volume},
+                #{book.noneedtobuy},
+                #{book.description},
+                #{book.link},
+                #{book.pubdate},
+                #{book.author}
+            )
+        </foreach>
+
+    </insert>
+
+    <insert id="insertStock" parameterType="java.util.Map">
+        INSERT INTO devext.branchbook(
+                book,
+                volume,
+                name,
+                branch,
+                bookLink,
+                minPrice
+            )
+        VALUES
+        <foreach item="book" index="index" collection="paramBooks" separator=",">
+            (
+                #{book.book},
+                #{book.volume},
+                #{book.name},
+                #{book.branch},
+                #{book.bookLink},
+                #{book.minPrice}
+            )
+        </foreach>
+
+    </insert>
 
 </mapper>
