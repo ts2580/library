@@ -13,6 +13,10 @@ public interface ProxyRepository {
 	@Select("select * from devint.book__c limit 1")
 	Book findBook();
 
-	int books(Map<String, Object> mapBooks);
+	int insertBooks(Map<String, Object> mapBooks);
+
+	int insertBookByVolume(Map<String, Object> mapBooks);
+
+	int insertStock(Map<String, Object> mapBooks);
 
 }

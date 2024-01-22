@@ -10,15 +10,15 @@ public class BookByVolume {
     private String cover;
     private String isbn13;
     private String price;
-    private Boolean isPurchased;
+    private Boolean ispurchased;
     private String name;
     private String type;
     private Integer volume;
-    private Boolean noneedToBuy;
+    private Boolean noneedtobuy;
     private Integer id;
     private String isbn;
     private String description;
     private String link;
-    private Date pubDate;
+    private Date pubdate;
     private String author;
 }
