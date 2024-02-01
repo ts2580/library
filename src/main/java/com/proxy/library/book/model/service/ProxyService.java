@@ -9,9 +9,15 @@ import java.util.List;
 public interface ProxyService {
     Book findBook();
 
+    List<BookByVolume> getBookByVolume(String title);
+
     int insertBooks(List<Book> books);
 
-    int insertBookByVolume(List<BookByVolume> books);
+    int insertBookByVolumes(List<BookByVolume> books);
+
+    int updtBookByVolume(List<BookByVolume> books);
+
+    List<BookByVolume> getBookByVolumeNew();
 
     int insertStock(List<Branchbook> books);
 
