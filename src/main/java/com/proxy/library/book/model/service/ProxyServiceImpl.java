@@ -22,6 +22,10 @@ public class ProxyServiceImpl implements ProxyService {
         return proxyRepository.findBook();
 	}
 
+    public List<BookByVolume> getBookByVolume(String title){
+        return proxyRepository.getBookByVolume(title);
+    }
+
     public int insertBooks(List<Book> paramBooks){
 
         Map<String, Object> mapBooks = new HashMap<>();
@@ -30,12 +34,24 @@ public class ProxyServiceImpl implements ProxyService {
         return proxyRepository.insertBooks(mapBooks);
     }
 
-    public int insertBookByVolume(List<BookByVolume> paramBooks){
+    public int insertBookByVolumes(List<BookByVolume> paramBooks){
 
         Map<String, Object> mapBooks = new HashMap<>();
         mapBooks.put("paramBooks", paramBooks);
 
-        return proxyRepository.insertBookByVolume(mapBooks);
+        return proxyRepository.insertBookByVolumes(mapBooks);
+    }
+
+    public int updtBookByVolume(List<BookByVolume> paramBooks){
+
+        Map<String, Object> mapBooks = new HashMap<>();
+        mapBooks.put("paramBooks", paramBooks);
+
+        return proxyRepository.updtBookByVolume(mapBooks);
+    }
+
+    public List<BookByVolume> getBookByVolumeNew(){
+        return proxyRepository.getBookByVolumeNew();
     }
 
     public int insertStock(List<Branchbook> paramBooks){

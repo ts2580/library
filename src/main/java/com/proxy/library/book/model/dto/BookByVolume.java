@@ -1,7 +1,11 @@
 package com.proxy.library.book.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
-import java.util.Date;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Data
 public class BookByVolume {
@@ -19,6 +23,9 @@ public class BookByVolume {
     private String isbn;
     private String description;
     private String link;
-    private Date pubdate;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+    private Instant pubdate;
+
     private String author;
 }
