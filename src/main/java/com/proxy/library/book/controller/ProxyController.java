@@ -37,10 +37,8 @@ public class ProxyController {
 
         List<BookByVolume> returnBook = new ArrayList<>();
 
-        String deTitle = URLDecoder.decode(name, StandardCharsets.UTF_8);
-
         try {
-            returnBook = proxyService.getBookByVolume(deTitle);
+            returnBook = proxyService.getBookByVolume(name);
         }catch (Exception e){
             System.out.println(e.getMessage());
         }
