@@ -3,6 +3,7 @@ package com.proxy.library.book.model.service;
 import com.proxy.library.book.model.dto.Book;
 import com.proxy.library.book.model.dto.BookByVolume;
 import com.proxy.library.book.model.dto.Branchbook;
+import com.proxy.library.book.model.dto.Stock;
 import com.proxy.library.book.model.repository.ProxyRepository;
 import org.springframework.stereotype.Service;
 
@@ -61,6 +62,42 @@ public class ProxyServiceImpl implements ProxyService {
 
         return proxyRepository.insertStock(mapBooks);
     }
-    
+
+    public List<BookByVolume> getTargetBook() {
+        return proxyRepository.getTargetBook();
+    }
+
+    public void delBooks() {
+        proxyRepository.delBooks();
+    }
+
+    public void updtBookPrc() {
+        proxyRepository.updtBookPrc();
+    }
+
+    public int setBookStockByBranch(List<Branchbook> paramBooks) {
+
+        Map<String, Object> mapBooks = new HashMap<>();
+        mapBooks.put("paramBooks", paramBooks);
+
+        return proxyRepository.setBookStockByBranch(mapBooks);
+    }
+
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
