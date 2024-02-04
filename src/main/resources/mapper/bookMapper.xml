@@ -103,4 +103,29 @@
 
     </insert>
 
+    <insert id="setBookStockByBranch" parameterType="java.util.Map">
+        INSERT INTO devext.branchbook(
+                book,
+                volume,
+                name,
+                branch,
+                branchName,
+                bookLink,
+                minPrice
+            )
+            VALUES
+        <foreach item="book" index="index" collection="paramBooks" separator=",">
+            (
+                #{book.book},
+                #{book.volume},
+                #{book.name},
+                #{book.branch},
+                #{book.branchName},
+                #{book.bookLink},
+                #{book.minPrice}
+            )
+        </foreach>
+
+    </insert>
+
 </mapper>

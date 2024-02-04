@@ -21,4 +21,11 @@ public interface ProxyService {
 
     int insertStock(List<Branchbook> books);
 
+    List<BookByVolume> getTargetBook();
+
+    void delBooks();
+
+    void updtBookPrc();
+
+    int setBookStockByBranch(List<Branchbook> paramBooks);
 }

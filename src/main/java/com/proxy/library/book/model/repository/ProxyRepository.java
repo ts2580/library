@@ -29,4 +29,14 @@ public interface ProxyRepository {
 
 	int insertStock(Map<String, Object> mapBooks);
 
+	@Select("select * from devext.bookbyvolume where noneedtobuy = false and ispurchased = false")
+	List<BookByVolume> getTargetBook();
+
+	@Select(value = "CALL devext.fn_delBook()")
+	void delBooks();
+
+	@Select(value = "CALL devext.fn_updtTotPrc()")
+	void updtBookPrc();
+
+	int setBookStockByBranch(Map<String, Object> mapBooks);
 }
