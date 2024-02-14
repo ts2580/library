@@ -128,4 +128,8 @@
 
     </insert>
 
+    <select id="getFieldDef" parameterType="map">
+        ${DDL}
+    </select>
+
 </mapper>
