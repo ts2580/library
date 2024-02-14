@@ -1,9 +1,13 @@
 package com.proxy.library.book.model.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.proxy.library.book.model.dto.Book;
 import com.proxy.library.book.model.dto.BookByVolume;
 import com.proxy.library.book.model.dto.Branchbook;
+import com.proxy.library.book.model.dto.Def;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.util.List;
 
 public interface ProxyService {
@@ -28,4 +32,8 @@ public interface ProxyService {
     void updtBookPrc();
 
     int setBookStockByBranch(List<Branchbook> paramBooks);
+
+    Def getObjDef() throws IOException;
+
+    Def getFieldDef(String qualifiedApiName) throws IOException;
 }

@@ -3,6 +3,7 @@ package com.proxy.library.book.controller;
 import com.proxy.library.book.model.dto.Book;
 import com.proxy.library.book.model.dto.BookByVolume;
 import com.proxy.library.book.model.dto.Branchbook;
+import com.proxy.library.book.model.dto.Def;
 import com.proxy.library.book.model.service.ProxyService;
 import org.springframework.web.bind.annotation.*;
 
@@ -64,10 +65,9 @@ public class ProxyController {
     }
 
     @PutMapping("/library/bookbyvolumes")
-    public String updtBookByVolume(@RequestBody List<BookByVolume> paramBook) {
+    public Integer updtBookByVolume(@RequestBody List<BookByVolume> paramBook) {
 
         int isrtBook = 0;
-        String res = "업데이트된 권 : ";
 
         System.out.println(paramBook);
 
@@ -75,11 +75,9 @@ public class ProxyController {
             isrtBook = proxyService.updtBookByVolume(paramBook);
         }catch (Exception e){
             System.out.println(e.getMessage());
-        }finally {
-            res += isrtBook + "권";
         }
 
-        return res;
+        return isrtBook;
     }
 
     @GetMapping("/library/bookbyvolumes/latest")
@@ -199,6 +197,38 @@ public class ProxyController {
 
         return res;
     }
+
+    @GetMapping("/sfdc/tooling/objDef")
+    public Def getObjDef() {
+
+        Def def = new Def();
+
+        try {
+            def = proxyService.getObjDef();
+        }catch (Exception e){
+            System.out.println(e.getMessage());
+        }
+
+        return def;
+    }
+
+    @GetMapping("/sfdc/tooling/fieldDef")
+    public Def getFieldDef(@RequestParam(value = "obj") String qualifiedApiName) {
+
+        Def def = new Def();
+
+        try {
+            def = proxyService.getFieldDef(qualifiedApiName);
+        }catch (Exception e){
+            System.out.println(e.getMessage());
+        }
+
+        return def;
+    }
+
+
+
+
 }
 
 

@@ -1,6 +1,7 @@
 package com.proxy.library.book.model.repository;
 
 import com.proxy.library.book.model.dto.BookByVolume;
+import com.proxy.library.book.model.dto.Def;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
@@ -15,7 +16,7 @@ public interface ProxyRepository {
 	@Select("select * from devint.book__c limit 1")
 	Book findBook();
 
-	@Select("select * from devext.bookbyvolume where name like '%${title}%' order by book, volume")
+	@Select("select * from devext.bookbyvolume where name like '%${title}%' order by book, volume desc")
 	List<BookByVolume> getBookByVolume(String title);
 
 	int insertBooks(Map<String, Object> mapBooks);
@@ -39,4 +40,6 @@ public interface ProxyRepository {
 	void updtBookPrc();
 
 	int setBookStockByBranch(Map<String, Object> mapBooks);
+
+	void getFieldDef(Map<String, String> mapParam);
 }
