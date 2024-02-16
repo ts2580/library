@@ -2,7 +2,9 @@ package com.proxy.library.book.model.repository;
 
 import com.proxy.library.book.model.dto.BookByVolume;
 import com.proxy.library.book.model.dto.Def;
+import com.proxy.library.book.model.dto.ParamVo;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import com.proxy.library.book.model.dto.Book;
@@ -42,4 +44,7 @@ public interface ProxyRepository {
 	int setBookStockByBranch(Map<String, Object> mapBooks);
 
 	void getFieldDef(Map<String, String> mapParam);
+
+	int insertWithNoDto(ParamVo pv);
+
 }
