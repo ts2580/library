@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Auth {
-
     public String getToken() throws JsonProcessingException {
         Map<String, String> mapParam = new HashMap<>();
         mapParam.put("grant_type", "password");
@@ -38,8 +37,8 @@ public class Auth {
         int connTimeout = 5000;
         int readTimeout = 3000;
 
-        String sendData = urlencoded.toString();                        // 대다수의 경우 JSON 데이터 사용
-        String apiUrl = "https://daeu-4c-dev-ed.my.salesforce.com/services/oauth2/token";    // 각자 상황에 맞는 IP & url 사용
+        String sendData = urlencoded.toString();
+        String apiUrl = "https://daeu-4c-dev-ed.my.salesforce.com/services/oauth2/token";
 
         try {
             url = new URL(apiUrl);

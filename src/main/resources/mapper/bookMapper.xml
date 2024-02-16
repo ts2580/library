@@ -22,6 +22,13 @@
         </foreach>
 	</insert>
 
+    <insert id="insertWithNoDto" parameterType="com.proxy.library.book.model.dto.ParamVo">
+        ${upperDML}
+        <foreach collection="listUnderDML" item="item" separator=",">
+            ${item}
+        </foreach>
+    </insert>
+
     <insert id="insertBookByVolumes" parameterType="java.util.Map">
         INSERT INTO devext.bookbyvolume(
                 book,
@@ -131,5 +138,7 @@
     <select id="getFieldDef" parameterType="map">
         ${DDL}
     </select>
+
+
 
 </mapper>
