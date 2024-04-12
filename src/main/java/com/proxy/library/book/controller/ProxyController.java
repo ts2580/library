@@ -5,24 +5,28 @@ import com.proxy.library.book.model.dto.BookByVolume;
 import com.proxy.library.book.model.dto.Branchbook;
 import com.proxy.library.book.model.dto.Def;
 import com.proxy.library.book.model.service.ProxyService;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 
 import lombok.RequiredArgsConstructor;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
 public class ProxyController {
 
     private final ProxyService proxyService;
+
+    @GetMapping("/temp/http-url-connection")
+    public Map<String, String> retuenTempParam() {
+        return Map.of("HttpUrlConnection", "구려");
+    }
+
     @GetMapping("/library/book")
     public Book findBook() {
 

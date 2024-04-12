@@ -27,7 +27,7 @@ public interface ProxyRepository {
 
 	int updtBookByVolume(Map<String, Object> mapBooks);
 
-	@Select("select * from devext.bookbyvolume order by id desc limit 100")
+	@Select("select * from devext.bookbyvolume where ispurchased = false order by id desc limit 100")
 	List<BookByVolume> getBookByVolumeNew();
 
 	int insertStock(Map<String, Object> mapBooks);

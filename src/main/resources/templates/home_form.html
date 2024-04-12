@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      lang="eng">
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        *{
+            padding: 0;
+            margin: 0;
+            border: none;
+        }
+
+        body{
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        #login-form > input{
+            height: 48px;
+            padding: 0 10px;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+            border-radius: 6px;
+            background-color: #F8F8F8;
+        }
+
+        #login-form > .title{
+            width: 80%;
+        }
+
+        #login-form > .submit{
+            width: 20%;
+        }
+
+        #login-form > input::placeholder{
+            color: #D2D2D2;
+        }
+
+        #login-form > input[type="submit"]{
+            color: #fff;
+            font-size: 16px;
+            background-color: #6A24FE;
+        }
+
+        #login-form > label{
+            color: #999999;
+        }
+
+        #login-form > input[type="submit"]{
+            color: #fff;
+            font-size: 16px;
+            background-color: #6A24FE;
+            margin-top: 20px;
+        }
+
+        .login-box{
+            display: grid;
+            justify-content: center;
+            min-height: 10vh;
+            margin-top: 2vh;
+        }
+
+        .login-box-line{
+            width: 50vh;
+        }
+
+        .book-list {
+            font-family: 'Arial', sans-serif;
+            overflow-x: auto;
+            margin: 20px;
+        }
+
+        #bookTable {
+            border-collapse: collapse;
+            border: 1px solid #444444;
+            width: 100%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #bookTable th, #bookTable td {
+            text-align: left;
+            border: 1px solid #444444;
+            padding: 8px;
+        }
+
+        #bookTable th {
+            background-color: #6A24FE;
+            color: white;
+        }
+
+        #bookTable tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        #bookTable tr:hover {
+            background-color: #ddd;
+        }
+
+        #bookTable img {
+            height: 100px; /* 이미지 높이 조절 */
+            width: auto; /* 이미지 너비는 자동으로 조절 */
+            border-radius: 5px; /* 이미지 모서리를 둥글게 */
+        }
+
+    </style>
+    <meta charset="UTF-8">
+    <title>책장!</title>
+</head>
+<body>
+    <div class="login-box">
+        <div class="login-box-line">
+            <form th:action="@{/bookshelf/search}" method="get" id="login-form">
+                <input placeholder="제목" type="text" name="title" class="title"/><input type="submit" id="submit" class="submit">
+            </form>
+        </div>
+
+        <div class="book-list">
+            <table id="bookTable">
+                <thead>
+                <tr>
+                    <th>이미지</th>
+                    <th>제목</th>
+                    <th>구입여부</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- AJAX로 데이터 불러와서 여기에 행을 추가 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+
+    <script>
+        $(document).ready(function() {
+            $('#login-form').submit(function(event) {
+                event.preventDefault(); // 폼 기본 제출 동작 방지
+
+                let booksTable = $('#bookTable tbody');
+                let title = $('input[name="title"]').val(); // 사용자가 입력한 제목 가져오기
+
+                $.ajax({
+                    url: '/bookshelf/search', // 이 부분은 서버의 실제 URL로 수정해야 합니다.
+                    type: 'GET',
+                    data: {title: title},
+                    dataType: 'json', // 서버에서 JSON 형식의 응답을 기대합니다.
+                    success: function(books) {
+                        $('#bookTable tbody').empty();
+
+                        $.each(books, function(i, book){
+                            let row = $('<tr>').append(
+                                $('<td>').html(`<img src="${book.cover}" alt="책 표지" style="width:100px;height:auto;">`),
+                                $('<td>').text(book.name),
+                                $('<td>').text(book.ispurchased === false ? '구입예정' : '구입')
+                            );
+                            booksTable.append(row);
+                        });
+                    },
+                    error: function() {
+                        alert('요청 처리 중 오류가 발생했습니다.');
+                    }
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
