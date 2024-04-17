@@ -7,4 +7,6 @@ import java.util.List;
 public interface StockService {
 
     List<StockBook> getStock(String name);
+
+    List<StockBook> getBranchBook(String branch);
 }

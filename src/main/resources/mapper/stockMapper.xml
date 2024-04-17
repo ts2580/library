@@ -9,4 +9,13 @@
         ORDER BY book, volume
     </select>
 
+    <select id="getBranchBook" parameterType="String">
+        SELECT bbv.seq, bbv.name, bbv.ispurchased, bbv.noneedtobuy, bbv."type", bbv.volume , bbv.book, bbv.id, bbv.cover, bbv.isbn
+        FROM devext.bookbyvolume bbv
+        join devext.branchbook b on b.book = bbv.book
+        WHERE b.volume = bbv.volume
+        and b.branchname like CONCAT('%', #{branch}, '%')
+        ORDER BY bbv.name, bbv.book, bbv.volume
+    </select>
+
 </mapper>
