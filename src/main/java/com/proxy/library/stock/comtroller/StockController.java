@@ -28,6 +28,22 @@ public class StockController {
 
         return returnBook;
     }
+
+    @GetMapping("/bookshelf/branch")
+    public List<StockBook> getBranchBook(@RequestParam(value = "branch") String branch, Model model) {
+
+        List<StockBook> returnBook = new ArrayList<>();
+
+        System.out.println(branch);
+
+        try {
+            returnBook = stockService.getBranchBook(branch);
+        }catch (Exception e){
+            System.out.println(e.getMessage());
+        }
+
+        return returnBook;
+    }
 }
 
 

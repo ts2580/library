@@ -15,7 +15,7 @@
             font-family: 'Roboto', sans-serif;
         }
 
-        #login-form > input{
+        .search-form > input{
             height: 48px;
             padding: 0 10px;
             box-sizing: border-box;
@@ -24,29 +24,29 @@
             background-color: #F8F8F8;
         }
 
-        #login-form > .title{
+        .search-form > .title{
             width: 80%;
         }
 
-        #login-form > .submit{
+        .search-form > .submit{
             width: 20%;
         }
 
-        #login-form > input::placeholder{
+        .search-form > input::placeholder{
             color: #D2D2D2;
         }
 
-        #login-form > input[type="submit"]{
+        .search-form > input[type="submit"]{
             color: #fff;
             font-size: 16px;
             background-color: #6A24FE;
         }
 
-        #login-form > label{
+        .search-form > label{
             color: #999999;
         }
 
-        #login-form > input[type="submit"]{
+        .search-form > input[type="submit"]{
             color: #fff;
             font-size: 16px;
             background-color: #6A24FE;
@@ -61,7 +61,7 @@
         }
 
         .login-box-line{
-            width: 50vh;
+            width: 50vw;
         }
 
         .book-list {
@@ -109,8 +109,11 @@
 <body>
     <div class="login-box">
         <div class="login-box-line">
-            <form th:action="@{/bookshelf/search}" method="get" id="login-form">
+            <form th:action="@{/bookshelf/search}" method="get" class="search-form" id="login-form">
                 <input placeholder="제목" type="text" name="title" class="title"/><input type="submit" id="submit" class="submit">
+            </form>
+            <form th:action="@{/bookshelf/branch}" method="get" class="search-form" id="branch-form">
+                <input placeholder="지점" type="text" name="branch" class="title"/><input type="submit" class="submit">
             </form>
         </div>
 
@@ -144,6 +147,37 @@
                     url: '/bookshelf/search', // 이 부분은 서버의 실제 URL로 수정해야 합니다.
                     type: 'GET',
                     data: {title: title},
+                    dataType: 'json', // 서버에서 JSON 형식의 응답을 기대합니다.
+                    success: function(books) {
+                        $('#bookTable tbody').empty();
+
+                        $.each(books, function(i, book){
+                            let row = $('<tr>').append(
+                                $('<td>').html(`<img src="${book.cover}" alt="책 표지" style="width:100px;height:auto;">`),
+                                $('<td>').text(book.name),
+                                $('<td>').text(book.ispurchased === false ? '구입예정' : '구입')
+                            );
+                            booksTable.append(row);
+                        });
+                    },
+                    error: function() {
+                        alert('요청 처리 중 오류가 발생했습니다.');
+                    }
+                });
+            });
+
+            $('#branch-form').submit(function(event) {
+                event.preventDefault(); // 폼 기본 제출 동작 방지
+
+                let booksTable = $('#bookTable tbody');
+                let branch = $('input[name="branch"]').val(); // 사용자가 입력한 제목 가져오기
+
+                console.dir(branch);
+
+                $.ajax({
+                    url: '/bookshelf/branch', // 이 부분은 서버의 실제 URL로 수정해야 합니다.
+                    type: 'GET',
+                    data: {branch: branch},
                     dataType: 'json', // 서버에서 JSON 형식의 응답을 기대합니다.
                     success: function(books) {
                         $('#bookTable tbody').empty();

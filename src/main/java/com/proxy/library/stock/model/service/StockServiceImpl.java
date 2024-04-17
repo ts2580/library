@@ -17,4 +17,9 @@ public class StockServiceImpl implements StockService{
     public List<StockBook> getStock(String name) {
         return stockRepository.getStock(name);
     }
+
+    @Override
+    public List<StockBook> getBranchBook(String branch) {
+        return stockRepository.getBranchBook(branch);
+    }
 }

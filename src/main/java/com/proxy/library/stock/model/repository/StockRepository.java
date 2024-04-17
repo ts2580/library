@@ -8,4 +8,6 @@ import java.util.List;
 @Mapper
 public interface StockRepository {
     List<StockBook> getStock(String name);
+
+    List<StockBook> getBranchBook(String branch);
 }
