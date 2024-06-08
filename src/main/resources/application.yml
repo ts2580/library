@@ -4,9 +4,9 @@ server:
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: REMOVED_DB_2024_A_URL
-    username: REMOVED_DB_2024_A_USERNAME
-    password: REMOVED_DB_PASSWORD_2024_A
+    url: REMOVED_DB_2024_B_URL
+    username: REMOVED_DB_2024_B_USERNAME
+    password: REMOVED_DB_PASSWORD_2024_B
   sql:
     init:
       platform: postgres
