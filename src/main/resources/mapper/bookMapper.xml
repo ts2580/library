@@ -135,9 +135,9 @@
 
     </insert>
 
-    <select id="getFieldDef" parameterType="map">
-        ${DDL}
-    </select>
+        <select id="getFieldDef" parameterType="map">
+            ${DDL}
+        </select>
 
 
 
