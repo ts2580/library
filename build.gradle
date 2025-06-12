@@ -19,8 +19,11 @@ configurations {
     }
 }
 
-bootJar {
-	mainClass = 'com.proxy.library.RelayApplication'
+bootJar{
+    destinationDirectory = file("./target")
+    archivesBaseName = 'yuri'
+    archiveFileName = 'yuri.jar'
+    archiveVersion = "0.0.1"
 }
 
 repositories {
@@ -40,6 +43,3 @@ dependencies {
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.3'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
