@@ -4,6 +4,9 @@ spring:
     url: REMOVED_DB_2024_B_URL
     username: REMOVED_DB_2024_B_USERNAME
     password: REMOVED_DB_PASSWORD_2024_B
+    hikari:
+      maximum-pool-size: 5  # 풀 최대 연결 수를 5로 제한
+      minimum-idle: 2       # 최소 유휴 연결 수
   sql:
     init:
       platform: postgres
