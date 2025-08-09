@@ -1,89 +1,56 @@
 package com.proxy.library.book.common;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.proxy.library.book.model.dto.Token;
+import okhttp3.*;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
 
 public class Auth {
+
+    private final OkHttpClient client = new OkHttpClient();
+
+    @Value("${salesforce.clientId}")
+    private String clientId;
+
+    @Value("${salesforce.clientSecret}")
+    private String clientSecret;
+
+    @Value("${salesforce.tokenUrl}")
+    private String tokenUrl;
+
+
     public String getToken() throws JsonProcessingException {
-        Map<String, String> mapParam = new HashMap<>();
-        mapParam.put("grant_type", "password");
-        mapParam.put("client_id", "REMOVED_SALESFORCE_CLIENT_ID");
-        mapParam.put("client_secret", "REMOVED_SALESFORCE_CLIENT_SECRET");
-        mapParam.put("username", "REMOVED_SALESFORCE_USERNAME");
-        mapParam.put("password", "REMOVED_SALESFORCE_PASSWORD");
 
-        StringBuilder urlencoded = new StringBuilder();
+        RequestBody requestBody = new FormBody.Builder()
+                .add("grant_type", "client_credentials")
+                .add("client_id", clientId)
+                .add("client_secret", clientSecret)
+                .build();
 
-        for(String key : mapParam.keySet()){
-            urlencoded.append(key).append('=').append(mapParam.get(key)).append('&');
-        }
+        Request tokenRequest = new Request.Builder()
+                .url(tokenUrl)
+                .post(requestBody)
+                .build();
 
-        URL url = null;
-        String readLine = null;
-        StringBuilder buffer = null;
-        OutputStream outputStream = null;
-        BufferedReader bufferedReader = null;
-        BufferedWriter bufferedWriter = null;
-        HttpURLConnection urlConnection = null;
-
-        int connTimeout = 5000;
-        int readTimeout = 3000;
-
-        String sendData = urlencoded.toString();
-        String apiUrl = "REMOVED_SALESFORCE_TOKEN_URL";
-
-        try {
-            url = new URL(apiUrl);
-
-            urlConnection = (HttpURLConnection)url.openConnection();
-            urlConnection.setRequestMethod("POST");
-            urlConnection.setConnectTimeout(connTimeout);
-            urlConnection.setReadTimeout(readTimeout);
-            urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;");
-            urlConnection.setRequestProperty("Accept","*/*");
-            urlConnection.setDoOutput(true);
-            urlConnection.setInstanceFollowRedirects(true);
-
-            outputStream = urlConnection.getOutputStream();
-
-            bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
-            bufferedWriter.write(sendData);
-            bufferedWriter.flush();
-
-            buffer = new StringBuilder();
-            if(urlConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream(), StandardCharsets.UTF_8));
-                while((readLine = bufferedReader.readLine()) != null) {
-                    buffer.append(readLine).append("\n");
-                }
-            } else {
-                buffer.append("\"code\" : \"").append(urlConnection.getResponseCode()).append("\"");
-                buffer.append(", \"message\" : \"").append(urlConnection.getResponseMessage()).append("\"");
+        try (Response tokenResponse = client.newCall(tokenRequest).execute()) {
+            if (!tokenResponse.isSuccessful()) {
+                return null;
             }
-        } catch(Exception ex) {
-            ex.printStackTrace();
-        } finally {
-            try {
-                if (bufferedWriter != null) { bufferedWriter.close(); }
-                if (outputStream != null) { outputStream.close(); }
-                if (bufferedReader != null) { bufferedReader.close(); }
-            } catch(Exception ex) {
-                ex.printStackTrace();
-            }
+
+            String token = Objects.requireNonNull(tokenResponse.body()).string();
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(token);
+
+            return rootNode.get("access_token").asText();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-
-        ObjectMapper mapper = new ObjectMapper();
-        Token token = mapper.readValue(buffer.toString(), Token.class);
-
-        return token.getAccess_token();
     }
 
 }

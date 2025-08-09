@@ -1,15 +1,23 @@
+server:
+  port: 2580
+
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: REMOVED_DB_2024_B_URL
-    username: REMOVED_DB_2024_B_USERNAME
-    password: REMOVED_DB_PASSWORD_2024_B
+    url: jdbc:postgresql://${DB_URL}
+    username: ${DB_USER_NAME}
+    password: ${DB_PW}
     hikari:
       maximum-pool-size: 5  # 풀 최대 연결 수를 5로 제한
       minimum-idle: 2       # 최소 유휴 연결 수
   sql:
     init:
       platform: postgres
+
+salesforce:
+  clientId: ${SALESFORCE_CLIENT_ID}
+  clientSecret: ${SALESFORCE_CLIENT_SECRET}
+  tokenUrl: ${SALESFORCE_TOKEN_URL}
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
