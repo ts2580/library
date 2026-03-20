@@ -1,26 +1,19 @@
-server:
-  port: 2580
-
 spring:
+  application:
+    name: bookshelf
   datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DB_URL}
-    username: ${DB_USER_NAME}
-    password: ${DB_PW}
-    hikari:
-      maximum-pool-size: 5  # 풀 최대 연결 수를 5로 제한
-      minimum-idle: 2       # 최소 유휴 연결 수
-  sql:
-    init:
-      platform: postgres
+    url: ${BOOKSHELF_DB_URL:jdbc:mariadb://${BOOKSHELF_DB_HOST:${DB_HOST:localhost}}:${BOOKSHELF_DB_PORT:${DB_PORT:3306}}/${BOOKSHELF_DB_DATABASE:${DB_DATABASE:bookshelf}}?characterEncoding=UTF-8}
+    username: ${BOOKSHELF_DB_USERNAME:${DB_USERNAME:bookshelf}}
+    password: ${BOOKSHELF_DB_PASSWORD:${DB_PASSWORD:}}
+    driver-class-name: org.mariadb.jdbc.Driver
+  thymeleaf:
+    cache: false
 
-salesforce:
-  clientId: ${SALESFORCE_CLIENT_ID}
-  clientSecret: ${SALESFORCE_CLIENT_SECRET}
-  tokenUrl: ${SALESFORCE_TOKEN_URL}
+app:
+  db:
+    enabled: ${APP_DB_ENABLED:true}
+  registration:
+    enabled: ${REGISTRATION:${APP_REGISTRATION_ENABLED:false}}
 
-mybatis:
-  mapper-locations: classpath:mapper/**/*.xml
-  type-aliases-package: com.proxy.library.book.model.dto
-  configuration:
-    mapUnderscoreToCamelCase: true
+server:
+  port: ${SERVER_PORT:25647}
