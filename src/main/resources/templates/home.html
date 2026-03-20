@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/head :: appHead('홈 · Bookshelf')}"></head>
+<body class="blko-body text-slate-800">
+<div class="blko-shell flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
+    <main class="w-full max-w-[720px] blko-auth-card p-7 text-center sm:p-9">
+        <h1 class="text-4xl font-bold blko-title">Bookshelf</h1>
+        <p class="mt-3 text-sm blko-subtitle">읽고, 찾고, 등록하는 흐름을 하나로 묶은 개인 도서 워크스페이스예요.</p>
+        <div th:if="${signedIn}" class="mt-6 blko-alert-success blko-toast-source" data-toast-kind="success">로그인됨: <span class="font-semibold" th:text="${member != null ? member.username() : '회원'}"></span></div>
+        <div th:unless="${signedIn}" class="mt-6 blko-alert-info">아직 로그인 전이에요. <a href="/user/login" class="blko-link">로그인</a>하고 계속해 주세요.</div>
+        <div class="mt-6 flex flex-col items-center justify-center gap-2 sm:flex-row"><a href="/dashboard" class="blko-btn px-4 py-3 text-sm sm:w-auto">대시보드</a><a href="/books" class="blko-btn-ghost px-4 py-3 text-sm sm:w-auto">책장 보기</a><a href="/products" class="blko-btn-soft px-4 py-3 text-sm sm:w-auto">상품 검색</a></div>
+        <div class="mt-6" th:replace="~{fragments/layout :: appFooter()}"></div>
+    </main>
+</div>
+<script th:replace="~{fragments/layout :: toastScript()}" defer></script>
+</body>
+</html>

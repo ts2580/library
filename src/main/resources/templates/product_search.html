@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/head :: appHead('상품 검색 · Bookshelf')}"></head>
+<body class="blko-body text-slate-800">
+<div class="blko-shell px-4 py-8 sm:px-8">
+    <div class="blko-app-frame">
+        <aside th:replace="~{fragments/layout :: appSidebar('products')}"></aside>
+        <main class="blko-main">
+            <div th:replace="~{fragments/layout :: appTopbar(null, '상품 검색', '내 책장과 외부 검색 결과를 비교하고 바로 등록해요.')}"></div>
+            <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
+
+            <section class="pt-1">
+                <div class="grid gap-6 xl:grid-cols-2">
+                    <div th:replace="~{fragments/product :: ownedPanel(${ownedQ}, ${ownedSort}, ${ownedPage}, ${aladinPage}, ${query}, ${totalOwned}, ${ownedFrom}, ${ownedTo}, ${totalOwnedPages}, ${ownedStartPage}, ${ownedEndPage}, ${ownedBooks})}"></div>
+                    <div th:replace="~{fragments/product :: aladinPanel(${query}, ${ownedSort}, ${ownedQ}, ${ownedPage}, ${aladinPage}, ${totalAladinResults}, ${aladinFrom}, ${aladinTo}, ${totalAladinPages}, ${aladinStartPage}, ${aladinEndPage}, ${aladinResults}, ${ownedBooks})}"></div>
+                </div>
+            </section>
+
+            <div th:replace="~{fragments/layout :: appFooter()}"></div>
+        </main>
+    </div>
+</div>
+<script th:replace="~{fragments/layout :: toastScript()}" defer></script>
+</body>
+</html>

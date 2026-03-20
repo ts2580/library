@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/head :: appHead(${book.name + ' · Bookshelf'})}"></head>
+<body class="blko-body text-slate-800">
+<div class="blko-shell px-4 py-8 sm:px-8">
+    <div class="blko-app-frame">
+        <aside th:replace="~{fragments/layout :: appSidebar('book-detail')}"></aside>
+        <main class="blko-main">
+            <div th:replace="~{fragments/layout :: appTopbar('Book Detail', '도서 상세', '책 정보와 권별 목록을 한 화면에서 정리해요.')}"></div>
+    <div class="grid gap-6 lg:grid-cols-[340px_1fr]">
+        <aside class="blko-card p-5 sm:p-6">
+            <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] max-w-[220px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div></div>
+            <h1 class="mt-5 text-2xl font-bold blko-title" th:text="${book.name}"></h1>
+            <div class="mt-4 space-y-2 text-sm blko-subtitle"><p><span class="font-semibold text-slate-700">저자</span> · <span th:text="${book.author}"></span></p><p><span class="font-semibold text-slate-700">총권수</span> · <span th:text="${book.totalvolume}"></span></p><p><span class="font-semibold text-slate-700">타입</span> · <span th:text="${book.type}"></span></p><p><span class="font-semibold text-slate-700">동기화</span> · <span th:text="${book.sync}"></span></p></div>
+            <p class="mt-4 rounded-[18px] border border-slate-200 p-4 text-sm blko-subtitle" th:text="${book.description ?: '설명이 없습니다.'}"></p>
+            <div class="mt-4 flex flex-col gap-2 sm:flex-row"><a href="/books" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">← 목록으로</a><a th:href="@{'/products?q=' + ${book.name}}" class="blko-btn-soft px-4 py-2 text-sm sm:w-auto">알라딘에서 검색</a></div>
+        </aside>
+        <main class="blko-card p-5 sm:p-6">
+            <div class="mb-4 flex items-center justify-between"><div><div class="inline-flex blko-badge">Volumes</div><h2 class="mt-3 text-xl font-semibold blko-title">권별 목록</h2></div><span class="blko-chip px-3 py-1.5 text-sm" th:text="${#lists.size(volumes) + '권'}">0권</span></div>
+            <div th:if="${#lists.isEmpty(volumes)}" th:replace="~{fragments/layout :: emptyState('권 데이터가 아직 없어요', '이 책의 세부 권 정보가 추가되면 여기서 보여드릴게요.')}"></div>
+            <div th:if="${not #lists.isEmpty(volumes)}" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><article th:each="v : ${volumes}" class="blko-panel blko-hover-lift p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[160px] overflow-hidden rounded-[16px] bg-slate-100"><div th:if="${v.cover != null and !#strings.isEmpty(v.cover)}" class="h-full w-full"><img th:src="${v.cover}" th:alt="${v.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${v.cover != null and !#strings.isEmpty(v.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div><h3 class="mt-4 line-clamp-2 text-sm font-semibold blko-title" th:text="${v.name}"></h3><div class="mt-2 space-y-1 text-xs blko-subtitle"><p th:text="${'권: ' + v.seq}"></p><p th:text="${v.price != null ? '가격: ' + v.price : '가격: -'}"></p><p th:text="${v.purchased ? '구매완료' : '미구매'}"></p></div></article></div>
+        </main>
+    </div>
+    <div th:replace="~{fragments/layout :: appFooter()}"></div>
+</main>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/head :: appHead('알라딘 검색 · Bookshelf')}"></head>
+<body class="blko-body text-slate-800">
+<div class="blko-shell px-4 py-8 sm:px-8">
+    <div class="blko-app-frame">
+        <aside th:replace="~{fragments/layout :: appSidebar('aladin-search')}"></aside>
+        <main class="blko-main">
+            <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인해요.')}"></div>
+
+            <form action="/aladin/search" method="get" class="blko-card p-4 sm:p-5">
+                <label for="query" class="mb-2 block text-sm font-semibold text-slate-700">검색어</label>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                    <input id="query" name="query" th:value="${query}" placeholder="예: 해리포터" class="blko-input h-11 flex-1 px-4 text-sm"/>
+                    <button class="blko-btn px-4 py-2 text-sm sm:w-auto">검색</button>
+                </div>
+            </form>
+
+            <div th:if="${searchView == null}" th:replace="~{fragments/layout :: emptyState('검색 결과가 아직 없어요', '제목을 입력하면 읽기 쉬운 결과 카드와 원본 응답을 같이 보여드릴게요.')}"></div>
+            <div th:if="${searchView != null}" th:replace="~{fragments/layout :: flashMessages(${searchView.hasError ? null : null}, ${searchView.hasError ? searchView.message : null})}"></div>
+
+            <div th:if="${searchView != null}" class="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <section class="blko-card p-4 sm:p-5">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                            <div class="inline-flex blko-badge">Parsed Result</div>
+                            <h2 class="mt-3 text-lg font-semibold blko-title">검색 결과 카드</h2>
+                        </div>
+                        <span class="blko-chip px-3 py-1.5 text-sm" th:text="${searchView.totalResults + '건'}">0건</span>
+                    </div>
+
+                    <div class="space-y-4" th:if="${!#lists.isEmpty(searchView.items)}">
+                        <article th:each="item : ${searchView.items}" class="blko-panel blko-hover-lift p-4">
+                            <div class="flex gap-4">
+                                <div class="blko-cover-hover h-28 w-[4.75rem] min-w-[4.75rem] overflow-hidden rounded-[16px] bg-slate-100">
+                                    <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full object-cover" alt="cover" loading="lazy">
+                                    <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] text-slate-400">NO</div>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <h3 class="text-base font-semibold blko-title" th:text="${item.title}"></h3>
+                                    <p class="mt-1 text-sm blko-subtitle" th:text="${item.author}"></p>
+                                    <p class="mt-1 text-xs blko-subtitle" th:text="${item.pubDate != null ? '출간일 · ' + item.pubDate : '출간일 정보 없음'}"></p>
+                                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                                        <span class="blko-chip px-2.5 py-1" th:text="${'ISBN13 · ' + (item.isbn13 != null ? item.isbn13 : '-')}"></span>
+                                        <span class="blko-chip px-2.5 py-1" th:text="${'판매가 · ' + (item.priceSales != null ? item.priceSales : '-')}"></span>
+                                        <span class="blko-chip px-2.5 py-1" th:text="${'정가 · ' + (item.priceStandard != null ? item.priceStandard : '-')}"></span>
+                                    </div>
+                                    <p class="mt-3 line-clamp-3 text-sm blko-subtitle" th:text="${item.description != null and !#strings.isEmpty(item.description) ? item.description : '설명 정보가 없어요.'}"></p>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div th:if="${#lists.isEmpty(searchView.items)}" th:replace="~{fragments/layout :: emptyState('검색 결과가 없어요', '검색어를 조금 바꾸거나 더 짧게 입력해 보세요.')}"></div>
+                </section>
+
+                <section class="blko-card p-4 sm:p-5">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h2 class="text-sm font-semibold text-slate-700">원본 JSON</h2>
+                        <span class="text-xs blko-subtitle" th:text="${#strings.length(searchView.rawJson) + ' chars'}">0 chars</span>
+                    </div>
+                    <pre class="blko-json max-h-[70vh] overflow-auto px-4 py-4 text-xs" th:text="${searchView.rawJson}"></pre>
+                </section>
+            </div>
+
+            <div th:replace="~{fragments/layout :: appFooter()}"></div>
+        </main>
+    </div>
+</div>
+<script th:replace="~{fragments/layout :: toastScript()}" defer></script>
+</body>
+</html>
