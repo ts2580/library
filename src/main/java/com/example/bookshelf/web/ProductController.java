@@ -1,41 +1,47 @@
 package com.example.bookshelf.web;
 
+import com.example.bookshelf.integration.aladin.AladinApiService;
 import com.example.bookshelf.integration.aladin.AladinSearchResult;
-import com.example.bookshelf.user.repository.BookRepository;
+import com.example.bookshelf.user.model.BookVolume;
+import com.example.bookshelf.user.repository.BookDataRepository;
+import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.service.ProductService;
+import com.example.bookshelf.web.viewmodel.ProductSearchViewModel;
 import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class ProductController {
 
-    private static final Logger log = LoggerFactory.getLogger(ProductController.class);
     private static final int PAGE_SIZE = 20;
-    private static final int PAGE_LINK_WINDOW = 5;
 
     private final AuthSessionHelper authSessionHelper;
-    private final BookRepository bookRepository;
-    private final com.example.bookshelf.integration.aladin.AladinApiService aladinApiService;
+    private final BookDataRepository bookDataRepository;
+    private final BookVolumeRepository bookVolumeRepository;
+    private final AladinApiService aladinApiService;
     private final ProductService productService;
 
     public ProductController(AuthSessionHelper authSessionHelper,
-                             BookRepository bookRepository,
-                             com.example.bookshelf.integration.aladin.AladinApiService aladinApiService,
+                             BookDataRepository bookDataRepository,
+                             BookVolumeRepository bookVolumeRepository,
+                             AladinApiService aladinApiService,
                              ProductService productService) {
         this.authSessionHelper = authSessionHelper;
-        this.bookRepository = bookRepository;
+        this.bookDataRepository = bookDataRepository;
+        this.bookVolumeRepository = bookVolumeRepository;
         this.aladinApiService = aladinApiService;
         this.productService = productService;
     }
@@ -44,72 +50,51 @@ public class ProductController {
     public String products(HttpSession session,
                            @RequestParam(value = "ownedQ", required = false) String ownedQ,
                            @RequestParam(value = "q", required = false) String q,
+                           @RequestParam(value = "tab", required = false) String tab,
                            @RequestParam(value = "ownedPage", defaultValue = "1") Integer ownedPage,
                            @RequestParam(value = "aladinPage", defaultValue = "1") Integer aladinPage,
-                           @RequestParam(value = "ownedSort", defaultValue = "volume") String ownedSort,
+                           @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
                            Model model) {
         if (!authSessionHelper.isLoggedIn(session)) {
             return "redirect:/user/login";
         }
 
         authSessionHelper.populateMember(model, session);
+        ProductSearchViewModel vm = buildViewModel(ownedQ, q, ownedPage, aladinPage, ownedSort);
+        applyViewModel(model, vm);
+        model.addAttribute("activeTab", normalizeTab(tab));
 
-        String oq = ownedQ != null ? ownedQ.trim() : "";
-        String aq = q != null ? q.trim() : "";
-        int requestedOwnedPage = clampPage(ownedPage);
-        int requestedAladinPage = clampPage(aladinPage);
-
-        log.info("[products] request q='{}', ownedQ='{}', ownedPage={}, aladinPage={}, ownedSort='{}'", aq, oq, requestedOwnedPage, requestedAladinPage, ownedSort);
-
-        model.addAttribute("ownedQ", oq);
-        model.addAttribute("query", aq);
-        model.addAttribute("ownedSort", ownedSort);
-        model.addAttribute("pageSize", PAGE_SIZE);
-
-        int totalOwned = oq.isEmpty() ? bookRepository.countAllBooks() : bookRepository.countSearchBooksByKeyword(oq);
-        int totalOwnedPages = Math.max(1, (int) Math.ceil(totalOwned / (double) PAGE_SIZE));
-        int currentOwnedPage = Math.min(requestedOwnedPage, totalOwnedPages);
-        int ownedOffset = (currentOwnedPage - 1) * PAGE_SIZE;
-
-        List<com.example.bookshelf.user.model.Book> ownedBooks = loadOwnedBooks(oq, ownedSort, ownedOffset);
-        model.addAttribute("ownedBooks", ownedBooks);
-        model.addAttribute("ownedPage", currentOwnedPage);
-        model.addAttribute("ownedFrom", totalOwned == 0 ? 0 : ownedOffset + 1);
-        model.addAttribute("ownedTo", Math.min(currentOwnedPage * PAGE_SIZE, totalOwned));
-        model.addAttribute("totalOwned", totalOwned);
-        model.addAttribute("totalOwnedPages", totalOwnedPages);
-        model.addAttribute("ownedStartPage", getStartPage(currentOwnedPage, totalOwnedPages));
-        model.addAttribute("ownedEndPage", getEndPage(currentOwnedPage, totalOwnedPages));
-
-        log.info("[products] owned results totalOwned={}, ownedBooks.size={}", totalOwned, ownedBooks.size());
-
-        AladinSearchResult aladinResult = (!aq.isEmpty())
-                ? aladinApiService.searchBookItems(aq, requestedAladinPage)
-                : new AladinSearchResult(new ArrayList<>(), 0, requestedAladinPage, PAGE_SIZE);
-
-        int totalAladinPages = Math.max(1, (int) Math.ceil(aladinResult.totalResults() / (double) PAGE_SIZE));
-        int currentAladinPage = Math.min(requestedAladinPage, totalAladinPages);
-
-        model.addAttribute("aladinPage", currentAladinPage);
-        model.addAttribute("aladinResults", aladinResult.items());
-        model.addAttribute("totalAladinResults", aladinResult.totalResults());
-        model.addAttribute("totalAladinPages", totalAladinPages);
-        model.addAttribute("aladinFrom", aladinResult.totalResults() == 0 ? 0 : ((currentAladinPage - 1) * PAGE_SIZE) + 1);
-        model.addAttribute("aladinTo", Math.min(currentAladinPage * PAGE_SIZE, aladinResult.totalResults()));
-        model.addAttribute("aladinStartPage", getStartPage(currentAladinPage, totalAladinPages));
-        model.addAttribute("aladinEndPage", getEndPage(currentAladinPage, totalAladinPages));
-
-        log.info("[products] aladin results totalAladinResults={}, items.size={}", aladinResult.totalResults(), aladinResult.items().size());
-        if (!aladinResult.items().isEmpty()) {
-            var first = aladinResult.items().get(0);
-            log.info("[products] first aladin item title='{}', author='{}', isbn13='{}'", first.title(), first.author(), first.isbn13());
+        if (vm.ownedPage() != clampPage(ownedPage) || vm.aladinPage() != clampPage(aladinPage)) {
+            return buildRedirect(vm.ownedQ(), vm.query(), vm.ownedPage(), vm.aladinPage(), vm.ownedSort(), normalizeTab(tab));
         }
-
-        if (currentOwnedPage != requestedOwnedPage || currentAladinPage != requestedAladinPage) {
-            return buildRedirect(oq, aq, currentOwnedPage, currentAladinPage, ownedSort);
-        }
-
         return "product_search";
+    }
+
+    @GetMapping("/products/books/autocomplete")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> autocompleteBooks(HttpSession session,
+                                                                       @RequestParam("q") String q) {
+        if (!authSessionHelper.isLoggedIn(session)) {
+            return ResponseEntity.status(401).build();
+        }
+        String keyword = q == null ? "" : q.trim();
+        if (keyword.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        var books = bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, 8, 0);
+        if (books.isEmpty()) {
+            books = bookDataRepository.searchBooksByKeywordFallback(keyword, 8, 0);
+        }
+        var payload = books.stream().map(book -> Map.<String, Object>of(
+                "id", book.id(),
+                "name", book.name(),
+                "author", book.author() == null ? "" : book.author(),
+                "type", book.type() == null ? "" : book.type(),
+                "totalvolume", book.totalvolume() == null ? "" : book.totalvolume(),
+                "createddate", book.createddate() == null ? "" : book.createddate()
+        )).toList();
+        return ResponseEntity.ok(payload);
     }
 
     @PostMapping("/products/import")
@@ -121,11 +106,15 @@ public class ProductController {
                                 @RequestParam(value = "price", required = false) String price,
                                 @RequestParam(value = "description", required = false) String description,
                                 @RequestParam(value = "targetBookId", required = false) Integer targetBookId,
+                                @RequestParam(value = "volume", required = false) Integer volume,
+                                @RequestParam(value = "type", required = false) String type,
+                                @RequestParam(value = "totalVolume", required = false) String totalVolume,
+                                @RequestParam(value = "tab", required = false) String tab,
                                 @RequestParam(value = "ownedQ", required = false) String ownedQ,
                                 @RequestParam(value = "q", required = false) String q,
                                 @RequestParam(value = "ownedPage", defaultValue = "1") int ownedPage,
                                 @RequestParam(value = "aladinPage", defaultValue = "1") int aladinPage,
-                                @RequestParam(value = "ownedSort", defaultValue = "volume") String ownedSort,
+                                @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
                                 HttpSession session,
                                 RedirectAttributes redirectAttributes) {
         if (!authSessionHelper.isLoggedIn(session)) {
@@ -133,47 +122,75 @@ public class ProductController {
         }
 
         var result = productService.importProduct(new ProductService.ProductImportCommand(
-                title,
-                author,
-                cover,
-                isbn13,
-                isbn,
-                price,
-                description,
-                targetBookId
+                title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume
         ));
-
         redirectAttributes.addFlashAttribute(result.success() ? "success" : "error", result.message());
-        return buildRedirect(ownedQ, q, ownedPage, aladinPage, ownedSort);
+        return buildRedirect(ownedQ, q, ownedPage, aladinPage, ownedSort, normalizeTab(tab));
     }
 
-    @PostMapping("/products/refresh-stocks")
-    public String refreshAllStocks(HttpSession session, RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) {
-            return "redirect:/user/login";
-        }
+    private ProductSearchViewModel buildViewModel(String ownedQ, String q, Integer ownedPage, Integer aladinPage, String ownedSort) {
+        String oq = ownedQ != null ? ownedQ.trim() : "";
+        String aq = q != null ? q.trim() : "";
+        int requestedOwnedPage = clampPage(ownedPage);
+        int requestedAladinPage = clampPage(aladinPage);
 
-        var result = productService.refreshAllStocks();
-        redirectAttributes.addFlashAttribute("success", result.message());
-        return "redirect:/products";
+        int totalOwned = oq.isEmpty() ? bookVolumeRepository.countAllBookVolumes() : bookVolumeRepository.countVolumeSearchByKeyword(oq);
+        int ownedOffset = (requestedOwnedPage - 1) * PAGE_SIZE;
+        List<BookVolume> ownedVolumes = oq.isEmpty()
+                ? bookVolumeRepository.findAllVolumesOrderByIdDesc(PAGE_SIZE, ownedOffset)
+                : bookVolumeRepository.searchVolumesByKeyword(oq, PAGE_SIZE, ownedOffset);
+
+        AladinSearchResult aladinResult = aq.isEmpty()
+                ? new AladinSearchResult(new ArrayList<>(), 0, requestedAladinPage, PAGE_SIZE)
+                : aladinApiService.searchBookItems(aq, requestedAladinPage);
+
+        return ProductSearchViewModel.of(
+                oq,
+                aq,
+                ownedSort == null ? "id" : ownedSort,
+                PAGE_SIZE,
+                bookDataRepository.findAllBookTypes(),
+                ownedVolumes,
+                bookDataRepository.findAllBooks(),
+                requestedOwnedPage,
+                totalOwned,
+                requestedAladinPage,
+                aladinResult.items(),
+                aladinResult.totalResults()
+        );
     }
 
-    private List<com.example.bookshelf.user.model.Book> loadOwnedBooks(String ownedQuery, String ownedSort, int offset) {
-        if (!ownedQuery.isEmpty()) {
-            return bookRepository.searchBooksByKeywordOrderByVolumeDesc(ownedQuery, PAGE_SIZE, offset);
-        }
-        if ("recent".equalsIgnoreCase(ownedSort)) {
-            return bookRepository.findAllBooksOrderByCreatedDesc(PAGE_SIZE, offset);
-        }
-        return bookRepository.findAllBooksOrderByVolumeDesc(PAGE_SIZE, offset);
+    private void applyViewModel(Model model, ProductSearchViewModel vm) {
+        model.addAttribute("ownedQ", vm.ownedQ());
+        model.addAttribute("query", vm.query());
+        model.addAttribute("ownedSort", vm.ownedSort());
+        model.addAttribute("pageSize", vm.pageSize());
+        model.addAttribute("bookTypes", vm.bookTypes());
+        model.addAttribute("ownedVolumes", vm.ownedVolumes());
+        model.addAttribute("ownedBooks", vm.ownedBooks());
+        model.addAttribute("ownedPage", vm.ownedPage());
+        model.addAttribute("ownedFrom", vm.ownedFrom());
+        model.addAttribute("ownedTo", vm.ownedTo());
+        model.addAttribute("totalOwned", vm.totalOwned());
+        model.addAttribute("totalOwnedPages", vm.totalOwnedPages());
+        model.addAttribute("ownedStartPage", vm.ownedStartPage());
+        model.addAttribute("ownedEndPage", vm.ownedEndPage());
+        model.addAttribute("aladinPage", vm.aladinPage());
+        model.addAttribute("aladinResults", vm.aladinResults());
+        model.addAttribute("totalAladinResults", vm.totalAladinResults());
+        model.addAttribute("totalAladinPages", vm.totalAladinPages());
+        model.addAttribute("aladinFrom", vm.aladinFrom());
+        model.addAttribute("aladinTo", vm.aladinTo());
+        model.addAttribute("aladinStartPage", vm.aladinStartPage());
+        model.addAttribute("aladinEndPage", vm.aladinEndPage());
     }
 
-    private String buildRedirect(String ownedQ, String q, int ownedPage, int aladinPage, String ownedSort) {
+    private String buildRedirect(String ownedQ, String q, int ownedPage, int aladinPage, String ownedSort, String tab) {
         StringBuilder query = new StringBuilder("/products?");
         query.append("ownedPage=").append(ownedPage > 0 ? ownedPage : 1)
                 .append("&aladinPage=").append(aladinPage > 0 ? aladinPage : 1)
-                .append("&ownedSort=").append(ownedSort == null ? "volume" : ownedSort);
-
+                .append("&ownedSort=").append(ownedSort == null ? "id" : ownedSort)
+                .append("&tab=").append(normalizeTab(tab));
         if (ownedQ != null && !ownedQ.trim().isEmpty()) {
             query.append("&ownedQ=").append(urlEncode(ownedQ));
         }
@@ -191,22 +208,7 @@ public class ProductController {
         return page == null || page < 1 ? 1 : page;
     }
 
-    private int getStartPage(int currentPage, int totalPages) {
-        int half = PAGE_LINK_WINDOW / 2;
-        return Math.max(1, currentPage - half);
-    }
-
-    private int getEndPage(int currentPage, int totalPages) {
-        int half = PAGE_LINK_WINDOW / 2;
-        int end = currentPage + half;
-        if (totalPages <= PAGE_LINK_WINDOW) {
-            return totalPages;
-        }
-        if (end > totalPages) {
-            return totalPages;
-        }
-        int start = getStartPage(currentPage, totalPages);
-        int width = Math.min(PAGE_LINK_WINDOW, totalPages);
-        return Math.min(totalPages, start + width - 1);
+    private String normalizeTab(String tab) {
+        return "aladin".equalsIgnoreCase(tab) ? "aladin" : "owned";
     }
 }
