@@ -2,28 +2,91 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead(${book.name + ' · Bookshelf'})}"></head>
 <body class="blko-body text-slate-800">
-<div class="blko-shell px-4 py-8 sm:px-8">
+<div id="bookDetailPage" th:attr="data-book-id=${book.id},data-book-name=${book.name}" class="blko-shell blko-shell-wide py-8">
     <div class="blko-app-frame">
         <aside th:replace="~{fragments/layout :: appSidebar('book-detail')}"></aside>
         <main class="blko-main">
             <div th:replace="~{fragments/layout :: appTopbar('Book Detail', '도서 상세', '책 정보와 권별 목록을 한 화면에서 정리해요.')}"></div>
-    <div class="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <aside class="blko-card p-5 sm:p-6">
-            <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] max-w-[220px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div></div>
-            <h1 class="mt-5 text-2xl font-bold blko-title" th:text="${book.name}"></h1>
-            <div class="mt-4 space-y-2 text-sm blko-subtitle"><p><span class="font-semibold text-slate-700">저자</span> · <span th:text="${book.author}"></span></p><p><span class="font-semibold text-slate-700">총권수</span> · <span th:text="${book.totalvolume}"></span></p><p><span class="font-semibold text-slate-700">타입</span> · <span th:text="${book.type}"></span></p><p><span class="font-semibold text-slate-700">동기화</span> · <span th:text="${book.sync}"></span></p></div>
-            <p class="mt-4 rounded-[18px] border border-slate-200 p-4 text-sm blko-subtitle" th:text="${book.description ?: '설명이 없습니다.'}"></p>
-            <div class="mt-4 flex flex-col gap-2 sm:flex-row"><a href="/books" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">← 목록으로</a><a th:href="@{'/products?q=' + ${book.name}}" class="blko-btn-soft px-4 py-2 text-sm sm:w-auto">알라딘에서 검색</a></div>
-        </aside>
-        <main class="blko-card p-5 sm:p-6">
-            <div class="mb-4 flex items-center justify-between"><div><div class="inline-flex blko-badge">Volumes</div><h2 class="mt-3 text-xl font-semibold blko-title">권별 목록</h2></div><span class="blko-chip px-3 py-1.5 text-sm" th:text="${#lists.size(volumes) + '권'}">0권</span></div>
-            <div th:if="${#lists.isEmpty(volumes)}" th:replace="~{fragments/layout :: emptyState('권 데이터가 아직 없어요', '이 책의 세부 권 정보가 추가되면 여기서 보여드릴게요.')}"></div>
-            <div th:if="${not #lists.isEmpty(volumes)}" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><article th:each="v : ${volumes}" class="blko-panel blko-hover-lift p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[160px] overflow-hidden rounded-[16px] bg-slate-100"><div th:if="${v.cover != null and !#strings.isEmpty(v.cover)}" class="h-full w-full"><img th:src="${v.cover}" th:alt="${v.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${v.cover != null and !#strings.isEmpty(v.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div><h3 class="mt-4 line-clamp-2 text-sm font-semibold blko-title" th:text="${v.name}"></h3><div class="mt-2 space-y-1 text-xs blko-subtitle"><p th:text="${'권: ' + v.seq}"></p><p th:text="${v.price != null ? '가격: ' + v.price : '가격: -'}"></p><p th:text="${v.purchased ? '구매완료' : '미구매'}"></p></div></article></div>
+            <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
+
+            <div class="grid gap-6 lg:grid-cols-[340px_1fr]">
+                <aside class="blko-card p-5 sm:p-6 cursor-pointer" id="bookInfoCard"
+                       th:attr="data-book-name=${book.name},data-book-author=${book.author},data-book-description=${book.description},data-book-cover=${book.cover},data-book-type=${book.type},data-book-totalvolume=${book.totalvolume}">
+                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div class="blko-cover-hover relative mx-auto aspect-[2/3] max-w-[220px] overflow-hidden rounded-[18px] bg-slate-100">
+                            <div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full">
+                                <img th:src="${book.cover}" th:alt="${book.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">
+                            </div>
+                            <div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div>
+                        </div>
+                    </div>
+                    <h1 class="mt-5 text-2xl font-bold blko-title" th:text="${book.name}"></h1>
+                    <div class="mt-4 space-y-2 text-sm blko-subtitle">
+                        <p><span class="font-semibold text-slate-700">저자</span> · <span th:text="${book.author}"></span></p>
+                        <p><span class="font-semibold text-slate-700">총권수</span> · <span th:text="${book.totalvolume}"></span></p>
+                        <p><span class="font-semibold text-slate-700">타입</span> · <span th:text="${book.type}"></span></p>
+                        <p><span class="font-semibold text-slate-700">동기화</span> · <span th:text="${book.sync}"></span></p>
+                    </div>
+                    <p class="mt-4 rounded-[18px] border border-slate-200 p-4 text-sm blko-subtitle" th:text="${book.description ?: '설명이 없습니다.'}"></p>
+                    <div class="mt-3 text-xs blko-subtitle">카드를 누르면 책 정보를 수정할 수 있어요.</div>
+                    <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <a href="/books" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">← 목록으로</a>
+                        <form method="post" id="deleteBookForm" th:action="@{'/books/' + ${book.id} + '/delete'}" class="sm:ml-1">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <button id="deleteBookButton" type="submit" class="blko-btn-danger px-4 py-2 text-sm sm:w-auto">삭제</button>
+                        </form>
+                    </div>
+                </aside>
+
+                <main class="blko-card p-5 sm:p-6">
+                    <div class="mb-4 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="inline-flex blko-badge">Volumes</div>
+                            <h2 class="mt-3 text-xl font-semibold blko-title">권별 목록</h2>
+                            <p class="mt-1 text-sm blko-subtitle">각 권 카드를 누르면 팝업으로 세부 정보를 수정할 수 있어요.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="blko-chip px-3 py-1.5 text-sm" th:text="${#lists.size(volumes) + '권'}">0권</span>
+                            <form method="post" id="deleteVolumesForm" th:action="@{'/books/' + ${book.id} + '/volumes/delete'}" class="relative">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <button id="deleteCheckedVolumes" type="submit" class="blko-btn-danger px-4 py-2 text-sm sm:w-auto" disabled>삭제</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div th:if="${not #lists.isEmpty(volumes)}" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <article th:each="v : ${volumes}"
+                                 class="blko-panel blko-hover-lift cursor-pointer p-4 relative"
+                                 tabindex="0"
+                                 th:attr="data-volume-id=${v.id},data-volume-seq=${v.seq},data-volume-name=${v.name},data-volume-isbn13=${v.isbn13},data-volume-cover=${v.cover},data-volume-price=${v.price},data-volume-purchased=${v.purchased},data-volume-type=${book.type}"
+                                 data-volume-card>
+                            <label class="volume-select-label" style="position:absolute;left:10px;top:10px;z-index:2;background:rgba(255,255,255,.85);border:1px solid var(--bk-border);border-radius:9999px;padding:2px 4px;">
+                                <input type="checkbox" class="volume-select" aria-label="권 선택"/>
+                            </label>
+                            <div class="blko-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[160px] overflow-hidden rounded-[16px] bg-slate-100">
+                                <div th:if="${v.cover != null and !#strings.isEmpty(v.cover)}" class="h-full w-full">
+                                    <img th:src="${v.cover}" th:alt="${v.name}" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">
+                                </div>
+                                <div th:unless="${v.cover != null and !#strings.isEmpty(v.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div>
+                            </div>
+                            <h3 class="mt-4 line-clamp-2 text-sm font-semibold blko-title" th:text="${v.name}"></h3>
+                            <div class="mt-2 space-y-1 text-xs blko-subtitle">
+                                <p th:text="${'권: ' + v.seq}"></p>
+                                <p th:text="${v.price != null ? '가격: ' + v.price : '가격: -'}"></p>
+                                <p th:text="${v.purchased ? '구매완료' : '미구매'}"></p>
+                            </div>
+                        </article>
+                    </div>
+                </main>
+            </div>
+
+            <th:block th:replace="~{fragments/book-detail/dialogs :: bookEditDialog(${book}, ${bookTypes})}"></th:block>
+            <th:block th:replace="~{fragments/book-detail/dialogs :: volumeEditDialog()}"></th:block>
+            <div th:replace="~{fragments/layout :: appFooter()}"></div>
         </main>
     </div>
-    <div th:replace="~{fragments/layout :: appFooter()}"></div>
-</main>
-    </div>
 </div>
+<script src="/js/book-detail.js" defer></script>
+<script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>
 </html>
