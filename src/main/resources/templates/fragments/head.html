@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:fragment="appHead(pageTitle)">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${pageTitle}">Bookshelf</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="shortcut icon" href="/favicon.svg">
-    <link rel="stylesheet" href="/css/blinko-bookshelf.css">
-    <script src="/js/book-detail.js" defer></script>
-    <script src="/js/product-search.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${pageTitle}">Bookshelf</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/blinko-tailwind.css">
+  <link rel="stylesheet" href="/css/blinko-bookshelf.css">
+  <link rel="stylesheet" href="/css/top-progress.css">
+  <script src="/js/book-detail.js" defer></script>
+  <script src="/js/product-search.js" defer></script>
+  <script src="/js/top-progress.js" defer></script>
 </head>
 </html>

@@ -4,12 +4,17 @@
   "description": "Spring Boot 프로젝트 초기 템플릿 (Java 21)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "css:build": "tailwindcss -i src/main/resources/static/css/blinko-tailwind-input.css -o src/main/resources/static/css/blinko-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\"",
+    "css:watch": "tailwindcss -i src/main/resources/static/css/blinko-tailwind-input.css -o src/main/resources/static/css/blinko-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\" --watch"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  },
   "dependencies": {
     "mysql2": "^3.20.0",
     "pg": "^8.20.0"

@@ -14,6 +14,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -27,6 +28,7 @@ import java.util.Map;
 public class ProductController {
 
     private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE_MOBILE = 10;
 
     private final AuthSessionHelper authSessionHelper;
     private final BookDataRepository bookDataRepository;
@@ -54,13 +56,15 @@ public class ProductController {
                            @RequestParam(value = "ownedPage", defaultValue = "1") Integer ownedPage,
                            @RequestParam(value = "aladinPage", defaultValue = "1") Integer aladinPage,
                            @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
+                           @RequestHeader(value = "User-Agent", required = false) String userAgent,
                            Model model) {
         if (!authSessionHelper.isLoggedIn(session)) {
             return "redirect:/user/login";
         }
 
         authSessionHelper.populateMember(model, session);
-        ProductSearchViewModel vm = buildViewModel(ownedQ, q, ownedPage, aladinPage, ownedSort);
+        int pageSize = resolvePageSize(userAgent);
+        ProductSearchViewModel vm = buildViewModel(ownedQ, q, ownedPage, aladinPage, ownedSort, pageSize);
         applyViewModel(model, vm);
         model.addAttribute("activeTab", normalizeTab(tab));
 
@@ -128,27 +132,27 @@ public class ProductController {
         return buildRedirect(ownedQ, q, ownedPage, aladinPage, ownedSort, normalizeTab(tab));
     }
 
-    private ProductSearchViewModel buildViewModel(String ownedQ, String q, Integer ownedPage, Integer aladinPage, String ownedSort) {
+    private ProductSearchViewModel buildViewModel(String ownedQ, String q, Integer ownedPage, Integer aladinPage, String ownedSort, int pageSize) {
         String oq = ownedQ != null ? ownedQ.trim() : "";
         String aq = q != null ? q.trim() : "";
         int requestedOwnedPage = clampPage(ownedPage);
         int requestedAladinPage = clampPage(aladinPage);
 
         int totalOwned = oq.isEmpty() ? bookVolumeRepository.countAllBookVolumes() : bookVolumeRepository.countVolumeSearchByKeyword(oq);
-        int ownedOffset = (requestedOwnedPage - 1) * PAGE_SIZE;
+        int ownedOffset = (requestedOwnedPage - 1) * pageSize;
         List<BookVolume> ownedVolumes = oq.isEmpty()
-                ? bookVolumeRepository.findAllVolumesOrderByIdDesc(PAGE_SIZE, ownedOffset)
-                : bookVolumeRepository.searchVolumesByKeyword(oq, PAGE_SIZE, ownedOffset);
+                ? bookVolumeRepository.findAllVolumesOrderByIdDesc(pageSize, ownedOffset)
+                : bookVolumeRepository.searchVolumesByKeyword(oq, pageSize, ownedOffset);
 
         AladinSearchResult aladinResult = aq.isEmpty()
-                ? new AladinSearchResult(new ArrayList<>(), 0, requestedAladinPage, PAGE_SIZE)
+                ? new AladinSearchResult(new ArrayList<>(), 0, requestedAladinPage, pageSize)
                 : aladinApiService.searchBookItems(aq, requestedAladinPage);
 
         return ProductSearchViewModel.of(
                 oq,
                 aq,
                 ownedSort == null ? "id" : ownedSort,
-                PAGE_SIZE,
+                pageSize,
                 bookDataRepository.findAllBookTypes(),
                 ownedVolumes,
                 bookDataRepository.findAllBooks(),
@@ -158,6 +162,24 @@ public class ProductController {
                 aladinResult.items(),
                 aladinResult.totalResults()
         );
+    }
+
+    private int resolvePageSize(String userAgent) {
+        if (isMobileUserAgent(userAgent)) {
+            return PAGE_SIZE_MOBILE;
+        }
+        return PAGE_SIZE;
+    }
+
+    private boolean isMobileUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return false;
+        }
+        return userAgent.contains("Mobi")
+                || userAgent.contains("Android")
+                || userAgent.contains("iPhone")
+                || userAgent.contains("iPod")
+                || userAgent.contains("Mobile");
     }
 
     private void applyViewModel(Model model, ProductSearchViewModel vm) {

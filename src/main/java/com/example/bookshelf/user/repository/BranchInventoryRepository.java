@@ -71,7 +71,7 @@ public class BranchInventoryRepository {
 
     public List<BranchStockItem> findStocksByBranch(String branch) {
         String sql = """
-                SELECT bb.id, bb.branch, bb.branchname, bb.grade, b.name AS bookName, bb.name AS volumeName, bv.isbn13, bv.cover, bb.price, bb.booklink, bb.purchaseurl
+                SELECT bb.id, bb.branch, bb.branchname, b.id AS bookId, bb.grade, b.name AS bookName, bb.name AS volumeName, bv.isbn13, bv.cover, bb.price, bb.booklink, bb.purchaseurl
                 FROM branchbook bb
                 LEFT JOIN books b ON b.id = bb.book
                 LEFT JOIN book_volumes bv ON bv.book = bb.book AND bv.volume = bb.volume
@@ -82,6 +82,7 @@ public class BranchInventoryRepository {
                 rs.getInt("id"),
                 rs.getString("branch"),
                 rs.getString("branchname"),
+                rs.getInt("bookId"),
                 rs.getString("grade"),
                 rs.getString("bookName"),
                 rs.getString("volumeName"),

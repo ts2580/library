@@ -1,40 +1,40 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('책장 · Bookshelf')}"></head>
-<body class="blko-body text-slate-800">
-<div class="blko-shell blko-shell-wide py-8">
-    <div class="blko-app-frame">
-        <aside th:replace="~{fragments/layout :: appSidebar('books')}"></aside>
-        <main class="blko-main">
-            <div th:replace="~{fragments/layout :: appTopbar('Library', '내 책장', '필요한 책만 나눠서 가볍게 불러오도록 정리했어요.')}"></div>
+<body class="blko-body">
+<div class="blko-shell blko-shell-wide blko-py-8">
+  <div class="blko-app-frame">
+    <aside th:replace="~{fragments/layout :: appSidebar('books')}"></aside>
+    <main class="blko-main">
+      <div th:replace="~{fragments/layout :: appTopbar('Library', '내 책장', '필요한 책만 나눠서 가볍게 불러오도록 정리했어요.')}"></div>
 
-            <section class="blko-card p-4 sm:p-4">
-                <form action="/books" method="get" class="flex flex-row items-end gap-2">
-                    <input type="hidden" name="search" th:value="${search}"/>
-                    <label class="sr-only" for="bookTypeFilter">타입</label>
-                    <select id="bookTypeFilter" name="type" class="blko-select h-11 px-4 text-sm max-w-sm" onchange="this.form.submit()">
-                        <option value="">전체 타입</option>
-                        <option th:each="t : ${types}" th:value="${t}" th:text="${t}" th:selected="${t == type}"></option>
-                    </select>
-                </form>
-            </section>
+      <section class="blko-card blko-p-4 sm:blko-p-4">
+        <form action="/books" method="get" class="flex flex-row items-end blko-p-2">
+          <input type="hidden" name="search" th:value="${search}"/>
+          <label class="sr-only" for="bookTypeFilter">타입</label>
+          <select id="bookTypeFilter" name="type" class="blko-select h-11 blko-px-4 text-sm max-w-sm" onchange="this.form.submit()">
+            <option value="">전체 타입</option>
+            <option th:each="t : ${types}" th:value="${t}" th:text="${t}" th:selected="${t == type}"></option>
+          </select>
+        </form>
+      </section>
 
-            <section th:if="${not #lists.isEmpty(books)}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <a th:each="book : ${books}" th:href="@{'/books/' + ${book.id}}" class="blko-card blko-hover-lift group p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name} + ' cover'" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div><div class="mt-4 space-y-1.5"><h2 class="line-clamp-2 text-base font-semibold blko-title" th:text="${book.name}"></h2><p class="text-sm blko-subtitle" th:text="${book.author}"></p><div class="flex items-center justify-between text-xs blko-subtitle"><span th:text="${'권수 · ' + (book.totalvolume ?: '-')}"/><span class="blko-chip px-2 py-1" th:text="${book.type != null ? book.type : '미분류'}"></span></div></div></a>
-            </section>
-            <div th:if="${#lists.isEmpty(books)}" class="blko-empty p-8 text-center"><h3 class="text-lg font-semibold blko-title">표시할 책이 없어요</h3><p class="mt-2 text-sm blko-subtitle">검색어를 바꾸거나 책을 추가해 보세요.</p></div>
+      <section th:if="${not #lists.isEmpty(books)}" class="blko-card-list sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <a th:each="book : ${books}" th:href="@{'/books/' + ${book.id}}" class="blko-card blko-hover-lift group blko-pad-card-sm sm:blko-p-4"><div class="blko-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name} + ' cover'" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center blko-empty-cover">NO COVER</div></div><div class="blko-mt-3 sm:blko-mt-4 blko-space-y-1-5"><h2 class="line-clamp-2 blko-title-base" th:text="${book.name}"></h2><p class="blko-subtitle-sm" th:text="${book.author}"></p><div class="flex items-center justify-between blko-subtitle-xs"><span th:text="${'권수 · ' + (book.totalvolume ?: '-')}"/><span class="blko-chip blko-chip-tag" th:text="${book.type != null ? book.type : '미분류'}"></span></div></div></a>
+      </section>
+      <div th:if="${#lists.isEmpty(books)}" class="blko-empty blko-pad-xxl text-center"><h3 class="blko-title-lg">표시할 책이 없어요</h3><p class="blko-mt-2 blko-subtitle-sm">검색어를 바꾸거나 책을 추가해 보세요.</p></div>
 
-            <div class="blko-pagination" th:if="${totalPages > 1}">
-                <a class="blko-pagination__nav blko-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=1, search=${search}, type=${type})}" aria-label="첫 페이지">≪</a>
-                <a class="blko-pagination__nav blko-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=${page - 1}, search=${search}, type=${type})}" aria-label="이전 페이지">‹</a>
-                <a class="blko-pagination__page blko-btn-ghost" th:each="p : ${#numbers.sequence(startPage, endPage)}" th:href="@{/books(page=${p}, search=${search}, type=${type})}" th:classappend="${p == page ? ' blko-btn-soft' : ''}"><span th:text="${p}"></span></a>
-                <a class="blko-pagination__nav blko-btn-ghost" th:if="${page < totalPages}" th:href="@{/books(page=${page + 1}, search=${search}, type=${type})}" aria-label="다음 페이지">›</a>
-                <a class="blko-pagination__nav blko-btn-ghost" th:if="${page < totalPages}" th:href="@{/books(page=${totalPages}, search=${search}, type=${type})}" aria-label="마지막 페이지">≫</a>
-            </div>
+      <div class="blko-pagination" th:if="${totalPages > 1}">
+        <a class="blko-pagination__nav blko-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=1, search=${search}, type=${type})}" aria-label="첫 페이지">≪</a>
+        <a class="blko-pagination__nav blko-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=${page - 1}, search=${search}, type=${type})}" aria-label="이전 페이지">‹</a>
+        <a class="blko-pagination__page blko-btn-ghost" th:each="p : ${#numbers.sequence(startPage, endPage)}" th:href="@{/books(page=${p}, search=${search}, type=${type})}" th:classappend="${p == page ? ' blko-btn-soft' : ''}"><span th:text="${p}"></span></a>
+        <a class="blko-pagination__nav blko-btn-ghost" th:if="${page < totalPages}" th:href="@{/books(page=${page + 1}, search=${search}, type=${type})}" aria-label="다음 페이지">›</a>
+        <a class="blko-pagination__nav blko-btn-ghost" th:if="${page < totalPages}" th:href="@{/books(page=${totalPages}, search=${search}, type=${type})}" aria-label="마지막 페이지">≫</a>
+      </div>
 
-            <div th:replace="~{fragments/layout :: appFooter()}"></div>
-        </main>
-    </div>
+      <div th:replace="~{fragments/layout :: appFooter()}"></div>
+    </main>
+  </div>
 </div>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>
