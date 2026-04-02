@@ -1,71 +1,71 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('알라딘 중고 조회 · Bookshelf')}"></head>
-<body class="blko-body text-slate-800">
-<div class="blko-shell blko-shell-wide py-8">
-    <div class="blko-app-frame">
-        <aside th:replace="~{fragments/layout :: appSidebar('aladin-used')}"></aside>
-        <main class="blko-main">
-            <div th:replace="~{fragments/layout :: appTopbar('Used Inventory', '알라딘 중고 조회', 'ISBN13 기준 중고 재고와 응답 요약을 함께 확인해요.')}"></div>
+<body class="blko-body">
+<div class="blko-shell blko-shell-wide blko-py-8">
+  <div class="blko-app-frame">
+    <aside th:replace="~{fragments/layout :: appSidebar('aladin-used')}"></aside>
+    <main class="blko-main">
+      <div th:replace="~{fragments/layout :: appTopbar('Used Inventory', '알라딘 중고 조회', 'ISBN13 기준 중고 재고와 응답 요약을 함께 확인해요.')}"></div>
 
-    <div class="blko-card p-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <a th:href="@{/aladin/used(isbn13=${isbn13},type='dropshipping')}" class="blko-btn-soft px-4 py-2 text-sm sm:w-auto">드롭시핑 중고</a>
-            <a th:href="@{/aladin/used(isbn13=${isbn13},type='offstore')}" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">알라딘 지점 중고</a>
-            <a href="/aladin/search" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">알라딘 검색으로 돌아가기</a>
+  <div class="blko-card blko-pad-card">
+    <div class="flex flex-col blko-p-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <a th:href="@{/aladin/used(isbn13=${isbn13},type='dropshipping')}" class="blko-btn-soft blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">드롭시핑 중고</a>
+      <a th:href="@{/aladin/used(isbn13=${isbn13},type='offstore')}" class="blko-btn-ghost blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">알라딘 지점 중고</a>
+      <a href="/aladin/search" class="blko-btn-ghost blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">알라딘 검색으로 돌아가기</a>
+    </div>
+  </div>
+
+  <div th:if="${usedView != null}" th:replace="~{fragments/layout :: flashMessages(${usedView.hasError ? null : null}, ${usedView.hasError ? usedView.message : null})}"></div>
+
+  <div class="grid blko-p-4 lg:grid-cols-[1.08fr_0.92fr]" th:if="${usedView != null}">
+    <section class="blko-card blko-pad-card sm:blko-p-5">
+      <div class="blko-mb-4 flex items-center justify-between blko-p-3">
+        <div>
+          <div class="inline-flex blko-badge">Parsed Inventory</div>
+          <h2 class="blko-mt-3 blko-title-lg">중고 재고 카드</h2>
         </div>
-    </div>
+        <span class="blko-chip blko-chip-tag-lg" th:text="${usedView.totalCount + '건'}">0건</span>
+      </div>
 
-    <div th:if="${usedView != null}" th:replace="~{fragments/layout :: flashMessages(${usedView.hasError ? null : null}, ${usedView.hasError ? usedView.message : null})}"></div>
+      <div class="grid blko-p-3 sm:grid-cols-3  blko-mb-4 ">
+        <div class="blko-kpi blko-pad-card"><div class="blko-kpi-label">ISBN13</div><div class="blko-mt-2 blko-title-base" th:text="${usedView.isbn13}"></div></div>
+        <div class="blko-kpi blko-pad-card"><div class="blko-kpi-label">Type</div><div class="blko-mt-2 blko-title-base" th:text="${usedView.type}"></div></div>
+        <div class="blko-kpi blko-pad-card"><div class="blko-kpi-label">Min Price</div><div class="blko-mt-2 blko-title-base" th:text="${usedView.minPrice != null ? #numbers.formatInteger(usedView.minPrice,0,'COMMA') + '원' : '-'}"></div></div>
+      </div>
 
-    <div class="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]" th:if="${usedView != null}">
-        <section class="blko-card p-4 sm:p-5">
-            <div class="mb-4 flex items-center justify-between gap-3">
-                <div>
-                    <div class="inline-flex blko-badge">Parsed Inventory</div>
-                    <h2 class="mt-3 text-lg font-semibold blko-title">중고 재고 카드</h2>
-                </div>
-                <span class="blko-chip px-3 py-1.5 text-sm" th:text="${usedView.totalCount + '건'}">0건</span>
+      <div class="blko-space-y-4" th:if="${!#lists.isEmpty(usedView.stocks)}">
+        <article th:each="stock : ${usedView.stocks}" class="blko-panel blko-hover-lift blko-pad-card">
+          <div class="flex flex-col blko-p-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="blko-title-base" th:text="${stock.branchName != null and !#strings.isEmpty(stock.branchName) ? stock.branchName : '이름 없는 지점'}"></h3>
+              <p class="blko-mt-1 blko-subtitle-sm" th:text="${stock.title != null and !#strings.isEmpty(stock.title) ? stock.title : '도서명 정보 없음'}"></p>
+              <div class="blko-mt-3 flex flex-wrap blko-p-2 text-xs">
+                <span class="blko-chip blko-chip-tag" th:text="${'지점코드 · ' + (stock.branch != null ? stock.branch : '-')}"></span>
+                <span class="blko-chip blko-chip-tag" th:text="${'상태 · ' + (stock.grade != null ? stock.grade : '-')}"></span>
+                <span class="blko-chip blko-chip-tag" th:text="${'가격 · ' + (stock.price != null ? stock.price + '원' : '-')}"></span>
+              </div>
             </div>
-
-            <div class="grid gap-3 sm:grid-cols-3 mb-4">
-                <div class="blko-kpi p-4"><div class="text-xs uppercase tracking-wide blko-subtitle">ISBN13</div><div class="mt-2 font-semibold blko-title" th:text="${usedView.isbn13}"></div></div>
-                <div class="blko-kpi p-4"><div class="text-xs uppercase tracking-wide blko-subtitle">Type</div><div class="mt-2 font-semibold blko-title" th:text="${usedView.type}"></div></div>
-                <div class="blko-kpi p-4"><div class="text-xs uppercase tracking-wide blko-subtitle">Min Price</div><div class="mt-2 font-semibold blko-title" th:text="${usedView.minPrice != null ? #numbers.formatInteger(usedView.minPrice,0,'COMMA') + '원' : '-'}"></div></div>
+            <div class="flex flex-wrap blko-p-2">
+              <a th:if="${stock.bookLink != null and !#strings.isEmpty(stock.bookLink)}" th:href="${stock.bookLink}" target="_blank" class="blko-btn-ghost blko-px-3 blko-py-2 blko-btn-size-xs sm:w-auto">상품 페이지</a>
+              <a th:if="${stock.purchaseLink != null and !#strings.isEmpty(stock.purchaseLink)}" th:href="${stock.purchaseLink}" target="_blank" class="blko-btn-soft blko-px-3 blko-py-2 blko-btn-size-xs sm:w-auto">바로 구매</a>
             </div>
+          </div>
+        </article>
+      </div>
 
-            <div class="space-y-4" th:if="${!#lists.isEmpty(usedView.stocks)}">
-                <article th:each="stock : ${usedView.stocks}" class="blko-panel blko-hover-lift p-4">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <h3 class="text-base font-semibold blko-title" th:text="${stock.branchName != null and !#strings.isEmpty(stock.branchName) ? stock.branchName : '이름 없는 지점'}"></h3>
-                            <p class="mt-1 text-sm blko-subtitle" th:text="${stock.title != null and !#strings.isEmpty(stock.title) ? stock.title : '도서명 정보 없음'}"></p>
-                            <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                                <span class="blko-chip px-2.5 py-1" th:text="${'지점코드 · ' + (stock.branch != null ? stock.branch : '-')}"></span>
-                                <span class="blko-chip px-2.5 py-1" th:text="${'상태 · ' + (stock.grade != null ? stock.grade : '-')}"></span>
-                                <span class="blko-chip px-2.5 py-1" th:text="${'가격 · ' + (stock.price != null ? stock.price + '원' : '-')}"></span>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <a th:if="${stock.bookLink != null and !#strings.isEmpty(stock.bookLink)}" th:href="${stock.bookLink}" target="_blank" class="blko-btn-ghost px-3 py-2 text-xs sm:w-auto">상품 페이지</a>
-                            <a th:if="${stock.purchaseLink != null and !#strings.isEmpty(stock.purchaseLink)}" th:href="${stock.purchaseLink}" target="_blank" class="blko-btn-soft px-3 py-2 text-xs sm:w-auto">바로 구매</a>
-                        </div>
-                    </div>
-                </article>
-            </div>
+      <div th:if="${#lists.isEmpty(usedView.stocks)}" th:replace="~{fragments/layout :: emptyState('중고 재고가 없어요', '이 ISBN13 기준으로 조회 가능한 중고 재고를 찾지 못했어요.')}"></div>
+    </section>
 
-            <div th:if="${#lists.isEmpty(usedView.stocks)}" th:replace="~{fragments/layout :: emptyState('중고 재고가 없어요', '이 ISBN13 기준으로 조회 가능한 중고 재고를 찾지 못했어요.')}"></div>
-        </section>
+    <section class="blko-card blko-pad-card sm:blko-p-5">
+      <div class="blko-mb-3 flex items-center justify-between"><h2 class="blko-title-sm">원본 JSON</h2><span class="blko-subtitle-xs" th:text="${#strings.length(usedView.rawJson) + ' chars'}">0 chars</span></div>
+      <pre class="blko-json max-h-[70vh] overflow-auto blko-px-4 blko-py-4 text-xs" th:text="${usedView.rawJson}"></pre>
+    </section>
+  </div>
 
-        <section class="blko-card p-4 sm:p-5">
-            <div class="mb-3 flex items-center justify-between"><h2 class="text-sm font-semibold text-slate-700">원본 JSON</h2><span class="text-xs blko-subtitle" th:text="${#strings.length(usedView.rawJson) + ' chars'}">0 chars</span></div>
-            <pre class="blko-json max-h-[70vh] overflow-auto px-4 py-4 text-xs" th:text="${usedView.rawJson}"></pre>
-        </section>
-    </div>
-
-    <div th:replace="~{fragments/layout :: appFooter()}"></div>
+  <div th:replace="~{fragments/layout :: appFooter()}"></div>
 </main>
-    </div>
+  </div>
 </div>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>

@@ -4,6 +4,7 @@ public record BranchStockItem(
         int id,
         String branch,
         String branchName,
+        int bookId,
         String grade,
         String bookTitle,
         String volumeTitle,

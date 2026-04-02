@@ -24,7 +24,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticationSuccessHandler authenticationSuccessHandler,
-                                                   DaoAuthenticationProvider daoAuthenticationProvider) throws Exception {
+                                                   DaoAuthenticationProvider daoAuthenticationProvider,
+                                                   UserDetailsService userDetailsService) throws Exception {
         http
                 .authenticationProvider(daoAuthenticationProvider)
                 .authorizeHttpRequests(auth -> auth
@@ -37,6 +38,12 @@ public class SecurityConfig {
                         .successHandler(authenticationSuccessHandler)
                         .failureUrl("/user/login?error")
                         .permitAll()
+                )
+                .rememberMe(rememberMe -> rememberMe
+                        .userDetailsService(userDetailsService)
+                        .key("bookshelf-remember-me")
+                        .alwaysRemember(true)
+                        .tokenValiditySeconds(30 * 24 * 60 * 60)
                 )
                 .logout(logout -> logout
                         .logoutUrl("/user/logout")

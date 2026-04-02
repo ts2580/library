@@ -2,65 +2,65 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <body>
 <th:block th:fragment="bookEditDialog(book, bookTypes)">
-    <dialog id="bookEditDialog" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 p-0 shadow-2xl">
-        <form id="bookEditForm" method="post" th:action="@{'/books/' + ${book.id}}" class="blko-card overflow-hidden border-0 shadow-none">
-            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
-                <div><h3 class="text-lg font-semibold blko-title">책 정보 수정</h3></div>
-                <button type="button" id="bookEditClose" class="blko-btn-ghost px-3 py-2 text-sm sm:w-auto">닫기</button>
-            </div>
-            <div class="grid gap-4 px-5 py-5 sm:px-6">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <input id="bookEditName" name="name" type="text" class="blko-input px-4 py-3" placeholder="책 제목">
-                <input id="bookEditAuthor" name="author" type="text" class="blko-input px-4 py-3" placeholder="저자">
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <input id="bookEditTotalVolume" name="totalvolume" type="text" class="blko-input px-4 py-3" placeholder="총 권수">
-                    <input id="bookEditType" name="type" list="book-type-options" type="text" class="blko-input px-4 py-3" placeholder="타입">
-                </div>
-                <input id="bookEditCover" name="cover" type="text" class="blko-input px-4 py-3" placeholder="표지 URL">
-                <textarea id="bookEditDescription" name="description" class="blko-textarea px-4 py-3" rows="4" placeholder="설명"></textarea>
-            </div>
-            <div class="flex flex-col gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-                <button type="button" id="bookEditCancel" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">취소</button>
-                <button type="submit" class="blko-btn px-4 py-2 text-sm sm:w-auto">저장</button>
-            </div>
-        </form>
-    </dialog>
-    <datalist id="book-type-options"><option th:each="type : ${bookTypes}" th:value="${type}"></option></datalist>
+  <dialog id="bookEditDialog" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 blko-p-0 shadow-2xl">
+    <form id="bookEditForm" method="post" th:action="@{'/books/' + ${book.id}}" class="blko-card overflow-hidden border-0 shadow-none">
+      <div class="flex items-center justify-between border-b border-slate-200 blko-px-5 blko-py-4 sm:blko-px-6">
+        <div><h3 class="blko-title-lg">책 정보 수정</h3></div>
+        <button type="button" id="bookEditClose" class="blko-btn-ghost blko-px-3 blko-py-2 blko-btn-size-sm sm:w-auto">닫기</button>
+      </div>
+      <div class="grid blko-p-4 blko-px-5 blko-py-5 sm:blko-px-6">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <input id="bookEditName" name="name" type="text" class="blko-input blko-px-4 blko-py-3" placeholder="책 제목">
+        <input id="bookEditAuthor" name="author" type="text" class="blko-input blko-px-4 blko-py-3" placeholder="저자">
+        <div class="grid blko-p-4 sm:grid-cols-2">
+          <input id="bookEditTotalVolume" name="totalvolume" type="text" class="blko-input blko-px-4 blko-py-3" placeholder="총 권수">
+          <input id="bookEditType" name="type" list="book-type-options" type="text" class="blko-input blko-px-4 blko-py-3" placeholder="타입">
+        </div>
+        <input id="bookEditCover" name="cover" type="text" class="blko-input blko-px-4 blko-py-3" placeholder="표지 URL">
+        <textarea id="bookEditDescription" name="description" class="blko-textarea blko-px-4 blko-py-3" rows="4" placeholder="설명"></textarea>
+      </div>
+      <div class="flex flex-col blko-p-2 border-t border-slate-200 blko-px-5 blko-py-4 sm:flex-row sm:justify-end sm:blko-px-6">
+        <button type="button" id="bookEditCancel" class="blko-btn-ghost blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">취소</button>
+        <button type="submit" class="blko-btn blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">저장</button>
+      </div>
+    </form>
+  </dialog>
+  <datalist id="book-type-options"><option th:each="type : ${bookTypes}" th:value="${type}"></option></datalist>
 </th:block>
 
 <th:block th:fragment="volumeEditDialog()">
-    <dialog id="volumeEditDialog" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 p-0 shadow-2xl">
-        <form id="volumeEditForm" method="post" class="blko-card overflow-hidden border-0 shadow-none">
-            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
-                <div>
-                    <h3 class="text-lg font-semibold blko-title">권 세부 내역 수정</h3>
-                    <p id="volumeEditSubtitle" class="mt-1 text-sm blko-subtitle">선택한 권 정보를 수정해요.</p>
-                </div>
-                <button type="button" id="volumeEditClose" class="blko-btn-ghost px-3 py-2 text-sm sm:w-auto">닫기</button>
-            </div>
-            <div class="grid gap-4 px-5 py-5 sm:px-6 sm:grid-cols-[180px_1fr]">
-                <div><div class="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-100"><img id="volumeEditPreview" src="" alt="preview" class="aspect-[2/3] h-auto w-full object-cover"></div></div>
-                <div class="grid gap-4">
-                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div><label class="mb-1 block text-sm font-semibold blko-title">권 번호</label><input id="volumeEditSeq" name="seq" type="number" min="1" class="blko-input px-4 py-3"></div>
-                        <div><label class="mb-1 block text-sm font-semibold blko-title">타입</label><input id="volumeEditType" name="type" list="book-type-options" type="text" class="blko-input px-4 py-3"></div>
-                    </div>
-                    <div><label class="mb-1 block text-sm font-semibold blko-title">권 제목</label><input id="volumeEditName" name="name" type="text" class="blko-input px-4 py-3"></div>
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div><label class="mb-1 block text-sm font-semibold blko-title">ISBN13</label><input id="volumeEditIsbn13" name="isbn13" type="text" class="blko-input px-4 py-3"></div>
-                        <div><label class="mb-1 block text-sm font-semibold blko-title">가격</label><input id="volumeEditPrice" name="price" type="text" class="blko-input px-4 py-3"></div>
-                    </div>
-                    <div><label class="mb-1 block text-sm font-semibold blko-title">표지 URL</label><input id="volumeEditCover" name="cover" type="text" class="blko-input px-4 py-3"></div>
-                    <label class="inline-flex items-center gap-2 text-sm blko-title"><input id="volumeEditPurchased" name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료로 표시</label>
-                </div>
-            </div>
-            <div class="flex flex-col gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-                <button type="button" id="volumeEditCancel" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">취소</button>
-                <button type="submit" class="blko-btn px-4 py-2 text-sm sm:w-auto">저장</button>
-            </div>
-        </form>
-    </dialog>
+  <dialog id="volumeEditDialog" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 blko-p-0 shadow-2xl">
+    <form id="volumeEditForm" method="post" class="blko-card overflow-hidden border-0 shadow-none">
+      <div class="flex items-center justify-between border-b border-slate-200 blko-px-5 blko-py-4 sm:blko-px-6">
+        <div>
+          <h3 class="blko-title-lg">권 세부 내역 수정</h3>
+          <p id="volumeEditSubtitle" class="blko-mt-1 blko-subtitle-sm">선택한 권 정보를 수정해요.</p>
+        </div>
+        <button type="button" id="volumeEditClose" class="blko-btn-ghost blko-px-3 blko-py-2 blko-btn-size-sm sm:w-auto">닫기</button>
+      </div>
+      <div class="grid blko-p-4 blko-px-5 blko-py-5 sm:blko-px-6 sm:grid-cols-[180px_1fr]">
+        <div><div class="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-100"><img id="volumeEditPreview" src="" alt="preview" class="aspect-[2/3] h-auto w-full object-cover"></div></div>
+        <div class="grid blko-p-4">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <div class="grid blko-p-4 sm:grid-cols-2">
+            <div><label class="blko-mb-1 block blko-detail-label">권 번호</label><input id="volumeEditSeq" name="seq" type="number" min="1" class="blko-input blko-px-4 blko-py-3"></div>
+            <div><label class="blko-mb-1 block blko-detail-label">타입</label><input id="volumeEditType" name="type" list="book-type-options" type="text" class="blko-input blko-px-4 blko-py-3"></div>
+          </div>
+          <div><label class="blko-mb-1 block blko-detail-label">권 제목</label><input id="volumeEditName" name="name" type="text" class="blko-input blko-px-4 blko-py-3"></div>
+          <div class="grid blko-p-4 sm:grid-cols-2">
+            <div><label class="blko-mb-1 block blko-detail-label">ISBN13</label><input id="volumeEditIsbn13" name="isbn13" type="text" class="blko-input blko-px-4 blko-py-3"></div>
+            <div><label class="blko-mb-1 block blko-detail-label">가격</label><input id="volumeEditPrice" name="price" type="text" class="blko-input blko-px-4 blko-py-3"></div>
+          </div>
+          <div><label class="blko-mb-1 block blko-detail-label">표지 URL</label><input id="volumeEditCover" name="cover" type="text" class="blko-input blko-px-4 blko-py-3"></div>
+          <label class="inline-flex items-center blko-p-2 blko-detail-label"><input id="volumeEditPurchased" name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료로 표시</label>
+        </div>
+      </div>
+      <div class="flex flex-col blko-p-2 border-t border-slate-200 blko-px-5 blko-py-4 sm:flex-row sm:justify-end sm:blko-px-6">
+        <button type="button" id="volumeEditCancel" class="blko-btn-ghost blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">취소</button>
+        <button type="submit" class="blko-btn blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">저장</button>
+      </div>
+    </form>
+  </dialog>
 </th:block>
 </body>
 </html>

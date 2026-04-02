@@ -1,51 +1,57 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('지점 재고 상세 · Bookshelf')}"></head>
-<body class="blko-body text-slate-800">
-<div class="blko-shell blko-shell-wide py-8">
-    <div class="blko-app-frame">
-        <aside th:replace="~{fragments/layout :: appSidebar('branch-detail')}"></aside>
-        <main class="blko-main">
-            <div th:replace="~{fragments/layout :: appTopbar('Branch Detail', branchName, '지점 재고 카드를 한 장씩 편하게 살펴봐요.')}"></div>
+<body class="blko-body">
+<div class="blko-shell blko-shell-wide blko-py-8">
+  <div class="blko-app-frame">
+    <aside th:replace="~{fragments/layout :: appSidebar('branch-detail')}"></aside>
+    <main class="blko-main">
+      <div th:replace="~{fragments/layout :: appTopbar('Branch Detail', branchName, '지점 재고 카드를 한 장씩 편하게 살펴봐요.')}"></div>
 
-            <section class="grid gap-4 sm:grid-cols-3">
-                <div class="blko-kpi p-5"><div class="text-xs uppercase tracking-wide blko-subtitle">전체 재고</div><div class="mt-2 text-2xl font-bold blko-title" th:text="${totalCount}">0</div><div class="mt-1 text-sm blko-subtitle">이 지점에 등록된 전체 재고 수예요.</div></div>
-                <div class="blko-kpi p-5"><div class="text-xs uppercase tracking-wide blko-subtitle">가격 입력</div><div class="mt-2 text-2xl font-bold blko-title" th:text="${pricedCount}">0</div><div class="mt-1 text-sm blko-subtitle">가격 정보가 채워진 재고만 따로 보여줘요.</div></div>
-                <div class="blko-kpi p-5"><div class="text-xs uppercase tracking-wide blko-subtitle">재고 합계</div><div class="mt-2 text-2xl font-bold blko-title" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="mt-1 text-sm blko-subtitle">입력된 가격 기준으로 계산한 합계예요.</div></div>
-            </section>
+      <section class="grid blko-p-4 sm:grid-cols-3">
+        <div class="blko-kpi blko-pad-card-lg"><div class="blko-kpi-label">전체 재고</div><div class="blko-mt-2 blko-title-2xl" th:text="${totalCount}">0</div><div class="blko-mt-1 blko-subtitle-sm">이 지점에 등록된 전체 재고 수예요.</div></div>
+        <div class="blko-kpi blko-pad-card-lg"><div class="blko-kpi-label">가격 입력</div><div class="blko-mt-2 blko-title-2xl" th:text="${pricedCount}">0</div><div class="blko-mt-1 blko-subtitle-sm">가격 정보가 채워진 재고만 따로 보여줘요.</div></div>
+        <div class="blko-kpi blko-pad-card-lg"><div class="blko-kpi-label">재고 합계</div><div class="blko-mt-2 blko-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="blko-mt-1 blko-subtitle-sm">입력된 가격 기준으로 계산한 합계예요.</div></div>
+      </section>
 
-            <section class="blko-card p-5 sm:p-6">
-                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 class="text-xl font-semibold blko-title">재고 카드</h2>
-                        <p class="mt-1 text-sm blko-subtitle">권별 상태와 가격을 카드 형태로 정리했어요.</p>
-                    </div>
-                    <a href="/dashboard/branches" class="blko-btn-ghost px-4 py-2 text-sm sm:w-auto">목록으로 돌아가기</a>
-                </div>
+      <section class="blko-card blko-pad-card-lg sm:blko-p-6">
+        <div class="blko-mb-4 flex flex-col blko-p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="blko-title-xl">재고 카드</h2>
+            <p class="blko-mt-1 blko-subtitle-sm">권별 상태와 가격을 카드 형태로 정리했어요.</p>
+          </div>
+          <a href="/dashboard/branches" class="blko-btn-ghost blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">목록으로 돌아가기</a>
+        </div>
 
-                <div th:if="${#lists.isEmpty(stocks)}" class="text-center py-10 blko-subtitle">이 지점에는 아직 표시할 재고가 없어요.</div>
+        <div th:if="${#lists.isEmpty(stocks)}" class="text-center blko-py-10 blko-subtitle">이 지점에는 아직 표시할 재고가 없어요.</div>
 
-                <div th:if="${not #lists.isEmpty(stocks)}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <article th:each="s : ${stocks}" class="blko-panel blko-hover-lift p-4 h-full flex flex-col">
-                        <div class="blko-cover-hover relative mx-auto mt-3 aspect-[2/3] w-full max-w-[190px] overflow-hidden rounded-[16px] bg-slate-100"><img th:if="${s.cover() != null and !#strings.isEmpty(s.cover())}" th:src="${s.cover()}" alt="cover" class="h-full w-full object-cover" loading="lazy"/><div th:unless="${s.cover() != null and !#strings.isEmpty(s.cover())}" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">NO COVER</div></div>
-                        <div class="mt-4 text-sm flex-1">
-                            <p class="font-semibold blko-title" th:text="${s.volumeTitle() != null ? s.volumeTitle() : s.bookTitle()}"></p>
-                            <p class="mt-1 blko-subtitle" th:text="${s.bookTitle()}"></p>
-                            <p class="mt-1 text-xs blko-subtitle" th:text="${s.isbn13()}"></p>
-                            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs mt-auto">
-                                <span class="blko-chip px-2.5 py-1" th:text="${'가격 ' + (s.price() != null ? s.price() + '원' : '-')} "></span>
-                                <span class="blko-chip px-2.5 py-1" th:text="${'등급 ' + (s.grade() != null ? s.grade() : '-')} "></span>
-                                <a th:if="${s.purchaseLink() != null and !#strings.isEmpty(s.purchaseLink())}" th:href="${s.purchaseLink()}" target="_blank" class="blko-btn-soft px-2.5 py-1 text-xs sm:w-auto">바로 구매</a>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </section>
+        <div th:if="${not #lists.isEmpty(stocks)}" class="blko-card-list sm:grid sm:grid-cols-2 lg:grid-cols-4">
+          <article th:each="s : ${stocks}" class="blko-panel blko-hover-lift blko-pad-card-sm sm:blko-p-4 h-full flex flex-col">
+            <div class="blko-cover-hover relative mx-auto blko-mt-3 aspect-[2/3] w-full max-w-[190px] overflow-hidden rounded-[16px] bg-slate-100">
+              <a th:if="${s.bookId() > 0}" th:href="@{'/books/' + ${s.bookId()}}" class="block h-full w-full cursor-pointer" aria-label="책 상세 보기">
+                <img th:if="${s.cover() != null and !#strings.isEmpty(s.cover())}" th:src="${s.cover()}" alt="cover" class="h-full w-full object-cover" loading="lazy"/>
+              </a>
+              <img th:unless="${s.bookId() > 0 and s.cover() != null and !#strings.isEmpty(s.cover())}" th:if="${s.cover() != null and !#strings.isEmpty(s.cover())}" th:src="${s.cover()}" alt="cover" class="h-full w-full object-cover" loading="lazy"/>
+              <div th:if="${s.cover() == null or #strings.isEmpty(s.cover())}" class="absolute inset-0 flex items-center justify-center blko-empty-cover">NO COVER</div>
+            </div>
+            <div class="blko-mt-4 text-sm flex-1">
+              <p class="blko-title-base" th:text="${s.volumeTitle() != null ? s.volumeTitle() : s.bookTitle()}"></p>
+              <p class="blko-mt-1 blko-subtitle" th:text="${s.bookTitle()}"></p>
+              <p class="blko-mt-1 blko-subtitle-xs" th:text="${s.isbn13()}"></p>
+              <div class="blko-mt-3 flex flex-wrap items-center blko-p-2 text-xs mt-auto">
+                <span class="blko-chip blko-chip-tag" th:text="${'가격 ' + (s.price() != null ? s.price() + '원' : '-')} "></span>
+                <span class="blko-chip blko-chip-tag" th:text="${'등급 ' + (s.grade() != null ? s.grade() : '-')} "></span>
+                <a th:if="${s.purchaseLink() != null and !#strings.isEmpty(s.purchaseLink())}" th:href="${s.purchaseLink()}" target="_blank" class="blko-btn-soft blko-px-2-5 blko-py-1 blko-btn-size-xs sm:w-auto">바로 구매</a>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
 
-            <div th:replace="~{fragments/layout :: appFooter()}"></div>
-            <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
-        </main>
-    </div>
+      <div th:replace="~{fragments/layout :: appFooter()}"></div>
+      <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
+    </main>
+  </div>
 </div>
 </body>
 </html>
