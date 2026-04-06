@@ -1,51 +1,51 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('대시보드 · Bookshelf')}"></head>
-<body class="blko-body">
-<div class="blko-shell blko-shell-wide blko-py-8">
-  <div class="blko-app-frame">
+<body class="bookshelf-body">
+<div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
+  <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('dashboard')}"></aside>
-    <main class="blko-main">
-      <div th:replace="~{fragments/layout :: appTopbar(null, 'Bookshelf 대시보드', '읽고, 찾고, 모으는 흐름을 한 화면 안에서 자연스럽게 이어가요.')}"></div>
+    <main class="bookshelf-main">
+      <div th:replace="~{fragments/layout :: appTopbar(null, 'Bookshelf 대시보드', null)}"></div>
 
-      <section class="grid blko-p-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="blko-kpi blko-pad-card-lg">
-          <div class="blko-kpi-label">Now</div>
-          <div class="blko-mt-2 blko-title-lg" th:text="${member != null ? member.username() : 'Guest'}">member</div>
-          <div class="blko-mt-1 blko-subtitle-sm">지금 이 공간을 열고 있는 사용자예요.</div>
+      <section class="hidden bookshelf-p-4 sm:grid sm:grid-cols-2 xl:grid-cols-4">
+        <div class="bookshelf-kpi bookshelf-pad-card-lg">
+          <div class="bookshelf-kpi-label">Now</div>
+          <div class="bookshelf-mt-2 bookshelf-title-lg" th:text="${member != null ? member.username() : 'Guest'}">member</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">지금 이 공간을 열고 있는 사용자예요.</div>
         </div>
-        <div class="blko-kpi blko-pad-card-lg">
-          <div class="blko-kpi-label">Library Size</div>
-          <div class="blko-mt-2 blko-title-2xl" th:text="${bookCount}">0</div>
-          <div class="blko-mt-1 blko-subtitle-sm">쌓여 있는 권 수를 한눈에 확인해요.</div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg">
+          <div class="bookshelf-kpi-label">Library Size</div>
+          <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${bookCount}">0</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">쌓여 있는 권 수를 한눈에 확인해요.</div>
         </div>
-        <div class="blko-kpi blko-pad-card-lg">
-          <div class="blko-kpi-label">Flow</div>
-          <div class="blko-mt-2 blko-title-lg">Collect · Organize</div>
-          <div class="blko-mt-1 blko-subtitle-sm">책장과 검색, 재고 흐름이 하나로 이어져요.</div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg">
+          <div class="bookshelf-kpi-label">Flow</div>
+          <div class="bookshelf-mt-2 bookshelf-title-lg">Collect · Organize</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">책장과 검색, 재고 흐름이 하나로 이어져요.</div>
         </div>
-        <div class="blko-kpi blko-pad-card-lg">
-          <div class="blko-kpi-label">Branch</div>
-          <div class="blko-mt-2 blko-title-lg">Ready</div>
-          <div class="blko-mt-1 blko-subtitle-sm">지점 재고 페이지에서 일괄 갱신과 진행 상태를 함께 볼 수 있어요.</div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg">
+          <div class="bookshelf-kpi-label">Branch</div>
+          <div class="bookshelf-mt-2 bookshelf-title-lg">Ready</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">지점 재고 페이지에서 일괄 갱신과 진행 상태를 함께 볼 수 있어요.</div>
         </div>
       </section>
 
-      <section class="grid blko-p-4 sm:grid-cols-2 xl:grid-cols-3">
-        <a href="/books" class="blko-card blko-hover-lift group blko-pad-card-xl">
-          <h2 class="blko-title-xl">내 책장</h2>
-          <p class="blko-mt-2 blko-subtitle-sm">모아둔 책과 권별 흐름을 조용히 훑어봐요.</p>
-          <div class="blko-mt-6 inline-flex blko-btn-soft blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">책장 열기</div>
+      <section class="grid bookshelf-gap-y-6 bookshelf-px-4 bookshelf-pb-6 bookshelf-pt-4 sm:grid-cols-2 sm:gap-5 sm:p-4 xl:grid-cols-3">
+        <a href="/books" class="bookshelf-card bookshelf-dashboard-card bookshelf-hover-lift group flex flex-col items-center text-center">
+          <h2 class="bookshelf-title-xl">내 책장</h2>
+          <p class="bookshelf-mt-2 bookshelf-subtitle-sm">모아둔 책과 권별 흐름을 조용히 훑어봐요.</p>
+          <div class="bookshelf-mt-5 inline-flex items-center justify-center bookshelf-btn-soft bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">책장 열기</div>
         </a>
-        <a href="/dashboard/branches" class="blko-card blko-hover-lift group blko-pad-card-xl">
-          <h2 class="blko-title-xl">지점 재고</h2>
-          <p class="blko-mt-2 blko-subtitle-sm">재고 분석, 일괄 갱신, 진행률 확인을 한 곳에서 처리해요.</p>
-          <div class="blko-mt-6 inline-flex blko-btn-soft blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">재고 보기</div>
+        <a href="/dashboard/branches" class="bookshelf-card bookshelf-dashboard-card bookshelf-hover-lift group flex flex-col items-center text-center">
+          <h2 class="bookshelf-title-xl">지점 재고</h2>
+          <p class="bookshelf-mt-2 bookshelf-subtitle-sm">재고 분석, 일괄 갱신, 진행률 확인을 한 곳에서 처리해요.</p>
+          <div class="bookshelf-mt-5 inline-flex items-center justify-center bookshelf-btn-soft bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">재고 보기</div>
         </a>
-        <a href="/products" class="blko-card blko-hover-lift group blko-pad-card-xl">
-          <h2 class="blko-title-xl">상품 검색</h2>
-          <p class="blko-mt-2 blko-subtitle-sm">내 책장과 외부 검색 결과를 나란히 비교해요.</p>
-          <div class="blko-mt-6 inline-flex blko-btn-soft blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">검색 시작</div>
+        <a href="/products" class="bookshelf-card bookshelf-dashboard-card bookshelf-hover-lift group flex flex-col items-center text-center">
+          <h2 class="bookshelf-title-xl">상품 검색</h2>
+          <p class="bookshelf-mt-2 bookshelf-subtitle-sm">내 책장과 외부 검색 결과를 나란히 비교해요.</p>
+          <div class="bookshelf-mt-5 inline-flex items-center justify-center bookshelf-btn-soft bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">검색 시작</div>
         </a>
       </section>
 

@@ -8,6 +8,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
@@ -51,7 +52,6 @@ public class BookDataRepository {
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, limit, offset);
     }
 
-
     public int countSearchBooksByKeyword(String keyword) {
         String ftq = toBooleanFullTextQuery(keyword);
         String sql = "SELECT COUNT(*) FROM books WHERE MATCH(name, author) AGAINST (? IN BOOLEAN MODE)";
@@ -93,6 +93,20 @@ public class BookDataRepository {
                 LIMIT ? OFFSET ?
                 """;
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, ftq, type, limit, offset);
+    }
+
+    public int countBooksByFilters(String title, String author, String type) {
+        QueryParts parts = buildBookFilterQuery(true, title, author, type);
+        Integer cnt = jdbcTemplate.queryForObject(parts.sql(), Integer.class, parts.args().toArray());
+        return cnt == null ? 0 : cnt;
+    }
+
+    public List<Book> findBooksByFiltersOrderByCreatedDesc(String title, String author, String type, int limit, int offset) {
+        QueryParts parts = buildBookFilterQuery(false, title, author, type);
+        List<Object> args = new ArrayList<>(parts.args());
+        args.add(limit);
+        args.add(offset);
+        return jdbcTemplate.query(parts.sql(), BookRowMappers.BOOK, args.toArray());
     }
 
     public List<Book> findAllBooksByTypeAndCreatedDesc(String type, int limit, int offset) {
@@ -189,6 +203,55 @@ public class BookDataRepository {
         return DEFAULT_PAGE_SIZE;
     }
 
+    private QueryParts buildBookFilterQuery(boolean countOnly, String title, String author, String type) {
+        String normalizedTitle = normalize(title);
+        String normalizedAuthor = normalize(author);
+        String normalizedType = normalize(type);
+
+        StringBuilder sql = new StringBuilder();
+        List<Object> args = new ArrayList<>();
+
+        if (countOnly) {
+            sql.append("SELECT COUNT(*) ");
+        } else {
+            sql.append("""
+                    SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, COALESCE(v.lastVolumeId, b.id) AS createddate
+                    """);
+        }
+
+        sql.append("FROM books b ");
+        if (!countOnly) {
+            sql.append("""
+                    LEFT JOIN (
+                        SELECT book, MAX(id) AS lastVolumeId
+                        FROM book_volumes
+                        GROUP BY book
+                    ) v ON v.book = b.id
+                    """);
+        }
+
+        sql.append("WHERE 1=1 ");
+
+        if (normalizedType != null) {
+            sql.append("AND b.type = ? ");
+            args.add(normalizedType);
+        }
+        if (normalizedAuthor != null) {
+            sql.append("AND b.author LIKE ? ");
+            args.add('%' + normalizeForLike(normalizedAuthor) + '%');
+        }
+        if (normalizedTitle != null) {
+            sql.append("AND b.name LIKE ? ");
+            args.add('%' + normalizeForLike(normalizedTitle) + '%');
+        }
+
+        if (!countOnly) {
+            sql.append("ORDER BY COALESCE(v.lastVolumeId, b.id) DESC, b.id DESC LIMIT ? OFFSET ?");
+        }
+
+        return new QueryParts(sql.toString(), args);
+    }
+
     private String toBooleanFullTextQuery(String keyword) {
         if (keyword == null) return "";
         String trimmed = keyword.trim();
@@ -217,5 +280,8 @@ public class BookDataRepository {
 
     private String normalize(String value) {
         return (value == null || value.trim().isEmpty()) ? null : value.trim();
+    }
+
+    private record QueryParts(String sql, List<Object> args) {
     }
 }

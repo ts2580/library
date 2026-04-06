@@ -1,96 +1,96 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <body>
-<section th:fragment="ownedPanel(ownedQ,ownedSort,ownedPage,aladinPage,query,activeTab,totalOwned,ownedFrom,ownedTo,totalOwnedPages,ownedStartPage,ownedEndPage,ownedVolumes)" class="blko-card blko-pad-card sm:blko-pad-card-lg">
-  <div class="blko-mb-4 flex flex-wrap items-center justify-between blko-p-2">
-    <div><h2 class="blko-title-xl">내 책장 검색</h2></div>
-    <div class="flex blko-p-2 text-xs">
-      <a th:href="@{/products(ownedSort='id', ownedQ=${ownedQ}, ownedPage=1, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" class="blko-px-3 blko-py-1-5 blko-btn-ghost" th:classappend="${ownedSort=='id' ? ' blko-btn-soft' : ''}">ID순</a>
-      <a th:href="@{/products(ownedSort='recent', ownedQ=${ownedQ}, ownedPage=1, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" class="blko-px-3 blko-py-1-5 blko-btn-ghost" th:classappend="${ownedSort=='recent' ? ' blko-btn-soft' : ''}">최근 삽입한 책</a>
+<section th:fragment="ownedPanel(ownedQ,ownedSort,ownedPage,aladinPage,query,activeTab,totalOwned,ownedFrom,ownedTo,totalOwnedPages,ownedStartPage,ownedEndPage,ownedVolumes)" class="bookshelf-card bookshelf-pad-card sm:bookshelf-pad-card-lg">
+  <div class="bookshelf-mb-4 flex flex-wrap items-center justify-between bookshelf-p-2">
+    <div><h2 class="bookshelf-title-xl">내 책장 검색</h2></div>
+    <div class="flex bookshelf-gap-2 bookshelf-p-2 text-xs">
+      <a th:href="@{/products(ownedSort='id', ownedQ=${ownedQ}, ownedPage=1, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" class="bookshelf-sort-chip bookshelf-px-4 bookshelf-py-2" th:classappend="${ownedSort=='id' ? ' bookshelf-btn-soft' : ''}">ID순</a>
+      <a th:href="@{/products(ownedSort='recent', ownedQ=${ownedQ}, ownedPage=1, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" class="bookshelf-sort-chip bookshelf-px-4 bookshelf-py-2" th:classappend="${ownedSort=='recent' ? ' bookshelf-btn-soft' : ''}">최근</a>
     </div>
   </div>
 
-  <form action="/products" method="get" class="blko-mb-4 flex flex-col blko-p-2 sm:flex-row">
-    <input type="text" name="ownedQ" th:value="${ownedQ}" placeholder="예: 해리포터, 97911..., 특정 권 제목" class="blko-input h-11 flex-1 blko-px-4 text-sm"/>
+  <form action="/products" method="get" class="bookshelf-search-inline bookshelf-mb-4 bookshelf-p-2">
+    <input type="text" name="ownedQ" th:value="${ownedQ}" placeholder="예: 해리포터, 97911..., 특정 권 제목" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
     <input type="hidden" name="ownedSort" th:value="${ownedSort}">
     <input type="hidden" name="aladinPage" th:value="${aladinPage}">
     <input type="hidden" name="tab" th:value="${activeTab}">
     <input type="hidden" name="q" th:value="${query}">
-    <button class="blko-btn blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">책장에서 찾기</button>
+    <button class="bookshelf-btn bookshelf-search-inline__button bookshelf-px-4 bookshelf-py-3 bookshelf-btn-size-sm whitespace-nowrap">검색</button>
   </form>
 
-  <div class="blko-mb-4 blko-subtitle-sm">현재 <span th:text="${ownedFrom}"></span>~<span th:text="${ownedTo}"></span> / 전체 <span th:text="${totalOwned}"></span>권</div>
+  <div class="bookshelf-mb-4 bookshelf-subtitle-sm">현재 <span th:text="${ownedFrom}"></span>~<span th:text="${ownedTo}"></span> / 전체 <span th:text="${totalOwned}"></span>권</div>
 
-  <div th:if="${#lists.isEmpty(ownedVolumes)}" class="blko-empty blko-p-6 sm:blko-p-8 text-center">
-    <h3 class="blko-title-lg">보유 권이 비어 있어요</h3>
-    <p class="blko-mt-2 blko-subtitle-sm">권 제목이나 ISBN13 기준으로 다시 찾아보세요.</p>
+  <div th:if="${#lists.isEmpty(ownedVolumes)}" class="bookshelf-empty bookshelf-p-6 sm:bookshelf-p-8 text-center">
+    <h3 class="bookshelf-title-lg">보유 권이 비어 있어요</h3>
+    <p class="bookshelf-mt-2 bookshelf-subtitle-sm">권 제목이나 ISBN13 기준으로 다시 찾아보세요.</p>
   </div>
 
-  <div th:if="${not #lists.isEmpty(ownedVolumes)}" class="grid grid-cols-2 blko-gap-3 blko-p-3 sm:blko-p-4 xl:grid-cols-3">
-    <a th:each="volume : ${ownedVolumes}" th:href="@{'/books/' + ${volume.bookId}}" class="blko-panel blko-hover-lift flex min-h-[112px] flex-col items-start blko-gap-3 blko-p-3 md:flex-row md:items-start md:blko-p-4">
-      <div class="blko-cover-hover blko-cover-center self-center h-24 w-16 min-h-[96px] overflow-hidden rounded-[14px] bg-slate-100 md:h-24 md:w-16">
-        <img th:if="${volume.cover != null and !#strings.isEmpty(volume.cover)}" th:src="${volume.cover}" class="h-full w-full blko-cover-img" alt="volume cover" loading="lazy" decoding="async">
-        <div th:unless="${volume.cover != null and !#strings.isEmpty(volume.cover)}" class="flex h-full w-full items-center justify-center text-[10px] blko-cover-placeholder">NO</div>
+  <div th:if="${not #lists.isEmpty(ownedVolumes)}" class="grid grid-cols-2 bookshelf-gap-3 bookshelf-p-3 sm:bookshelf-p-4 xl:grid-cols-3">
+    <a th:each="volume : ${ownedVolumes}" th:href="@{'/books/' + ${volume.bookId}}" class="bookshelf-panel bookshelf-hover-lift flex min-h-[112px] flex-col items-start bookshelf-gap-3 bookshelf-p-3 md:flex-row md:items-start md:bookshelf-p-4">
+      <div class="bookshelf-cover-hover bookshelf-cover-center self-center h-24 w-16 min-h-[96px] overflow-hidden rounded-[14px] bg-slate-100 md:h-24 md:w-16">
+        <img th:if="${volume.cover != null and !#strings.isEmpty(volume.cover)}" th:src="${volume.cover}" class="h-full w-full bookshelf-cover-img" alt="volume cover" loading="lazy" decoding="async">
+        <div th:unless="${volume.cover != null and !#strings.isEmpty(volume.cover)}" class="flex h-full w-full items-center justify-center text-[10px] bookshelf-cover-placeholder">NO</div>
       </div>
       <div class="min-w-0 flex-1 text-sm" style="min-width:0; max-width:100%; overflow:hidden;">
-        <div class="blko-title-base blko-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${volume.name}"></div>
-        <div class="blko-mt-2 blko-subtitle-xs blko-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${(volume.seq != null ? volume.seq + '권' : '권') + (volume.purchased ? ' · 구매완료' : ' · 미구매')}"></div>
+        <div class="bookshelf-title-base bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${volume.name}"></div>
+        <div class="bookshelf-mt-2 bookshelf-subtitle-xs bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${(volume.seq != null ? volume.seq + '권' : '권') + (volume.purchased ? ' · 구매완료' : ' · 미구매')}"></div>
       </div>
     </a>
   </div>
 
-  <div class="blko-pagination blko-mt-4 flex flex-wrap items-center blko-p-2 text-xs" th:if="${totalOwnedPages > 1}">
-    <a class="blko-btn-ghost blko-px-3 blko-py-1-5" th:if="${ownedPage > 1}" th:href="@{/products(ownedPage=1, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">맨앞</a>
-    <a class="blko-btn-ghost blko-px-3 blko-py-1-5" th:if="${ownedPage > 1}" th:href="@{/products(ownedPage=${ownedPage - 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">이전 페이지</a>
-    <a th:each="p : ${#numbers.sequence(ownedStartPage, ownedEndPage)}" th:href="@{/products(ownedPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" th:class="${p == ownedPage ? 'blko-btn-ghost blko-px-3 blko-py-1-5 is-current-page blko-btn-soft' : 'blko-btn-ghost blko-px-3 blko-py-1-5'}" th:attr="aria-current=${p == ownedPage ? 'page' : null}"><span th:text="${p}"></span></a>
-    <a class="blko-btn-ghost blko-px-3 blko-py-1-5" th:if="${ownedPage < totalOwnedPages}" th:href="@{/products(ownedPage=${ownedPage + 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">다음 페이지</a>
-    <a class="blko-btn-ghost blko-px-3 blko-py-1-5" th:if="${ownedPage < totalOwnedPages}" th:href="@{/products(ownedPage=${totalOwnedPages}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">맨뒤</a>
+  <div class="bookshelf-pagination bookshelf-mt-4 flex flex-wrap items-center bookshelf-p-2 text-xs" th:if="${totalOwnedPages > 1}">
+    <a class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5" th:if="${ownedPage > 1}" th:href="@{/products(ownedPage=1, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">맨앞</a>
+    <a class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5" th:if="${ownedPage > 1}" th:href="@{/products(ownedPage=${ownedPage - 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">이전 페이지</a>
+    <a th:each="p : ${#numbers.sequence(ownedStartPage, ownedEndPage)}" th:href="@{/products(ownedPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}" th:class="${p == ownedPage ? 'bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5 is-current-page bookshelf-btn-soft' : 'bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5'}" th:attr="aria-current=${p == ownedPage ? 'page' : null}"><span th:text="${p}"></span></a>
+    <a class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5" th:if="${ownedPage < totalOwnedPages}" th:href="@{/products(ownedPage=${ownedPage + 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">다음 페이지</a>
+    <a class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-1-5" th:if="${ownedPage < totalOwnedPages}" th:href="@{/products(ownedPage=${totalOwnedPages}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, aladinPage=${aladinPage}, tab=${activeTab})}">맨뒤</a>
   </div>
 </section>
 
-<section th:fragment="aladinPanel(query,ownedSort,ownedQ,ownedPage,aladinPage,activeTab,totalAladinResults,aladinFrom,aladinTo,totalAladinPages,aladinStartPage,aladinEndPage,aladinResults,ownedBooks,bookTypes)" class="blko-card blko-pad-card sm:blko-pad-card-lg">
-  <div class="blko-mb-4 flex flex-wrap items-center justify-between blko-p-2">
-    <div><h2 class="blko-title-xl">알라딘 검색 결과</h2></div>
-    <a href="/aladin/search" class="blko-link text-sm">상세 검색 보기</a>
+<section th:fragment="aladinPanel(query,ownedSort,ownedQ,ownedPage,aladinPage,activeTab,totalAladinResults,aladinFrom,aladinTo,totalAladinPages,aladinStartPage,aladinEndPage,aladinResults,ownedBooks,bookTypes)" class="bookshelf-card bookshelf-pad-card sm:bookshelf-pad-card-lg">
+  <div class="bookshelf-mb-4 flex flex-wrap items-center justify-between bookshelf-p-2">
+    <div><h2 class="bookshelf-title-xl">알라딘 검색 결과</h2></div>
+    <a href="/aladin/search" class="bookshelf-link text-sm">상세 검색 보기</a>
   </div>
 
-  <form action="/products" method="get" class="blko-mb-4 flex flex-col blko-p-2 sm:flex-row">
-    <input type="text" name="q" th:value="${query}" placeholder="신권 만화책 검색" class="blko-input h-11 flex-1 blko-px-4 text-sm"/>
+  <form action="/products" method="get" class="bookshelf-search-inline bookshelf-mb-4 bookshelf-p-2">
+    <input type="text" name="q" th:value="${query}" placeholder="신권 만화책 검색" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
     <input type="hidden" name="ownedSort" th:value="${ownedSort}">
     <input type="hidden" name="ownedQ" th:value="${ownedQ}">
     <input type="hidden" name="ownedPage" th:value="${ownedPage}">
     <input type="hidden" name="tab" th:value="${activeTab}">
-    <button class="blko-btn blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">알라딘에서 찾기</button>
+    <button class="bookshelf-btn bookshelf-search-inline__button bookshelf-px-4 bookshelf-py-3 bookshelf-btn-size-sm whitespace-nowrap">검색</button>
   </form>
 
-  <div class="blko-mb-4 blko-subtitle-sm">현재 <span th:text="${aladinFrom}"></span>~<span th:text="${aladinTo}"></span> / 전체 <span th:text="${totalAladinResults}"></span>건</div>
+  <div class="bookshelf-mb-4 bookshelf-subtitle-sm">현재 <span th:text="${aladinFrom}"></span>~<span th:text="${aladinTo}"></span> / 전체 <span th:text="${totalAladinResults}"></span>건</div>
 
-  <div th:if="${#lists.isEmpty(aladinResults)}" class="blko-empty blko-p-6 sm:blko-p-8 text-center">
-    <h3 class="blko-title-lg">알라딘 결과가 없어요</h3>
-    <p class="blko-mt-2 blko-subtitle-sm">검색어를 입력하면 외부 결과를 카드형으로 보여드릴게요.</p>
+  <div th:if="${#lists.isEmpty(aladinResults)}" class="bookshelf-empty bookshelf-p-6 sm:bookshelf-p-8 text-center">
+    <h3 class="bookshelf-title-lg">알라딘 결과가 없어요</h3>
+    <p class="bookshelf-mt-2 bookshelf-subtitle-sm">검색어를 입력하면 외부 결과를 카드형으로 보여드릴게요.</p>
   </div>
 
-  <div th:if="${not #lists.isEmpty(aladinResults)}" class="grid grid-cols-2 xl:grid-cols-3 blko-gap-3">
-    <article th:each="item : ${aladinResults}" class="blko-panel blko-hover-lift blko-pad-card">
-      <div class="flex blko-gap-3 blko-p-4">
-        <div class="blko-cover-hover blko-cover-center self-center h-20 w-12 min-h-[80px] min-w-[3rem] overflow-hidden rounded-[16px] bg-slate-100">
-          <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full blko-cover-img" alt="cover" loading="lazy" decoding="async">
-          <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] blko-cover-placeholder">NO</div>
+  <div th:if="${not #lists.isEmpty(aladinResults)}" class="grid grid-cols-2 xl:grid-cols-3 bookshelf-gap-3">
+    <article th:each="item : ${aladinResults}" class="bookshelf-panel bookshelf-hover-lift bookshelf-pad-card">
+      <div class="flex bookshelf-gap-3 bookshelf-p-4">
+        <div class="bookshelf-cover-hover bookshelf-cover-center self-center h-20 w-12 min-h-[80px] min-w-[3rem] overflow-hidden rounded-[16px] bg-slate-100">
+          <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full bookshelf-cover-img" alt="cover" loading="lazy" decoding="async">
+          <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] bookshelf-cover-placeholder">NO</div>
         </div>
         <div class="min-w-0 flex-1 text-sm" style="min-width:0; max-width:100%; overflow:hidden;">
-          <h3 class="blko-title-base blko-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.title}"></h3>
-          <p class="blko-subtitle blko-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.author}"></p>
-          <div class="blko-mt-2 flex flex-wrap blko-p-2 text-xs">
-            <span class="blko-chip blko-chip-tag" th:text="${'정가 ' + (item.priceStandard ?: '-')} "></span>
-            <span class="blko-chip blko-chip-tag" th:text="${'판매가 ' + (item.priceSales ?: '-')} "></span>
+          <h3 class="bookshelf-title-base bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.title}"></h3>
+          <p class="bookshelf-subtitle bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.author}"></p>
+          <div class="bookshelf-mt-2 flex flex-wrap bookshelf-p-2 text-xs">
+            <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 ' + (item.priceStandard ?: '-')} "></span>
+            <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 ' + (item.priceSales ?: '-')} "></span>
           </div>
         </div>
       </div>
 
-      <details class="blko-mt-3 rounded-[16px] border border-slate-200 bg-white/60 blko-p-2">
-        <summary class="cursor-pointer blko-title-sm">등록 옵션 열기</summary>
-        <div class="blko-mt-2 flex flex-wrap items-end blko-p-2">
-          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col blko-p-2 sm:flex-row sm:flex-wrap">
+      <details class="bookshelf-mt-3 rounded-[16px] border border-slate-200 bg-white/60 bookshelf-p-2">
+        <summary class="cursor-pointer bookshelf-title-sm">등록 옵션 열기</summary>
+        <div class="bookshelf-mt-2 flex flex-wrap items-end bookshelf-p-2">
+          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col bookshelf-p-2 sm:flex-row sm:flex-wrap">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="title" th:value="${item.title}">
             <input type="hidden" name="author" th:value="${item.author}">
@@ -107,28 +107,28 @@
             <input type="hidden" name="tab" th:value="${activeTab}">
             <input type="hidden" name="targetBookId" class="target-book-id">
             <div class="relative w-full min-w-0 sm:min-w-[260px] sm:max-w-[360px] flex-1">
-              <input type="text" class="blko-input blko-px-3 blko-py-2 text-xs target-book-search" placeholder="기존 책 검색, 비우면 새 책으로 등록" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
-              <div class="target-book-results absolute left-0 right-0 top-[calc(100%+4px)] z-10 hidden rounded-[16px] border border-slate-200 bg-white/95 blko-p-2 shadow-lg backdrop-blur" role="listbox"></div>
+              <input type="text" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs target-book-search" placeholder="기존 책 검색, 비우면 새 책으로 등록" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
+              <div class="target-book-results absolute left-0 right-0 top-[calc(100%+4px)] z-10 hidden rounded-[16px] border border-slate-200 bg-white/95 bookshelf-p-2 shadow-lg backdrop-blur" role="listbox"></div>
             </div>
-            <input type="number" name="volume" min="1" placeholder="권 번호" class="blko-input blko-px-3 blko-py-2 text-xs w-full sm:w-[120px]">
-            <select name="type" class="blko-select blko-px-3 blko-py-2 text-xs w-full sm:w-[140px]" aria-label="타입 선택">
+            <input type="number" name="volume" min="1" placeholder="권 번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[120px]">
+            <select name="type" class="bookshelf-select bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[140px]" aria-label="타입 선택">
               <option value="">타입</option>
               <option th:each="type : ${bookTypes}" th:value="${type}" th:text="${type}"></option>
             </select>
-            <input type="text" name="totalVolume" placeholder="총 권수" class="blko-input blko-px-3 blko-py-2 text-xs w-full sm:w-[120px]">
-            <button type="submit" class="blko-btn blko-px-3 blko-py-2 blko-btn-size-xs sm:w-auto">선택한 책에 담기</button>
+            <input type="text" name="totalVolume" placeholder="총 권수" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[120px]">
+            <button type="submit" class="bookshelf-btn bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs sm:w-auto">선택한 책에 담기</button>
           </form>
         </div>
       </details>
     </article>
   </div>
 
-  <div class="blko-pagination  blko-mt-4 " th:if="${totalAladinPages > 1}">
-    <a class="blko-pagination__nav blko-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=1, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="첫 페이지">≪</a>
-    <a class="blko-pagination__nav blko-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=${aladinPage - 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="이전 페이지">‹</a>
-    <a class="blko-pagination__page" th:each="p : ${#numbers.sequence(aladinStartPage, aladinEndPage)}" th:href="@{/products(aladinPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" th:class="${p == aladinPage ? 'blko-pagination__page is-current-page blko-btn-soft' : 'blko-pagination__page blko-btn-ghost'}" th:attr="aria-current=${p == aladinPage ? 'page' : null}"><span th:text="${p}"></span></a>
-    <a class="blko-pagination__nav blko-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${aladinPage + 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="다음 페이지">›</a>
-    <a class="blko-pagination__nav blko-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${totalAladinPages}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="마지막 페이지">≫</a>
+  <div class="bookshelf-pagination  bookshelf-mt-4 " th:if="${totalAladinPages > 1}">
+    <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=1, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="첫 페이지">≪</a>
+    <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=${aladinPage - 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="이전 페이지">‹</a>
+    <a class="bookshelf-pagination__page" th:each="p : ${#numbers.sequence(aladinStartPage, aladinEndPage)}" th:href="@{/products(aladinPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" th:class="${p == aladinPage ? 'bookshelf-pagination__page is-current-page bookshelf-btn-soft' : 'bookshelf-pagination__page bookshelf-btn-ghost'}" th:attr="aria-current=${p == aladinPage ? 'page' : null}"><span th:text="${p}"></span></a>
+    <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${aladinPage + 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="다음 페이지">›</a>
+    <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${totalAladinPages}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="마지막 페이지">≫</a>
   </div>
 </section>
 </body>

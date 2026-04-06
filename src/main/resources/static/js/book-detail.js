@@ -21,16 +21,16 @@
   function showToast(message, kind = 'success') {
     const text = (message || '').trim();
     if (!text) return;
-    let host = document.getElementById('blko-toast-host');
+    let host = document.getElementById('bookshelf-toast-host');
     if (!host) {
       host = document.createElement('div');
-      host.id = 'blko-toast-host';
-      host.className = 'blko-toast-host';
+      host.id = 'bookshelf-toast-host';
+      host.className = 'bookshelf-toast-host';
       document.body.appendChild(host);
     }
 
     const toast = document.createElement('div');
-    toast.className = `blko-toast ${kind === 'error' ? 'blko-toast-error' : 'blko-toast-success'}`;
+    toast.className = `bookshelf-toast ${kind === 'error' ? 'bookshelf-toast-error' : 'bookshelf-toast-success'}`;
     toast.textContent = text;
     host.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));

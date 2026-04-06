@@ -1,51 +1,51 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('알라딘 검색 · Bookshelf')}"></head>
-<body class="blko-body">
-<div class="blko-shell blko-shell-wide blko-py-8">
-  <div class="blko-app-frame">
+<body class="bookshelf-body">
+<div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
+  <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('aladin-search')}"></aside>
-    <main class="blko-main">
+    <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인해요.')}"></div>
 
-      <form action="/aladin/search" method="get" class="blko-card blko-pad-card sm:blko-p-5">
-        <label for="query" class="blko-mb-2 block blko-form-label">검색어</label>
-        <div class="flex flex-col blko-p-2 sm:flex-row">
-          <input id="query" name="query" th:value="${query}" placeholder="예: 해리포터" class="blko-input h-11 flex-1 blko-px-4 text-sm"/>
-          <button class="blko-btn blko-px-4 blko-py-2 blko-btn-size-sm sm:w-auto">검색</button>
+      <form action="/aladin/search" method="get" class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">
+        <label for="query" class="bookshelf-mb-2 block bookshelf-form-label">검색어</label>
+        <div class="flex flex-col bookshelf-p-2 sm:flex-row">
+          <input id="query" name="query" th:value="${query}" placeholder="예: 해리포터" class="bookshelf-input h-11 flex-1 bookshelf-px-4 text-sm"/>
+          <button class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">검색</button>
         </div>
       </form>
 
       <div th:if="${searchView == null}" th:replace="~{fragments/layout :: emptyState('검색 결과가 아직 없어요', '제목을 입력하면 읽기 쉬운 결과 카드와 원본 응답을 같이 보여드릴게요.')}"></div>
       <div th:if="${searchView != null}" th:replace="~{fragments/layout :: flashMessages(${searchView.hasError ? null : null}, ${searchView.hasError ? searchView.message : null})}"></div>
 
-      <div th:if="${searchView != null}" class="grid blko-p-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <section class="blko-card blko-pad-card sm:blko-p-5">
-          <div class="blko-mb-4 flex items-center justify-between blko-p-3">
+      <div th:if="${searchView != null}" class="grid bookshelf-p-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <section class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">
+          <div class="bookshelf-mb-4 flex items-center justify-between bookshelf-p-3">
             <div>
-              <div class="inline-flex blko-badge">Parsed Result</div>
-              <h2 class="blko-mt-3 blko-title-lg">검색 결과 카드</h2>
+              <div class="inline-flex bookshelf-badge">Parsed Result</div>
+              <h2 class="bookshelf-mt-3 bookshelf-title-lg">검색 결과 카드</h2>
             </div>
-            <span class="blko-chip blko-chip-tag-lg" th:text="${searchView.totalResults + '건'}">0건</span>
+            <span class="bookshelf-chip bookshelf-chip-tag-lg" th:text="${searchView.totalResults + '건'}">0건</span>
           </div>
 
-          <div class="blko-space-y-4" th:if="${!#lists.isEmpty(searchView.items)}">
-            <article th:each="item : ${searchView.items}" class="blko-panel blko-hover-lift blko-pad-card">
-              <div class="flex blko-p-4">
-                <div class="blko-cover-hover h-28 w-[4.75rem] min-w-[4.75rem] overflow-hidden rounded-[16px] bg-slate-100">
+          <div class="bookshelf-space-y-4" th:if="${!#lists.isEmpty(searchView.items)}">
+            <article th:each="item : ${searchView.items}" class="bookshelf-panel bookshelf-hover-lift bookshelf-pad-card">
+              <div class="flex bookshelf-p-4">
+                <div class="bookshelf-cover-hover h-28 w-[4.75rem] min-w-[4.75rem] overflow-hidden rounded-[16px] bg-slate-100">
                   <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full object-cover" alt="cover" loading="lazy">
-                  <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] blko-cover-placeholder">NO</div>
+                  <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] bookshelf-cover-placeholder">NO</div>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h3 class="blko-title-base" th:text="${item.title}"></h3>
-                  <p class="blko-mt-1 blko-subtitle-sm" th:text="${item.author}"></p>
-                  <p class="blko-mt-1 blko-subtitle-xs" th:text="${item.pubDate != null ? '출간일 · ' + item.pubDate : '출간일 정보 없음'}"></p>
-                  <div class="blko-mt-3 flex flex-wrap blko-p-2 text-xs">
-                    <span class="blko-chip blko-chip-tag" th:text="${'ISBN13 · ' + (item.isbn13 != null ? item.isbn13 : '-')}"></span>
-                    <span class="blko-chip blko-chip-tag" th:text="${'판매가 · ' + (item.priceSales != null ? item.priceSales : '-')}"></span>
-                    <span class="blko-chip blko-chip-tag" th:text="${'정가 · ' + (item.priceStandard != null ? item.priceStandard : '-')}"></span>
+                  <h3 class="bookshelf-title-base" th:text="${item.title}"></h3>
+                  <p class="bookshelf-mt-1 bookshelf-subtitle-sm" th:text="${item.author}"></p>
+                  <p class="bookshelf-mt-1 bookshelf-subtitle-xs" th:text="${item.pubDate != null ? '출간일 · ' + item.pubDate : '출간일 정보 없음'}"></p>
+                  <div class="bookshelf-mt-3 flex flex-wrap bookshelf-p-2 text-xs">
+                    <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'ISBN13 · ' + (item.isbn13 != null ? item.isbn13 : '-')}"></span>
+                    <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 · ' + (item.priceSales != null ? item.priceSales : '-')}"></span>
+                    <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 · ' + (item.priceStandard != null ? item.priceStandard : '-')}"></span>
                   </div>
-                  <p class="blko-mt-3 line-clamp-3 blko-subtitle-sm" th:text="${item.description != null and !#strings.isEmpty(item.description) ? item.description : '설명 정보가 없어요.'}"></p>
+                  <p class="bookshelf-mt-3 line-clamp-3 bookshelf-subtitle-sm" th:text="${item.description != null and !#strings.isEmpty(item.description) ? item.description : '설명 정보가 없어요.'}"></p>
                 </div>
               </div>
             </article>
@@ -54,12 +54,12 @@
           <div th:if="${#lists.isEmpty(searchView.items)}" th:replace="~{fragments/layout :: emptyState('검색 결과가 없어요', '검색어를 조금 바꾸거나 더 짧게 입력해 보세요.')}"></div>
         </section>
 
-        <section class="blko-card blko-pad-card sm:blko-p-5">
-          <div class="blko-mb-3 flex items-center justify-between">
-            <h2 class="blko-title-sm">원본 JSON</h2>
-            <span class="blko-subtitle-xs" th:text="${#strings.length(searchView.rawJson) + ' chars'}">0 chars</span>
+        <section class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">
+          <div class="bookshelf-mb-3 flex items-center justify-between">
+            <h2 class="bookshelf-title-sm">원본 JSON</h2>
+            <span class="bookshelf-subtitle-xs" th:text="${#strings.length(searchView.rawJson) + ' chars'}">0 chars</span>
           </div>
-          <pre class="blko-json max-h-[70vh] overflow-auto blko-px-4 blko-py-4 text-xs" th:text="${searchView.rawJson}"></pre>
+          <pre class="bookshelf-json max-h-[70vh] overflow-auto bookshelf-px-4 bookshelf-py-4 text-xs" th:text="${searchView.rawJson}"></pre>
         </section>
       </div>
 

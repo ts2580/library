@@ -68,7 +68,7 @@
 
     const renderItems = (items) => {
       if (!items.length) {
-        results.innerHTML = '<div class="rounded-[14px] blko-px-3 blko-py-3 text-xs text-slate-500">일치하는 책이 없어요.</div>';
+        results.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-slate-500">일치하는 책이 없어요.</div>';
         results.classList.remove('hidden');
         clearHighlight();
         setExpanded(true);
@@ -88,25 +88,25 @@
         return `
           <button type="button"
             id="${listboxId}-option-${item.id}"
-            class="target-book-option blko-panel w-full rounded-[16px] border border-transparent blko-px-3 blko-py-3 text-left transition hover:border-slate-200 hover:bg-slate-50"
+            class="target-book-option bookshelf-panel w-full rounded-[16px] border border-transparent bookshelf-px-3 bookshelf-py-3 text-left transition hover:border-slate-200 hover:bg-slate-50"
             role="option"
             aria-selected="false"
             data-id="${item.id}"
             data-label="${escapeHtml(label)}"
             data-index="${items.indexOf(item)}">
-            <div class="flex items-start justify-between blko-gap-3">
+            <div class="flex items-start justify-between bookshelf-gap-3">
               <div class="min-w-0">
                 <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
-                <div class="blko-mt-1 truncate text-xs text-slate-500">${escapeHtml(item.author || '저자 미입력')}</div>
+                <div class="bookshelf-mt-1 truncate text-xs text-slate-500">${escapeHtml(item.author || '저자 미입력')}</div>
               </div>
-              <div class="shrink-0 rounded-full border border-slate-200 blko-px-2 blko-py-0-5 text-[11px] font-medium text-slate-500">${escapeHtml(item.type || '타입없음')}</div>
+              <div class="shrink-0 rounded-full border border-slate-200 bookshelf-px-2 bookshelf-py-0-5 text-[11px] font-medium text-slate-500">${escapeHtml(item.type || '타입없음')}</div>
             </div>
-            <div class="blko-mt-2 flex flex-wrap blko-gap-1-5 text-[11px] text-slate-500">
-              <span class="rounded-full bg-slate-100 blko-px-2 blko-py-1">#${escapeHtml(item.id)}</span>
-              <span class="rounded-full bg-slate-100 blko-px-2 blko-py-1">${escapeHtml(item.totalvolume ? `총 ${item.totalvolume}권` : '총권수 미입력')}</span>
-              ${item.createddate ? `<span class="rounded-full bg-slate-100 blko-px-2 blko-py-1">${escapeHtml(`최근 수정 ${item.createddate}`)}</span>` : ''}
+            <div class="bookshelf-mt-2 flex flex-wrap bookshelf-gap-1-5 text-[11px] text-slate-500">
+              <span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">#${escapeHtml(item.id)}</span>
+              <span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">${escapeHtml(item.totalvolume ? `총 ${item.totalvolume}권` : '총권수 미입력')}</span>
+              ${item.createddate ? `<span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">${escapeHtml(`최근 수정 ${item.createddate}`)}</span>` : ''}
             </div>
-            <div class="blko-mt-2 text-[11px] text-slate-400">Enter로 선택</div>
+            <div class="bookshelf-mt-2 text-[11px] text-slate-400">Enter로 선택</div>
           </button>
         `;
       }).join('');
