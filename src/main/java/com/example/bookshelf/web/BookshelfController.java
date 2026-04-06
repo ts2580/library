@@ -38,35 +38,64 @@ public class BookshelfController {
                        @RequestParam(value = "search", required = false) String search,
                        @RequestParam(value = "page", defaultValue = "1") Integer page,
                        @RequestParam(value = "type", required = false) String type,
+                       @RequestParam(value = "title", required = false) String title,
+                       @RequestParam(value = "author", required = false) String author,
                        Model model) {
         if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
 
         String keyword = search != null ? search.trim() : "";
         String selectedType = type != null ? type.trim() : "";
+        String titleKeyword = title != null ? title.trim() : "";
+        String authorKeyword = author != null ? author.trim() : "";
+
         boolean hasSearch = !keyword.isEmpty();
         boolean hasType = !selectedType.isEmpty();
+        boolean hasTitle = !titleKeyword.isEmpty();
+        boolean hasAuthor = !authorKeyword.isEmpty();
+        boolean hasAdvancedFilters = hasTitle || hasAuthor;
+
         int requestedPage = page == null || page < 1 ? 1 : page;
         int pageSize = bookDataRepository.defaultPageSize();
 
-        int totalCount = hasSearch && hasType ? bookDataRepository.countSearchBooksByKeywordAndType(keyword, selectedType)
-                : hasSearch ? bookDataRepository.countSearchBooksByKeyword(keyword)
-                : hasType ? bookDataRepository.countBooksByType(selectedType)
-                : bookDataRepository.countAllBooks();
+        int totalCount;
+        List<?> books;
+
+        if (hasAdvancedFilters) {
+            totalCount = bookDataRepository.countBooksByFilters(titleKeyword, authorKeyword, selectedType);
+            books = bookDataRepository.findBooksByFiltersOrderByCreatedDesc(titleKeyword, authorKeyword, selectedType, pageSize, (requestedPage - 1) * pageSize);
+        } else {
+            totalCount = hasSearch && hasType ? bookDataRepository.countSearchBooksByKeywordAndType(keyword, selectedType)
+                    : hasSearch ? bookDataRepository.countSearchBooksByKeyword(keyword)
+                    : hasType ? bookDataRepository.countBooksByType(selectedType)
+                    : bookDataRepository.countAllBooks();
+            int totalPagesForOffset = Math.max(1, (int) Math.ceil(totalCount / (double) pageSize));
+            int currentPageForOffset = Math.min(requestedPage, totalPagesForOffset);
+            int offsetForOffset = (currentPageForOffset - 1) * pageSize;
+            books = hasSearch && hasType
+                    ? bookDataRepository.searchBooksByKeywordAndType(keyword, selectedType, pageSize, offsetForOffset)
+                    : hasSearch
+                    ? bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, pageSize, offsetForOffset)
+                    : hasType
+                    ? bookDataRepository.findAllBooksByTypeAndCreatedDesc(selectedType, pageSize, offsetForOffset)
+                    : bookDataRepository.findAllBooksOrderByCreatedDesc(pageSize, offsetForOffset);
+        }
+
         int totalPages = Math.max(1, (int) Math.ceil(totalCount / (double) pageSize));
         int currentPage = Math.min(requestedPage, totalPages);
         int offset = (currentPage - 1) * pageSize;
 
+        if (hasAdvancedFilters) {
+            books = bookDataRepository.findBooksByFiltersOrderByCreatedDesc(titleKeyword, authorKeyword, selectedType, pageSize, offset);
+        }
+
         authSessionHelper.populateMember(model, session);
         model.addAttribute("search", keyword);
         model.addAttribute("type", selectedType);
+        model.addAttribute("title", titleKeyword);
+        model.addAttribute("author", authorKeyword);
+        model.addAttribute("hasAdvancedFilters", hasAdvancedFilters);
         model.addAttribute("types", bookDataRepository.findAllBookTypes());
-        model.addAttribute("books", hasSearch && hasType
-                ? bookDataRepository.searchBooksByKeywordAndType(keyword, selectedType, pageSize, offset)
-                : hasSearch
-                ? bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, pageSize, offset)
-                : hasType
-                ? bookDataRepository.findAllBooksByTypeAndCreatedDesc(selectedType, pageSize, offset)
-                : bookDataRepository.findAllBooksOrderByCreatedDesc(pageSize, offset));
+        model.addAttribute("books", books);
         model.addAttribute("page", currentPage);
         model.addAttribute("pageSize", pageSize);
         model.addAttribute("totalCount", totalCount);

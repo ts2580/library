@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/head :: appHead('상품 검색 · Bookshelf')}"></head>
-<body class="blko-body">
-<div class="blko-shell blko-shell-wide blko-py-8">
-  <div class="blko-app-frame">
+<body class="bookshelf-body">
+<div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
+  <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('products')}"></aside>
-    <main class="blko-main">
-      <div th:replace="~{fragments/layout :: appTopbar(null, '상품 검색', '내 책장과 외부 검색 결과를 비교하고 바로 등록해요.')}"></div>
+    <main class="bookshelf-main">
+      <div th:replace="~{fragments/layout :: appTopbar(null, '상품 검색', null)}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
       <section class="pt-1">
-        <div class="blko-product-tabs blko-card blko-p-2" role="tablist" aria-label="상품 검색 패널 탭">
-          <button type="button" class="blko-product-tab" th:classappend="${activeTab == 'owned'} ? ' is-active' : ''" data-product-tab="owned" role="tab" aria-controls="product-panel-owned" th:attr="aria-selected=${activeTab == 'owned'}">내 책장 검색</button>
-          <button type="button" class="blko-product-tab" th:classappend="${activeTab == 'aladin'} ? ' is-active' : ''" data-product-tab="aladin" role="tab" aria-controls="product-panel-aladin" th:attr="aria-selected=${activeTab == 'aladin'}">알라딘 검색</button>
+        <div class="bookshelf-product-tabs bookshelf-card bookshelf-p-2" role="tablist" aria-label="상품 검색 패널 탭">
+          <button type="button" class="bookshelf-product-tab" th:classappend="${activeTab == 'owned'} ? ' is-active' : ''" data-product-tab="owned" role="tab" aria-controls="product-panel-owned" th:attr="aria-selected=${activeTab == 'owned'}">내 책장 검색</button>
+          <button type="button" class="bookshelf-product-tab" th:classappend="${activeTab == 'aladin'} ? ' is-active' : ''" data-product-tab="aladin" role="tab" aria-controls="product-panel-aladin" th:attr="aria-selected=${activeTab == 'aladin'}">알라딘 검색</button>
         </div>
 
-        <div class="blko-mt-4 grid blko-p-4 xl:grid-cols-2 blko-product-panels">
-          <div id="product-panel-owned" class="blko-product-panel" th:classappend="${activeTab == 'owned'} ? ' is-active' : ''" data-product-panel="owned" role="tabpanel">
+        <div class="bookshelf-mt-4 grid bookshelf-p-4 xl:grid-cols-2 bookshelf-product-panels">
+          <div id="product-panel-owned" class="bookshelf-product-panel" th:classappend="${activeTab == 'owned'} ? ' is-active' : ''" data-product-panel="owned" role="tabpanel">
             <div th:replace="~{fragments/product :: ownedPanel(${ownedQ}, ${ownedSort}, ${ownedPage}, ${aladinPage}, ${query}, ${activeTab}, ${totalOwned}, ${ownedFrom}, ${ownedTo}, ${totalOwnedPages}, ${ownedStartPage}, ${ownedEndPage}, ${ownedVolumes})}"></div>
           </div>
-          <div id="product-panel-aladin" class="blko-product-panel" th:classappend="${activeTab == 'aladin'} ? ' is-active' : ''" data-product-panel="aladin" role="tabpanel">
+          <div id="product-panel-aladin" class="bookshelf-product-panel" th:classappend="${activeTab == 'aladin'} ? ' is-active' : ''" data-product-panel="aladin" role="tabpanel">
             <div th:replace="~{fragments/product :: aladinPanel(${query}, ${ownedSort}, ${ownedQ}, ${ownedPage}, ${aladinPage}, ${activeTab}, ${totalAladinResults}, ${aladinFrom}, ${aladinTo}, ${totalAladinPages}, ${aladinStartPage}, ${aladinEndPage}, ${aladinResults}, ${ownedBooks}, ${bookTypes})}"></div>
           </div>
         </div>
