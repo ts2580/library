@@ -105,7 +105,7 @@ public class AladinApiService {
     }
 
     public AladinUsedView usedBookView(String isbn13, String type) {
-        String normalizedIsbn13 = isbn13 == null ? "" : isbn13.trim();
+        String normalizedIsbn13 = isbn13 == null ? "" : isbn13;
         String normalizedType = type == null ? "dropshipping" : type.trim();
         String rawJson = "dropshipping".equalsIgnoreCase(normalizedType)
                 ? findDropshippingUsedBook(normalizedIsbn13)
@@ -127,11 +127,11 @@ public class AladinApiService {
     }
 
     public List<AladinBranchStock> findUsedStocksByIsbn13(String isbn13) {
-        if (isbn13 == null || isbn13.trim().isEmpty()) {
+        if (isbn13 == null || isbn13.isEmpty()) {
             return Collections.emptyList();
         }
 
-        String dropshippingJson = call(ifUtil.getDropshippingUsedBookURL(isbn13.trim()));
+        String dropshippingJson = call(ifUtil.getDropshippingUsedBookURL(isbn13));
         if (dropshippingJson == null || dropshippingJson.startsWith("{\"error\"")) {
             return Collections.emptyList();
         }
@@ -162,7 +162,7 @@ public class AladinApiService {
             }
 
             if (hasSpace) {
-                String usedInfoJson = call(ifUtil.getUsedBookInfoURL(isbn13.trim()));
+                String usedInfoJson = call(ifUtil.getUsedBookInfoURL(isbn13));
                 if (usedInfoJson == null || usedInfoJson.startsWith("{\"error\"")) {
                     return stocks;
                 }

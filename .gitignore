@@ -1,5 +1,6 @@
 # Gradle
 .gradle/
+.gradle-user-home/
 build/
 
 # Node
@@ -9,6 +10,9 @@ package-lock.json
 # Local environment
 .env
 .env.*
+!.env.example
+*.sqlite
+*.sqlite3
 
 # Container artifacts
 # Dockerfile

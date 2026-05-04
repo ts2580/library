@@ -103,5 +103,10 @@ if [[ "$RUN_DEV" == "1" ]]; then
   ./gradlew compileJava --no-daemon
 fi
 
+if [[ "${BOOKSHELF_DB_URL:-}" == *"mariadb:"* ]]; then
+  echo "[run] WARNING: BOOKSHELF_DB_URL still points to MariaDB."
+  echo "[run] After migration, update .env to jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
+fi
+
 echo "[run] Starting Bookshelf on port $PORT"
 ./gradlew bootRun --no-daemon

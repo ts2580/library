@@ -591,6 +591,10 @@ video {
   margin-right: auto;
 }
 
+.ml-3 {
+  margin-left: 0.75rem;
+}
+
 .mt-auto {
   margin-top: auto;
 }

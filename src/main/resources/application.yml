@@ -2,10 +2,14 @@ spring:
   application:
     name: bookshelf
   datasource:
-    url: ${BOOKSHELF_DB_URL:jdbc:mariadb://${BOOKSHELF_DB_HOST:${DB_HOST:localhost}}:${BOOKSHELF_DB_PORT:${DB_PORT:3306}}/${BOOKSHELF_DB_DATABASE:${DB_DATABASE:bookshelf}}?characterEncoding=UTF-8}
-    username: ${BOOKSHELF_DB_USERNAME:${DB_USERNAME:bookshelf}}
-    password: ${BOOKSHELF_DB_PASSWORD:${DB_PASSWORD:}}
-    driver-class-name: org.mariadb.jdbc.Driver
+    url: ${BOOKSHELF_DB_URL:jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on&busy_timeout=5000}
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+      connection-init-sql: PRAGMA foreign_keys=ON
+  sql:
+    init:
+      mode: always
   thymeleaf:
     cache: false
 

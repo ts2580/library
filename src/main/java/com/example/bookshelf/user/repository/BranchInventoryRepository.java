@@ -47,16 +47,16 @@ public class BranchInventoryRepository {
     }
 
     public void rebuildBranchInventorySummary() {
-        jdbcTemplate.update("TRUNCATE TABLE branch_inventory_summary");
+        jdbcTemplate.update("DELETE FROM branch_inventory_summary");
         String sql = """
                 INSERT INTO branch_inventory_summary (branch, branch_name, stock_count, priced_count, total_amount, updated_at)
                 SELECT
                     COALESCE(NULLIF(bb.branch, ''), 'UNKNOWN') AS branch,
                     COALESCE(NULLIF(bb.branchname, ''), COALESCE(NULLIF(bb.branch, ''), '지점')) AS branch_name,
                     COUNT(*) AS stock_count,
-                    SUM(CASE WHEN bb.price IS NOT NULL AND bb.price REGEXP '^[0-9,]+$' THEN 1 ELSE 0 END) AS priced_count,
-                    SUM(CASE WHEN bb.price IS NOT NULL AND bb.price REGEXP '^[0-9,]+$' THEN CAST(REPLACE(bb.price, ',', '') AS UNSIGNED) ELSE 0 END) AS total_amount,
-                    NOW() AS updated_at
+                    SUM(CASE WHEN REPLACE(COALESCE(bb.price, ''), ',', '') <> '' AND REPLACE(bb.price, ',', '') NOT GLOB '*[^0-9]*' THEN 1 ELSE 0 END) AS priced_count,
+                    SUM(CASE WHEN REPLACE(COALESCE(bb.price, ''), ',', '') <> '' AND REPLACE(bb.price, ',', '') NOT GLOB '*[^0-9]*' THEN CAST(REPLACE(bb.price, ',', '') AS INTEGER) ELSE 0 END) AS total_amount,
+                    CURRENT_TIMESTAMP AS updated_at
                 FROM branchbook bb
                 GROUP BY COALESCE(NULLIF(bb.branch, ''), 'UNKNOWN'), COALESCE(NULLIF(bb.branchname, ''), COALESCE(NULLIF(bb.branch, ''), '지점'))
                 HAVING COUNT(*) > 0
@@ -103,7 +103,13 @@ public class BranchInventoryRepository {
         String sql = """
                 INSERT INTO branchbook (booklink, purchaseurl, branch, uuid, volume, name, price, branchname, grade, book)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE price = VALUES(price), purchaseurl = VALUES(purchaseurl), name = VALUES(name), branchname = VALUES(branchname), grade = VALUES(grade), volume = VALUES(volume)
+                ON CONFLICT(uuid) DO UPDATE SET
+                    price = excluded.price,
+                    purchaseurl = excluded.purchaseurl,
+                    name = excluded.name,
+                    branchname = excluded.branchname,
+                    grade = excluded.grade,
+                    volume = excluded.volume
                 """;
         jdbcTemplate.batchUpdate(sql, stocks, stocks.size(), (ps, stock) -> {
             String uuid = makeBranchBookUuid(bookId, stock.branch(), stock.branchName(), stock.grade(), stock.volume() > 0 ? stock.volume() : volume, stock.bookLink());

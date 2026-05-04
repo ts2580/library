@@ -138,7 +138,7 @@ public class ProductService {
     }
 
     private void processSingleRefreshTarget(BookVolume volume, int total, RefreshCounters counters) {
-        String isbn13 = volume.isbn13() == null ? null : volume.isbn13().trim();
+        String isbn13 = volume.isbn13();
         if (isbn13 == null || isbn13.isEmpty()) {
             counters.fail.incrementAndGet();
             counters.processed.incrementAndGet();
@@ -221,9 +221,10 @@ public class ProductService {
     }
 
     private String resolveKeyIsbn(String isbn13, String isbn) {
-        String finalIsbn13 = normalize(isbn13);
-        String finalIsbn = normalize(isbn);
-        return finalIsbn13 != null ? finalIsbn13 : finalIsbn;
+        if (isbn13 != null && !isbn13.isEmpty()) {
+            return isbn13;
+        }
+        return isbn;
     }
 
     private Integer normalizeRequestedVolume(Integer volume) {

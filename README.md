@@ -15,11 +15,51 @@ export $(grep -v '^#' .env | xargs)
 
 ```bash
 SERVER_PORT=25647 \
-BOOKSHELF_DB_URL='jdbc:mariadb://localhost:3306/bookshelf?characterEncoding=UTF-8' \
-BOOKSHELF_DB_USERNAME=bookshelf \
-BOOKSHELF_DB_PASSWORD=CHANGE_ME \
+BOOKSHELF_DB_URL='jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on&busy_timeout=5000' \
 ./gradlew bootRun
 ```
+
+기본값도 SQLite입니다. 별도 환경변수를 주지 않으면 루트의 `bookshelf.sqlite` 파일을 사용하고, 시작 시 `src/main/resources/schema.sql`로 필요한 테이블을 생성합니다.
+
+## MariaDB에서 SQLite로 이관
+
+기존 `.env`가 MariaDB `BOOKSHELF_DB_URL`을 가리키는 상태라면 그대로 실행할 수 있습니다.
+
+```bash
+node migrate_maria_to_sqlite.js ./bookshelf.sqlite
+npm run db:verify:migrated -- ./bookshelf.sqlite
+```
+
+애플리케이션을 SQLite DB로 실행한 뒤 주요 화면 smoke test를 돌릴 수 있습니다.
+
+```bash
+BOOKSHELF_BASE_URL=http://localhost:25647 \
+BOOKSHELF_DB_PATH=./bookshelf.sqlite \
+npm run screen:smoke
+```
+
+이 스크립트는 SQLite DB에 smoke test 계정과 샘플 책/지점 재고를 임시로 추가한 뒤 로그인, 대시보드, 책장, 책 상세, 상품 검색, 지점 재고 화면을 확인하고 fixture를 정리합니다.
+
+SQLite 스키마와 핵심 저장소 SQL만 먼저 확인하려면 아래 검증을 실행합니다.
+
+```bash
+npm run db:verify:sqlite
+```
+
+현재 환경에서 가능한 로컬 검증을 한 번에 실행하려면 아래 명령을 사용합니다.
+
+```bash
+npm run verify:local
+```
+
+앱 실행용 `.env`는 이관 후 SQLite URL로 바꿉니다.
+
+```bash
+BOOKSHELF_DB_URL=jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on\&busy_timeout=5000
+APP_DB_ENABLED=true
+```
+
+이미 `.env`를 SQLite로 바꾼 뒤라면 원본 MariaDB 정보는 `MARIA_DB_URL`, `MARIA_DB_USERNAME`, `MARIA_DB_PASSWORD`로 넘기면 됩니다.
 
 루트에서 바로 실행하고 싶으면 `run.sh`를 써요.
 

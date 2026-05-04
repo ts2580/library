@@ -5,6 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "db:migrate:maria-to-sqlite": "node migrate_maria_to_sqlite.js",
+    "db:verify:sqlite": "bash scripts/verify_sqlite_storage.sh",
+    "db:verify:migrated": "bash scripts/verify_migrated_sqlite.sh",
+    "screen:smoke": "bash scripts/verify_screen_smoke.sh",
+    "verify:local": "node --check migrate_maria_to_sqlite.js && bash -n run.sh && bash -n scripts/verify_sqlite_storage.sh && bash -n scripts/verify_java_repositories.sh && bash -n scripts/verify_java_compile.sh && bash -n scripts/verify_migrated_sqlite.sh && bash -n scripts/verify_screen_smoke.sh && npm run db:verify:sqlite && bash scripts/verify_java_repositories.sh && bash scripts/verify_java_compile.sh && npm run css:build",
     "css:build": "tailwindcss -i src/main/resources/static/css/blinko-tailwind-input.css -o src/main/resources/static/css/blinko-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\"",
     "css:watch": "tailwindcss -i src/main/resources/static/css/blinko-tailwind-input.css -o src/main/resources/static/css/blinko-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\" --watch"
   },
@@ -16,7 +21,6 @@
     "tailwindcss": "^3.4.17"
   },
   "dependencies": {
-    "mysql2": "^3.20.0",
-    "pg": "^8.20.0"
+    "mysql2": "^3.20.0"
   }
 }

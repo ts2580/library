@@ -23,9 +23,9 @@ public class BookDataRepository {
     }
 
     public List<Book> searchBooksByKeywordOrderByVolumeDesc(String keyword, int limit, int offset) {
-        String ftq = toBooleanFullTextQuery(keyword);
+        String like = '%' + normalizeForLike(keyword) + '%';
         String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, b.createddate
+                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
                 FROM books b
                 LEFT JOIN (
                     SELECT book, COUNT(*) AS volume_count
@@ -33,17 +33,17 @@ public class BookDataRepository {
                     WHERE book IS NOT NULL
                     GROUP BY book
                 ) v ON v.book = b.id
-                WHERE MATCH(b.name, b.author) AGAINST (? IN BOOLEAN MODE)
+                WHERE b.name LIKE ? OR b.author LIKE ?
                 ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC
                 LIMIT ? OFFSET ?
                 """;
-        return jdbcTemplate.query(sql, BookRowMappers.BOOK, ftq, limit, offset);
+        return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, limit, offset);
     }
 
     public List<Book> searchBooksByKeywordFallback(String keyword, int limit, int offset) {
         String like = '%' + normalizeForLike(keyword) + '%';
         String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, b.createddate
+                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
                 FROM books b
                 WHERE b.name LIKE ? OR b.author LIKE ?
                 ORDER BY b.id DESC
@@ -53,9 +53,9 @@ public class BookDataRepository {
     }
 
     public int countSearchBooksByKeyword(String keyword) {
-        String ftq = toBooleanFullTextQuery(keyword);
-        String sql = "SELECT COUNT(*) FROM books WHERE MATCH(name, author) AGAINST (? IN BOOLEAN MODE)";
-        Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, ftq);
+        String like = '%' + normalizeForLike(keyword) + '%';
+        String sql = "SELECT COUNT(*) FROM books WHERE name LIKE ? OR author LIKE ?";
+        Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, like, like);
         return cnt == null ? 0 : cnt;
     }
 
@@ -71,16 +71,16 @@ public class BookDataRepository {
     }
 
     public int countSearchBooksByKeywordAndType(String keyword, String type) {
-        String ftq = toBooleanFullTextQuery(keyword);
-        String sql = "SELECT COUNT(*) FROM books WHERE MATCH(name, author) AGAINST (? IN BOOLEAN MODE) AND type = ?";
-        Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, ftq, type);
+        String like = '%' + normalizeForLike(keyword) + '%';
+        String sql = "SELECT COUNT(*) FROM books WHERE (name LIKE ? OR author LIKE ?) AND type = ?";
+        Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, like, like, type);
         return cnt == null ? 0 : cnt;
     }
 
     public List<Book> searchBooksByKeywordAndType(String keyword, String type, int limit, int offset) {
-        String ftq = toBooleanFullTextQuery(keyword);
+        String like = '%' + normalizeForLike(keyword) + '%';
         String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, b.createddate
+                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
                 FROM books b
                 LEFT JOIN (
                     SELECT book, COUNT(*) AS volume_count
@@ -88,11 +88,11 @@ public class BookDataRepository {
                     WHERE book IS NOT NULL
                     GROUP BY book
                 ) v ON v.book = b.id
-                WHERE MATCH(b.name, b.author) AGAINST (? IN BOOLEAN MODE) AND b.type = ?
+                WHERE (b.name LIKE ? OR b.author LIKE ?) AND b.type = ?
                 ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC
                 LIMIT ? OFFSET ?
                 """;
-        return jdbcTemplate.query(sql, BookRowMappers.BOOK, ftq, type, limit, offset);
+        return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, type, limit, offset);
     }
 
     public int countBooksByFilters(String title, String author, String type) {
@@ -111,7 +111,7 @@ public class BookDataRepository {
 
     public List<Book> findAllBooksByTypeAndCreatedDesc(String type, int limit, int offset) {
         String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, COALESCE(v.lastVolumeId, b.id) AS createddate
+                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
                 FROM books b
                 LEFT JOIN (
                     SELECT book, MAX(id) AS lastVolumeId
@@ -127,7 +127,7 @@ public class BookDataRepository {
 
     public List<Book> findAllBooksOrderByCreatedDesc(int limit, int offset) {
         String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, COALESCE(v.lastVolumeId, b.id) AS createddate
+                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
                 FROM books b
                 LEFT JOIN (
                     SELECT book, MAX(id) AS lastVolumeId
@@ -146,12 +146,12 @@ public class BookDataRepository {
     }
 
     public List<Book> findAllBooks() {
-        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS `sync`, createddate FROM books ORDER BY id DESC";
+        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS sync, createddate FROM books ORDER BY id DESC";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK);
     }
 
     public Book findBookById(int id) {
-        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS `sync`, createddate FROM books WHERE id = ?";
+        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS sync, createddate FROM books WHERE id = ?";
         try {
             return jdbcTemplate.queryForObject(sql, BookRowMappers.BOOK, id);
         } catch (EmptyResultDataAccessException e) {
@@ -215,7 +215,7 @@ public class BookDataRepository {
             sql.append("SELECT COUNT(*) ");
         } else {
             sql.append("""
-                    SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS `sync`, COALESCE(v.lastVolumeId, b.id) AS createddate
+                    SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
                     """);
         }
 
@@ -250,28 +250,6 @@ public class BookDataRepository {
         }
 
         return new QueryParts(sql.toString(), args);
-    }
-
-    private String toBooleanFullTextQuery(String keyword) {
-        if (keyword == null) return "";
-        String trimmed = keyword.trim();
-        if (trimmed.isEmpty()) return "";
-        String[] tokens = trimmed.split("\\s+");
-        StringBuilder sb = new StringBuilder();
-        for (String token : tokens) {
-            if (token == null || token.isBlank()) continue;
-            String cleaned = token.replaceAll("[^\\p{L}\\p{N}가-힣]", "");
-            if (cleaned.isBlank()) continue;
-            if (sb.length() > 0) sb.append(' ');
-            sb.append('+').append(cleaned);
-            if (cleaned.length() >= 2) sb.append('*');
-        }
-        return sb.length() > 0 ? sb.toString() : cleanedFallback(trimmed);
-    }
-
-    private String cleanedFallback(String keyword) {
-        String fallback = keyword.replace("%", "").replace("'", "");
-        return fallback + "*";
     }
 
     private String normalizeForLike(String value) {
