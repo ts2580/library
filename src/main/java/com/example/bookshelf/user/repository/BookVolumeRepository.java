@@ -84,7 +84,7 @@ public class BookVolumeRepository {
     public void insertVolume(int bookId, int seq, String isbn13, String name, String cover, String price) {
         String sql = """
                 INSERT INTO book_volumes (book, isbn13, name, cover, price, ispurchased, volume, createddate)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
         jdbcTemplate.update(sql, bookId, isbn13, name, cover, price, false, seq);
     }
