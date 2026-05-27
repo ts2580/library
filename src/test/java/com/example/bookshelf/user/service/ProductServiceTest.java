@@ -1,9 +1,8 @@
 package com.example.bookshelf.user.service;
 
-import com.example.bookshelf.integration.aladin.AladinApiService;
+import com.example.bookshelf.integration.aladin.AladinUsedStockService;
 import com.example.bookshelf.integration.aladin.AladinBranchStock;
 import com.example.bookshelf.user.model.Book;
-import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
@@ -32,7 +31,7 @@ class ProductServiceTest {
     @Mock private BookDataRepository bookDataRepository;
     @Mock private BookVolumeRepository bookVolumeRepository;
     @Mock private BranchInventoryRepository branchInventoryRepository;
-    @Mock private AladinApiService aladinApiService;
+    @Mock private AladinUsedStockService aladinUsedStockService;
 
     @InjectMocks
     private ProductService productService;
@@ -63,7 +62,7 @@ class ProductServiceTest {
         when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
         when(bookDataRepository.findBookIdByNameAndAuthor("테스트 책", "테스터")).thenReturn(null);
         when(bookDataRepository.insertBook("테스트 책", "테스터", "설명", "cover-url", null, null)).thenReturn(10);
-        when(aladinApiService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of(new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "테스트 책")));
+        when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of(new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "테스트 책")));
 
         var result = productService.importProduct(command);
 
@@ -71,6 +70,22 @@ class ProductServiceTest {
         verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000");
         verify(branchInventoryRepository).insertBranchBooks(anyInt(), anyString(), anyInt(), anyList());
         verify(branchInventoryRepository).rebuildBranchInventorySummary();
+    }
+
+    @Test
+    void importProduct_stillSucceeds_whenImportedStockLookupFails() {
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
+        when(bookDataRepository.findBookIdByNameAndAuthor("테스트 책", "테스터")).thenReturn(null);
+        when(bookDataRepository.insertBook("테스트 책", "테스터", "설명", "cover-url", null, null)).thenReturn(10);
+        when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenThrow(new RuntimeException("network down"));
+
+        var result = productService.importProduct(command);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).contains("재고 조회 실패");
+        verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000");
+        verify(branchInventoryRepository, never()).insertBranchBooks(anyInt(), anyString(), anyInt(), anyList());
+        verify(branchInventoryRepository, never()).rebuildBranchInventorySummary();
     }
 
     @Test
@@ -94,7 +109,7 @@ class ProductServiceTest {
         );
         when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
         when(bookDataRepository.findBookById(7)).thenReturn(new Book(7, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
-        when(aladinApiService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of());
+        when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of());
 
         var result = productService.importProduct(existingBookCommand);
 
@@ -103,24 +118,4 @@ class ProductServiceTest {
         verify(bookVolumeRepository).insertVolume(7, 3, "9781234567890", "테스트 책", "cover-url", "10000");
     }
 
-    @Test
-    void startStockRefreshJob_rebuildsSummaryAfterProcessing() {
-        when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(1);
-        when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
-                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, false, "1")
-        ));
-        when(bookVolumeRepository.findUnpurchasedVolumesAfterId(1, 100)).thenReturn(List.of());
-        when(aladinApiService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of(
-                new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "책1")
-        ));
-
-        var result = productService.startStockRefreshJob();
-        assertThat(result.started()).isTrue();
-
-        try { Thread.sleep(200); } catch (InterruptedException ignored) {}
-
-        verify(branchInventoryRepository).deleteBranchBooksByBookAndVolume(10, 1);
-        verify(branchInventoryRepository).insertBranchBooks(10, "책1", 1, List.of(new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "책1")));
-        verify(branchInventoryRepository).rebuildBranchInventorySummary();
-    }
 }

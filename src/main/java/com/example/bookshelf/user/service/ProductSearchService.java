@@ -1,0 +1,120 @@
+package com.example.bookshelf.user.service;
+
+import com.example.bookshelf.common.Texts;
+import com.example.bookshelf.integration.aladin.AladinSearchResult;
+import com.example.bookshelf.integration.aladin.AladinSearchService;
+import com.example.bookshelf.user.model.Book;
+import com.example.bookshelf.user.model.BookVolume;
+import com.example.bookshelf.user.repository.BookDataRepository;
+import com.example.bookshelf.user.repository.BookVolumeRepository;
+import com.example.bookshelf.web.viewmodel.ProductSearchViewModel;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ProductSearchService {
+
+    private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE_MOBILE = 10;
+    private static final int AUTOCOMPLETE_LIMIT = 8;
+
+    private final BookDataRepository bookDataRepository;
+    private final BookVolumeRepository bookVolumeRepository;
+    private final AladinSearchService aladinSearchService;
+
+    public ProductSearchService(BookDataRepository bookDataRepository,
+                                BookVolumeRepository bookVolumeRepository,
+                                AladinSearchService aladinSearchService) {
+        this.bookDataRepository = bookDataRepository;
+        this.bookVolumeRepository = bookVolumeRepository;
+        this.aladinSearchService = aladinSearchService;
+    }
+
+    public ProductSearchViewModel search(ProductSearchRequest request) {
+        String ownedQuery = Texts.trimToEmpty(request.ownedQ());
+        String aladinQuery = Texts.trimToEmpty(request.query());
+        String ownedSort = normalizeOwnedSort(request.ownedSort());
+        int pageSize = resolvePageSize(request.userAgent());
+        int requestedOwnedPage = clampPage(request.ownedPage());
+        int requestedAladinPage = clampPage(request.aladinPage());
+
+        int totalOwned = ownedQuery.isEmpty()
+                ? bookVolumeRepository.countAllBookVolumes()
+                : bookVolumeRepository.countVolumeSearchByKeyword(ownedQuery);
+        int ownedOffset = (requestedOwnedPage - 1) * pageSize;
+        List<BookVolume> ownedVolumes = ownedQuery.isEmpty()
+                ? bookVolumeRepository.findAllVolumes(ownedSort, pageSize, ownedOffset)
+                : bookVolumeRepository.searchVolumesByKeyword(ownedQuery, ownedSort, pageSize, ownedOffset);
+
+        AladinSearchResult aladinResult = aladinQuery.isEmpty()
+                ? new AladinSearchResult(List.of(), 0, requestedAladinPage, pageSize)
+                : aladinSearchService.searchBookItems(aladinQuery, requestedAladinPage);
+
+        return ProductSearchViewModel.of(
+                ownedQuery,
+                aladinQuery,
+                ownedSort,
+                pageSize,
+                bookDataRepository.findAllBookTypes(),
+                ownedVolumes,
+                bookDataRepository.findAllBooks(),
+                requestedOwnedPage,
+                totalOwned,
+                requestedAladinPage,
+                aladinResult.items(),
+                aladinResult.totalResults()
+        );
+    }
+
+    public List<BookAutocompleteItem> autocompleteBooks(String query) {
+        String keyword = Texts.trimToEmpty(query);
+        if (keyword.isEmpty()) {
+            return List.of();
+        }
+
+        List<Book> books = bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, AUTOCOMPLETE_LIMIT, 0);
+        if (books.isEmpty()) {
+            books = bookDataRepository.searchBooksByKeywordFallback(keyword, AUTOCOMPLETE_LIMIT, 0);
+        }
+        return books.stream()
+                .map(book -> new BookAutocompleteItem(
+                        book.id(),
+                        Texts.nullToEmpty(book.name()),
+                        Texts.nullToEmpty(book.author()),
+                        Texts.nullToEmpty(book.type()),
+                        Texts.nullToEmpty(book.totalvolume()),
+                        Texts.nullToEmpty(book.createddate())
+                ))
+                .toList();
+    }
+
+    private int resolvePageSize(String userAgent) {
+        return isMobileUserAgent(userAgent) ? PAGE_SIZE_MOBILE : PAGE_SIZE;
+    }
+
+    private boolean isMobileUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return false;
+        }
+        return userAgent.contains("Mobi")
+                || userAgent.contains("Android")
+                || userAgent.contains("iPhone")
+                || userAgent.contains("iPod")
+                || userAgent.contains("Mobile");
+    }
+
+    private int clampPage(Integer page) {
+        return page == null || page < 1 ? 1 : page;
+    }
+
+    private String normalizeOwnedSort(String sort) {
+        return "recent".equalsIgnoreCase(sort) ? "recent" : "id";
+    }
+
+    public record ProductSearchRequest(String ownedQ, String query, Integer ownedPage, Integer aladinPage, String ownedSort, String userAgent) {
+    }
+
+    public record BookAutocompleteItem(int id, String name, String author, String type, String totalvolume, String createddate) {
+    }
+}

@@ -11,30 +11,26 @@ export $(grep -v '^#' .env | xargs)
 ./gradlew bootRun
 ```
 
-또는 필요한 값만 직접 넘겨도 돼요.
+또는 필요한 서버 포트만 직접 넘겨도 돼요.
 
 ```bash
 SERVER_PORT=25647 \
-BOOKSHELF_DB_URL='jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on&busy_timeout=5000' \
 ./gradlew bootRun
 ```
 
-기본값도 SQLite입니다. 별도 환경변수를 주지 않으면 루트의 `bookshelf.sqlite` 파일을 사용하고, 시작 시 `src/main/resources/schema.sql`로 필요한 테이블을 생성합니다.
+기본값은 SQLite입니다. DB URL 환경변수를 주입하지 않아도 루트의 `data/bookshelf.sqlite` 파일을 사용하고, 시작 시 `src/main/resources/schema.sql`로 필요한 테이블을 생성합니다.
 
-## MariaDB에서 SQLite로 이관
-
-기존 `.env`가 MariaDB `BOOKSHELF_DB_URL`을 가리키는 상태라면 그대로 실행할 수 있습니다.
+알라딘 API 키는 기본값을 사용하지만, 운영 환경에서는 환경변수로 덮어쓰는 편이 낫습니다.
 
 ```bash
-node migrate_maria_to_sqlite.js ./bookshelf.sqlite
-npm run db:verify:migrated -- ./bookshelf.sqlite
+ALADIN_TTB_KEY=your-key ./gradlew bootRun
 ```
 
 애플리케이션을 SQLite DB로 실행한 뒤 주요 화면 smoke test를 돌릴 수 있습니다.
 
 ```bash
 BOOKSHELF_BASE_URL=http://localhost:25647 \
-BOOKSHELF_DB_PATH=./bookshelf.sqlite \
+BOOKSHELF_DB_PATH=./data/bookshelf.sqlite \
 npm run screen:smoke
 ```
 
@@ -52,14 +48,11 @@ npm run db:verify:sqlite
 npm run verify:local
 ```
 
-앱 실행용 `.env`는 이관 후 SQLite URL로 바꿉니다.
+앱 실행용 `.env`에는 SQLite URL을 넣지 않습니다. 애플리케이션은 루트 `data/bookshelf.sqlite`를 자동으로 사용합니다.
 
 ```bash
-BOOKSHELF_DB_URL=jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on\&busy_timeout=5000
 APP_DB_ENABLED=true
 ```
-
-이미 `.env`를 SQLite로 바꾼 뒤라면 원본 MariaDB 정보는 `MARIA_DB_URL`, `MARIA_DB_USERNAME`, `MARIA_DB_PASSWORD`로 넘기면 됩니다.
 
 루트에서 바로 실행하고 싶으면 `run.sh`를 써요.
 
@@ -83,7 +76,7 @@ APP_DB_ENABLED=true
 - `src/main/resources/application.yml`
 
 ## 개선 메모
-- DB 접속정보는 코드에 하드코딩하지 말고 환경변수로 주입
+- SQLite DB는 루트 `data/bookshelf.sqlite`를 기본 경로로 사용
 - 로그인 세션 조회 로직은 공통 헬퍼로 관리
 - 외부 API(알라딘) 연동 실패는 로그 남기고 화면은 최대한 정상 동작 유지
 
@@ -92,4 +85,5 @@ APP_DB_ENABLED=true
 - Docker 이미지는 빌드 단계에서 Tailwind CSS를 생성한 뒤 JAR을 빌드합니다.
   ```bash
   docker build -t bookshelf .
+  docker run --rm -p 25647:25647 -v "$PWD/data:/app/data" bookshelf
   ```

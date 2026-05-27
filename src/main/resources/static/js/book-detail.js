@@ -68,6 +68,7 @@
       document.getElementById('bookEditType').value = bookCard.dataset.bookType || '';
       document.getElementById('bookEditTotalVolume').value = bookCard.dataset.bookTotalvolume || '';
       bookDialog.showModal();
+      document.getElementById('bookEditName')?.focus();
     };
     bookCard.addEventListener('click', (e) => {
       if (e.target.closest('a,button,form,input')) return;
@@ -100,7 +101,7 @@
 
       const openDialog = () => {
         volumeForm.action = `/books/${bookId}/volumes/${card.dataset.volumeId}`;
-        subtitle.textContent = `${card.dataset.volumeSeq || ''}권 세부 내역을 수정해요.`;
+        subtitle.textContent = `${card.dataset.volumeSeq || ''}권 세부 내역을 수정합니다.`;
         seqInput.value = card.dataset.volumeSeq || '';
         typeInput.value = card.dataset.volumeType || '';
         nameInput.value = card.dataset.volumeName || '';
@@ -110,6 +111,7 @@
         purchasedInput.checked = card.dataset.volumePurchased === 'true';
         preview.src = card.dataset.volumeCover || fallbackCover;
         volumeDialog.showModal();
+        seqInput.focus();
       };
 
       card.addEventListener('click', openDialog);
@@ -147,10 +149,10 @@
         showToast('삭제할 권을 먼저 선택해 주세요.', 'error');
         return;
       }
-      const ok = window.confirm(`"${bookName}"에서 선택한 ${checked}개 권을 삭제할까요?\n삭제 후에는 되돌릴 수 없어요.`);
+      const ok = window.confirm(`"${bookName}"에서 선택한 ${checked}개 권을 삭제하시겠습니까?\n삭제 후에는 되돌릴 수 없습니다.`);
       if (!ok) {
         event.preventDefault();
-        showToast('권 삭제를 취소했어요.', 'error');
+        showToast('권 삭제를 취소했습니다.', 'error');
         return;
       }
       sessionStorage.setItem(volumeDeleteStorageKey, 'pending');
@@ -169,10 +171,10 @@
     if (!deleteBookForm) return;
     deleteBookForm.addEventListener('submit', (event) => {
       const deleteButton = document.getElementById('deleteBookButton');
-      const ok = window.confirm(`"${bookName}" 책과 연결된 권 정보를 모두 삭제할까요?\n삭제 후에는 복구할 수 없어요.`);
+      const ok = window.confirm(`"${bookName}" 책과 연결된 권 정보를 모두 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`);
       if (!ok) {
         event.preventDefault();
-        showToast('도서 삭제를 취소했어요.', 'error');
+        showToast('도서 삭제를 취소했습니다.', 'error');
         return;
       }
       setDeleteButtonPending(deleteButton, true, '삭제 중...', '삭제');

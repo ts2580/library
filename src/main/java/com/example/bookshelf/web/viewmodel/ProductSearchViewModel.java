@@ -44,12 +44,8 @@ public record ProductSearchViewModel(
             List<AladinItem> aladinResults,
             int totalAladinResults
     ) {
-        int totalOwnedPages = Math.max(1, (int) Math.ceil(totalOwned / (double) pageSize));
-        int ownedPage = Math.min(requestedOwnedPage, totalOwnedPages);
-        int ownedOffset = (ownedPage - 1) * pageSize;
-
-        int totalAladinPages = Math.max(1, (int) Math.ceil(totalAladinResults / (double) pageSize));
-        int aladinPage = Math.min(requestedAladinPage, totalAladinPages);
+        PageWindow ownedWindow = PageWindow.of(requestedOwnedPage, totalOwned, pageSize);
+        PageWindow aladinWindow = PageWindow.of(requestedAladinPage, totalAladinResults, pageSize);
 
         return new ProductSearchViewModel(
                 ownedQ,
@@ -59,36 +55,21 @@ public record ProductSearchViewModel(
                 bookTypes,
                 ownedVolumes,
                 ownedBooks,
-                ownedPage,
-                totalOwned == 0 ? 0 : ownedOffset + 1,
-                Math.min(ownedPage * pageSize, totalOwned),
-                totalOwned,
-                totalOwnedPages,
-                startPage(ownedPage, totalOwnedPages),
-                endPage(ownedPage, totalOwnedPages),
-                aladinPage,
+                ownedWindow.currentPage(),
+                ownedWindow.from(),
+                ownedWindow.to(),
+                ownedWindow.totalItems(),
+                ownedWindow.totalPages(),
+                ownedWindow.startPage(),
+                ownedWindow.endPage(),
+                aladinWindow.currentPage(),
                 aladinResults,
-                totalAladinResults,
-                totalAladinPages,
-                totalAladinResults == 0 ? 0 : ((aladinPage - 1) * pageSize) + 1,
-                Math.min(aladinPage * pageSize, totalAladinResults),
-                startPage(aladinPage, totalAladinPages),
-                endPage(aladinPage, totalAladinPages)
+                aladinWindow.totalItems(),
+                aladinWindow.totalPages(),
+                aladinWindow.from(),
+                aladinWindow.to(),
+                aladinWindow.startPage(),
+                aladinWindow.endPage()
         );
-    }
-
-    private static int startPage(int currentPage, int totalPages) {
-        int half = 5 / 2;
-        return Math.max(1, currentPage - half);
-    }
-
-    private static int endPage(int currentPage, int totalPages) {
-        int half = 5 / 2;
-        int end = currentPage + half;
-        if (totalPages <= 5) return totalPages;
-        if (end > totalPages) return totalPages;
-        int start = startPage(currentPage, totalPages);
-        int width = Math.min(5, totalPages);
-        return Math.min(totalPages, start + width - 1);
     }
 }

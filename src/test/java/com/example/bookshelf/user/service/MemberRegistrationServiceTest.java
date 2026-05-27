@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -21,7 +22,7 @@ class MemberRegistrationServiceTest {
     private MemberRepository memberRepository;
 
     @Mock
-    private AuthService authService;
+    private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private MemberRegistrationService memberRegistrationService;
@@ -62,7 +63,7 @@ class MemberRegistrationServiceTest {
     @Test
     void register_savesBcryptEncodedPassword() {
         when(memberRepository.existsByUsername("newuser")).thenReturn(false);
-        when(authService.encode("password123")).thenReturn("bcrypt-hash");
+        when(passwordEncoder.encode("password123")).thenReturn("bcrypt-hash");
         when(memberRepository.findByUsername("newuser"))
                 .thenReturn(new com.example.bookshelf.user.model.Member(1, "newuser", "bcrypt-hash", "user@example.com", "새사용자", "소개"));
 

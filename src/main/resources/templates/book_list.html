@@ -7,6 +7,7 @@
     <aside th:replace="~{fragments/layout :: appSidebar('books')}"></aside>
     <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, '내 책장', null)}"></div>
+      <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
       <section class="bookshelf-card bookshelf-p-4 sm:bookshelf-p-4">
         <form action="/books" method="get" class="grid bookshelf-gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -40,7 +41,7 @@
       <section th:if="${not #lists.isEmpty(books)}" class="bookshelf-card-list grid grid-cols-2 bookshelf-gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <a th:each="book : ${books}" th:href="@{'/books/' + ${book.id}}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4"><div class="bookshelf-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name} + ' cover'" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover">NO COVER</div></div><div class="bookshelf-mt-3 sm:bookshelf-mt-4 bookshelf-space-y-1-5"><h2 class="line-clamp-2 bookshelf-title-base" th:text="${book.name}"></h2><p class="bookshelf-subtitle-sm" th:text="${book.author}"></p><div class="flex items-center justify-between bookshelf-subtitle-xs"><span th:text="${'권수 · ' + (book.totalvolume ?: '-')}"/><span class="bookshelf-chip bookshelf-chip-tag" th:text="${book.type != null ? book.type : '미분류'}"></span></div></div></a>
       </section>
-      <div th:if="${#lists.isEmpty(books)}" class="bookshelf-empty bookshelf-pad-xxl text-center"><h3 class="bookshelf-title-lg">표시할 책이 없어요</h3><p class="bookshelf-mt-2 bookshelf-subtitle-sm">타입, 작가, 제목 조건을 바꾸거나 책을 추가해 보세요.</p></div>
+      <div th:if="${#lists.isEmpty(books)}" class="bookshelf-empty bookshelf-pad-xxl text-center"><h3 class="bookshelf-title-lg">표시할 책이 없습니다</h3><p class="bookshelf-mt-2 bookshelf-subtitle-sm">타입, 작가, 제목 조건을 바꾸거나 책을 추가해 주세요.</p></div>
 
       <div class="bookshelf-pagination" th:if="${totalPages > 1}">
         <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=1, search=${search}, type=${type}, title=${title}, author=${author})}" aria-label="첫 페이지">≪</a>

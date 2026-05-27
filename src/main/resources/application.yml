@@ -2,7 +2,7 @@ spring:
   application:
     name: bookshelf
   datasource:
-    url: ${BOOKSHELF_DB_URL:jdbc:sqlite:./bookshelf.sqlite?foreign_keys=on&busy_timeout=5000}
+    url: jdbc:sqlite:./data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
     hikari:
       maximum-pool-size: 1
@@ -18,6 +18,9 @@ app:
     enabled: ${APP_DB_ENABLED:true}
   registration:
     enabled: ${REGISTRATION:${APP_REGISTRATION_ENABLED:false}}
+
+aladin:
+  ttb-key: ${ALADIN_TTB_KEY:ttbtrstyq0151001}
 
 server:
   port: ${SERVER_PORT:25647}

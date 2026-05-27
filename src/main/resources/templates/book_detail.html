@@ -6,7 +6,7 @@
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('book-detail')}"></aside>
     <main class="bookshelf-main">
-      <div th:replace="~{fragments/layout :: appTopbar('Book Detail', '도서 상세', '책 정보와 권별 목록을 한 화면에서 정리해요.')}"></div>
+      <div th:replace="~{fragments/layout :: appTopbar('Book Detail', '도서 상세', '책 정보와 권별 목록을 한 화면에서 정리합니다.')}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
       <div class="grid bookshelf-p-5 sm:bookshelf-p-6 lg:grid-cols-[340px_1fr]">
@@ -28,7 +28,7 @@
             <p><span class="bookshelf-detail-label">동기화</span> · <span th:text="${book.sync}"></span></p>
           </div>
           <p class="bookshelf-mt-4 rounded-[18px] border border-slate-200 bookshelf-p-4 bookshelf-subtitle-sm" th:text="${book.description ?: '설명이 없습니다.'}"></p>
-          <div class="bookshelf-mt-3 bookshelf-subtitle-xs">카드를 누르면 책 정보를 수정할 수 있어요.</div>
+          <div class="bookshelf-mt-3 bookshelf-subtitle-xs">카드를 누르면 책 정보를 수정할 수 있습니다.</div>
           <div class="bookshelf-mt-4 flex flex-col bookshelf-p-2 sm:flex-row">
             <a href="/books" class="bookshelf-btn-ghost bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">← 목록으로</a>
             <form method="post" id="deleteBookForm" th:action="@{'/books/' + ${book.id} + '/delete'}" class="sm:ml-1">
@@ -43,7 +43,7 @@
             <div>
               <div class="inline-flex bookshelf-badge">Volumes</div>
               <h2 class="bookshelf-mt-3 bookshelf-title-xl">권별 목록</h2>
-              <p class="bookshelf-mt-1 bookshelf-subtitle-sm">각 권 카드를 누르면 팝업으로 세부 정보를 수정할 수 있어요.</p>
+              <p class="bookshelf-mt-1 bookshelf-subtitle-sm">각 권 카드를 누르면 팝업으로 세부 정보를 수정할 수 있습니다.</p>
             </div>
             <div class="flex items-center bookshelf-p-2">
               <span class="bookshelf-chip bookshelf-chip-tag-lg" th:text="${#lists.size(volumes) + '권'}">0권</span>

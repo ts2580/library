@@ -1,5 +1,6 @@
 package com.example.bookshelf.user.repository;
 
+import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.user.model.BookVolume;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -10,6 +11,8 @@ import java.util.List;
 
 @Repository
 public class BookVolumeRepository {
+
+    private static final String BOOK_VOLUME_COLUMNS = "id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -23,25 +26,19 @@ public class BookVolumeRepository {
     }
 
     public int countVolumeSearchByKeyword(String keyword) {
-        String like = '%' + keyword + '%';
+        String like = Texts.likePattern(keyword);
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE name LIKE ? OR isbn13 LIKE ?", Integer.class, like, like);
         return count == null ? 0 : count;
     }
 
-    public List<BookVolume> searchVolumesByKeyword(String keyword, int limit, int offset) {
-        String like = '%' + keyword + '%';
-        String sql = """
-                SELECT id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume
-                FROM book_volumes
-                WHERE name LIKE ? OR isbn13 LIKE ?
-                ORDER BY id DESC
-                LIMIT ? OFFSET ?
-                """;
+    public List<BookVolume> searchVolumesByKeyword(String keyword, String sort, int limit, int offset) {
+        String like = Texts.likePattern(keyword);
+        String sql = "SELECT " + BOOK_VOLUME_COLUMNS + " FROM book_volumes WHERE name LIKE ? OR isbn13 LIKE ? " + orderBy(sort) + " LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, like, like, limit, offset);
     }
 
-    public List<BookVolume> findAllVolumesOrderByIdDesc(int limit, int offset) {
-        String sql = "SELECT id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume FROM book_volumes ORDER BY id DESC LIMIT ? OFFSET ?";
+    public List<BookVolume> findAllVolumes(String sort, int limit, int offset) {
+        String sql = "SELECT " + BOOK_VOLUME_COLUMNS + " FROM book_volumes " + orderBy(sort) + " LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, limit, offset);
     }
 
@@ -72,7 +69,7 @@ public class BookVolumeRepository {
     }
 
     public boolean existsVolumeByIsbn13(String isbn13) {
-        Integer cnt = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE isbn13 = ?", Integer.class, isbn13 == null ? "" : isbn13);
+        Integer cnt = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE isbn13 = ?", Integer.class, Texts.trimToEmpty(isbn13));
         return cnt != null && cnt > 0;
     }
 
@@ -86,7 +83,7 @@ public class BookVolumeRepository {
                 INSERT INTO book_volumes (book, isbn13, name, cover, price, ispurchased, volume, createddate)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
-        jdbcTemplate.update(sql, bookId, isbn13, name, cover, price, false, seq);
+        jdbcTemplate.update(sql, bookId, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), false, seq);
     }
 
     public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, boolean purchased, Integer seq) {
@@ -95,7 +92,7 @@ public class BookVolumeRepository {
                 SET isbn13 = ?, name = ?, cover = ?, price = ?, ispurchased = ?, volume = ?
                 WHERE id = ? AND book = ?
                 """;
-        jdbcTemplate.update(sql, normalize(isbn13), normalize(name), normalize(cover), normalize(price), purchased, seq, volumeId, bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), purchased, seq, volumeId, bookId);
     }
 
     public void deleteVolumesByBookId(int bookId) {
@@ -112,7 +109,9 @@ public class BookVolumeRepository {
         jdbcTemplate.update(sql, params.toArray());
     }
 
-    private String normalize(String value) {
-        return (value == null || value.trim().isEmpty()) ? null : value.trim();
+    private String orderBy(String sort) {
+        return "recent".equalsIgnoreCase(sort)
+                ? "ORDER BY createddate DESC, id DESC"
+                : "ORDER BY id DESC";
     }
 }

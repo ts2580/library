@@ -1,8 +1,10 @@
 package com.example.bookshelf.web;
 
+import com.example.bookshelf.user.service.BookCatalogService;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.web.viewmodel.BookDetailViewModel;
+import com.example.bookshelf.web.viewmodel.BookListViewModel;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,16 +21,17 @@ import java.util.List;
 @Controller
 public class BookshelfController {
 
-    private static final int PAGE_LINK_WINDOW = 5;
-
     private final AuthSessionHelper authSessionHelper;
+    private final BookCatalogService bookCatalogService;
     private final BookDataRepository bookDataRepository;
     private final BookVolumeRepository bookVolumeRepository;
 
     public BookshelfController(AuthSessionHelper authSessionHelper,
+                               BookCatalogService bookCatalogService,
                                BookDataRepository bookDataRepository,
                                BookVolumeRepository bookVolumeRepository) {
         this.authSessionHelper = authSessionHelper;
+        this.bookCatalogService = bookCatalogService;
         this.bookDataRepository = bookDataRepository;
         this.bookVolumeRepository = bookVolumeRepository;
     }
@@ -43,67 +46,8 @@ public class BookshelfController {
                        Model model) {
         if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
 
-        String keyword = search != null ? search.trim() : "";
-        String selectedType = type != null ? type.trim() : "";
-        String titleKeyword = title != null ? title.trim() : "";
-        String authorKeyword = author != null ? author.trim() : "";
-
-        boolean hasSearch = !keyword.isEmpty();
-        boolean hasType = !selectedType.isEmpty();
-        boolean hasTitle = !titleKeyword.isEmpty();
-        boolean hasAuthor = !authorKeyword.isEmpty();
-        boolean hasAdvancedFilters = hasTitle || hasAuthor;
-
-        int requestedPage = page == null || page < 1 ? 1 : page;
-        int pageSize = bookDataRepository.defaultPageSize();
-
-        int totalCount;
-        List<?> books;
-
-        if (hasAdvancedFilters) {
-            totalCount = bookDataRepository.countBooksByFilters(titleKeyword, authorKeyword, selectedType);
-            books = bookDataRepository.findBooksByFiltersOrderByCreatedDesc(titleKeyword, authorKeyword, selectedType, pageSize, (requestedPage - 1) * pageSize);
-        } else {
-            totalCount = hasSearch && hasType ? bookDataRepository.countSearchBooksByKeywordAndType(keyword, selectedType)
-                    : hasSearch ? bookDataRepository.countSearchBooksByKeyword(keyword)
-                    : hasType ? bookDataRepository.countBooksByType(selectedType)
-                    : bookDataRepository.countAllBooks();
-            int totalPagesForOffset = Math.max(1, (int) Math.ceil(totalCount / (double) pageSize));
-            int currentPageForOffset = Math.min(requestedPage, totalPagesForOffset);
-            int offsetForOffset = (currentPageForOffset - 1) * pageSize;
-            books = hasSearch && hasType
-                    ? bookDataRepository.searchBooksByKeywordAndType(keyword, selectedType, pageSize, offsetForOffset)
-                    : hasSearch
-                    ? bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, pageSize, offsetForOffset)
-                    : hasType
-                    ? bookDataRepository.findAllBooksByTypeAndCreatedDesc(selectedType, pageSize, offsetForOffset)
-                    : bookDataRepository.findAllBooksOrderByCreatedDesc(pageSize, offsetForOffset);
-        }
-
-        int totalPages = Math.max(1, (int) Math.ceil(totalCount / (double) pageSize));
-        int currentPage = Math.min(requestedPage, totalPages);
-        int offset = (currentPage - 1) * pageSize;
-
-        if (hasAdvancedFilters) {
-            books = bookDataRepository.findBooksByFiltersOrderByCreatedDesc(titleKeyword, authorKeyword, selectedType, pageSize, offset);
-        }
-
         authSessionHelper.populateMember(model, session);
-        model.addAttribute("search", keyword);
-        model.addAttribute("type", selectedType);
-        model.addAttribute("title", titleKeyword);
-        model.addAttribute("author", authorKeyword);
-        model.addAttribute("hasAdvancedFilters", hasAdvancedFilters);
-        model.addAttribute("types", bookDataRepository.findAllBookTypes());
-        model.addAttribute("books", books);
-        model.addAttribute("page", currentPage);
-        model.addAttribute("pageSize", pageSize);
-        model.addAttribute("totalCount", totalCount);
-        model.addAttribute("totalPages", totalPages);
-        model.addAttribute("from", totalCount == 0 ? 0 : offset + 1);
-        model.addAttribute("to", Math.min(currentPage * pageSize, totalCount));
-        model.addAttribute("startPage", getStartPage(currentPage, totalPages));
-        model.addAttribute("endPage", getEndPage(currentPage, totalPages));
+        applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page));
         return "book_list";
     }
 
@@ -141,7 +85,7 @@ public class BookshelfController {
         if (book == null) return "redirect:/books";
 
         bookDataRepository.updateBook(id, name, author, description, cover, type, totalVolume);
-        redirectAttributes.addFlashAttribute("success", "책 정보를 수정했어요.");
+        redirectAttributes.addFlashAttribute("success", "책 정보를 수정했습니다.");
         return "redirect:/books/" + id;
     }
 
@@ -165,7 +109,7 @@ public class BookshelfController {
         if (type != null && !type.trim().isEmpty()) {
             bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, book.totalvolume());
         }
-        redirectAttributes.addFlashAttribute("success", "권 정보를 수정했어요.");
+        redirectAttributes.addFlashAttribute("success", "권 정보를 수정했습니다.");
         return "redirect:/books/" + id;
     }
 
@@ -178,7 +122,7 @@ public class BookshelfController {
 
         bookVolumeRepository.deleteVolumesByBookId(id);
         bookDataRepository.deleteBookById(id);
-        redirectAttributes.addFlashAttribute("success", "도서를 삭제했어요. (" + book.name() + ")");
+        redirectAttributes.addFlashAttribute("success", "도서를 삭제했습니다. (" + book.name() + ")");
         return "redirect:/books";
     }
 
@@ -197,22 +141,25 @@ public class BookshelfController {
         }
 
         bookVolumeRepository.deleteVolumesByBookAndIds(id, volumeIds);
-        redirectAttributes.addFlashAttribute("success", volumeIds.size() + "개 권을 삭제했어요.");
+        redirectAttributes.addFlashAttribute("success", volumeIds.size() + "개 권을 삭제했습니다.");
         return "redirect:/books/" + id;
     }
 
-    private int getStartPage(int currentPage, int totalPages) {
-        int half = PAGE_LINK_WINDOW / 2;
-        return Math.max(1, currentPage - half);
-    }
-
-    private int getEndPage(int currentPage, int totalPages) {
-        int half = PAGE_LINK_WINDOW / 2;
-        int end = currentPage + half;
-        if (totalPages <= PAGE_LINK_WINDOW) return totalPages;
-        if (end > totalPages) return totalPages;
-        int start = getStartPage(currentPage, totalPages);
-        int width = Math.min(PAGE_LINK_WINDOW, totalPages);
-        return Math.min(totalPages, start + width - 1);
+    private void applyBookListModel(Model model, BookListViewModel vm) {
+        model.addAttribute("search", vm.search());
+        model.addAttribute("type", vm.type());
+        model.addAttribute("title", vm.title());
+        model.addAttribute("author", vm.author());
+        model.addAttribute("hasAdvancedFilters", vm.hasAdvancedFilters());
+        model.addAttribute("types", vm.types());
+        model.addAttribute("books", vm.books());
+        model.addAttribute("page", vm.page().currentPage());
+        model.addAttribute("pageSize", vm.page().pageSize());
+        model.addAttribute("totalCount", vm.page().totalItems());
+        model.addAttribute("totalPages", vm.page().totalPages());
+        model.addAttribute("from", vm.page().from());
+        model.addAttribute("to", vm.page().to());
+        model.addAttribute("startPage", vm.page().startPage());
+        model.addAttribute("endPage", vm.page().endPage());
     }
 }

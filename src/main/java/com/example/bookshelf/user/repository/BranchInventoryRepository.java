@@ -1,5 +1,6 @@
 package com.example.bookshelf.user.repository;
 
+import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.integration.aladin.AladinBranchStock;
 import com.example.bookshelf.user.model.BranchInventorySummary;
 import com.example.bookshelf.user.model.BranchStockItem;
@@ -113,15 +114,15 @@ public class BranchInventoryRepository {
                 """;
         jdbcTemplate.batchUpdate(sql, stocks, stocks.size(), (ps, stock) -> {
             String uuid = makeBranchBookUuid(bookId, stock.branch(), stock.branchName(), stock.grade(), stock.volume() > 0 ? stock.volume() : volume, stock.bookLink());
-            ps.setString(1, normalize(stock.bookLink()));
-            ps.setString(2, normalize(stock.purchaseLink()));
-            ps.setString(3, normalize(stock.branch()));
+            ps.setString(1, Texts.trimToNull(stock.bookLink()));
+            ps.setString(2, Texts.trimToNull(stock.purchaseLink()));
+            ps.setString(3, Texts.trimToNull(stock.branch()));
             ps.setString(4, uuid);
             ps.setDouble(5, stock.volume() > 0 ? stock.volume() : volume);
             ps.setString(6, bookName);
-            ps.setString(7, normalize(stock.price()));
-            ps.setString(8, normalize(stock.branchName()));
-            ps.setString(9, normalize(stock.grade()));
+            ps.setString(7, Texts.trimToNull(stock.price()));
+            ps.setString(8, Texts.trimToNull(stock.branchName()));
+            ps.setString(9, Texts.trimToNull(stock.grade()));
             ps.setInt(10, bookId);
         });
     }
@@ -131,12 +132,7 @@ public class BranchInventoryRepository {
         return UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
-    private String normalize(String value) {
-        return (value == null || value.trim().isEmpty()) ? null : value.trim();
-    }
-
     private String safeNormalize(String value) {
-        String normalized = normalize(value);
-        return normalized == null ? "" : normalized;
+        return Texts.trimToEmpty(value);
     }
 }
