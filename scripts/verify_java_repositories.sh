@@ -32,6 +32,7 @@ mkdir -p "$OUT_DIR"
 CLASSPATH="$SPRING_JDBC_JAR:$SPRING_TX_JAR:$SPRING_BEANS_JAR:$SPRING_CORE_JAR:$SPRING_CONTEXT_JAR:$SPRING_JCL_JAR:$SLF4J_API_JAR"
 
 javac -cp "$CLASSPATH" -d "$OUT_DIR" \
+  "$ROOT_DIR/src/main/java/com/example/bookshelf/common/Texts.java" \
   "$ROOT_DIR/src/main/java/com/example/bookshelf/integration/aladin/AladinBranchStock.java" \
   "$ROOT_DIR/src/main/java/com/example/bookshelf/user/model/Book.java" \
   "$ROOT_DIR/src/main/java/com/example/bookshelf/user/model/BookVolume.java" \

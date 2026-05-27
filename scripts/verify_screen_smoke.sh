@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${1:-${BOOKSHELF_BASE_URL:-http://localhost:25647}}"
-DB_PATH="${2:-${BOOKSHELF_DB_PATH:-${SQLITE_DB_PATH:-./bookshelf.sqlite}}}"
+DB_PATH="${2:-${BOOKSHELF_DB_PATH:-${SQLITE_DB_PATH:-./data/bookshelf.sqlite}}}"
 USERNAME="${BOOKSHELF_SMOKE_USERNAME:-bookshelf_smoke_$$}"
 PASSWORD="${BOOKSHELF_SMOKE_PASSWORD:-bookshelf-smoke}"
 BRANCH_CODE="${BOOKSHELF_SMOKE_BRANCH:-SMOKE_$$}"

@@ -6,7 +6,7 @@
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('aladin-search')}"></aside>
     <main class="bookshelf-main">
-      <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인해요.')}"></div>
+      <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인합니다.')}"></div>
 
       <form action="/aladin/search" method="get" class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">
         <label for="query" class="bookshelf-mb-2 block bookshelf-form-label">검색어</label>
@@ -16,7 +16,7 @@
         </div>
       </form>
 
-      <div th:if="${searchView == null}" th:replace="~{fragments/layout :: emptyState('검색 결과가 아직 없어요', '제목을 입력하면 읽기 쉬운 결과 카드와 원본 응답을 같이 보여드릴게요.')}"></div>
+      <div th:if="${searchView == null}" th:replace="~{fragments/layout :: emptyState('검색 결과가 아직 없습니다', '제목을 입력하면 읽기 쉬운 결과 카드와 원본 응답을 같이 표시합니다.')}"></div>
       <div th:if="${searchView != null}" th:replace="~{fragments/layout :: flashMessages(${searchView.hasError ? null : null}, ${searchView.hasError ? searchView.message : null})}"></div>
 
       <div th:if="${searchView != null}" class="grid bookshelf-p-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -45,13 +45,13 @@
                     <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 · ' + (item.priceSales != null ? item.priceSales : '-')}"></span>
                     <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 · ' + (item.priceStandard != null ? item.priceStandard : '-')}"></span>
                   </div>
-                  <p class="bookshelf-mt-3 line-clamp-3 bookshelf-subtitle-sm" th:text="${item.description != null and !#strings.isEmpty(item.description) ? item.description : '설명 정보가 없어요.'}"></p>
+                  <p class="bookshelf-mt-3 line-clamp-3 bookshelf-subtitle-sm" th:text="${item.description != null and !#strings.isEmpty(item.description) ? item.description : '설명 정보가 없습니다.'}"></p>
                 </div>
               </div>
             </article>
           </div>
 
-          <div th:if="${#lists.isEmpty(searchView.items)}" th:replace="~{fragments/layout :: emptyState('검색 결과가 없어요', '검색어를 조금 바꾸거나 더 짧게 입력해 보세요.')}"></div>
+          <div th:if="${#lists.isEmpty(searchView.items)}" th:replace="~{fragments/layout :: emptyState('검색 결과가 없습니다', '검색어를 조금 바꾸거나 더 짧게 입력해 주세요.')}"></div>
         </section>
 
         <section class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">

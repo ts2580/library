@@ -68,22 +68,14 @@
 
     const renderItems = (items) => {
       if (!items.length) {
-        results.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-slate-500">일치하는 책이 없어요.</div>';
+        results.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-slate-500">일치하는 책이 없습니다.</div>';
         results.classList.remove('hidden');
         clearHighlight();
         setExpanded(true);
         return;
       }
 
-      results.innerHTML = items.map((item) => {
-        const meta = [
-          `#${item.id}`,
-          item.author || '-',
-          item.type || '타입없음',
-          item.totalvolume ? `총 ${item.totalvolume}권` : '총권수 미입력',
-          item.createddate ? `최근 수정 ${item.createddate}` : null
-        ].filter(Boolean).join(' · ');
-
+      results.innerHTML = items.map((item, index) => {
         const label = `${item.name} / ${item.author || '-'}${item.type ? ' / ' + item.type : ''}`;
         return `
           <button type="button"
@@ -93,7 +85,7 @@
             aria-selected="false"
             data-id="${item.id}"
             data-label="${escapeHtml(label)}"
-            data-index="${items.indexOf(item)}">
+            data-index="${index}">
             <div class="flex items-start justify-between bookshelf-gap-3">
               <div class="min-w-0">
                 <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>

@@ -2,7 +2,7 @@ package com.example.bookshelf.web;
 
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
-import com.example.bookshelf.user.service.ProductService;
+import com.example.bookshelf.user.service.StockRefreshService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -23,16 +23,16 @@ public class DashboardController {
     private final AuthSessionHelper authSessionHelper;
     private final BookVolumeRepository bookVolumeRepository;
     private final BranchInventoryRepository branchInventoryRepository;
-    private final ProductService productService;
+    private final StockRefreshService stockRefreshService;
 
     public DashboardController(AuthSessionHelper authSessionHelper,
                                BookVolumeRepository bookVolumeRepository,
                                BranchInventoryRepository branchInventoryRepository,
-                               ProductService productService) {
+                               StockRefreshService stockRefreshService) {
         this.authSessionHelper = authSessionHelper;
         this.bookVolumeRepository = bookVolumeRepository;
         this.branchInventoryRepository = branchInventoryRepository;
-        this.productService = productService;
+        this.stockRefreshService = stockRefreshService;
     }
 
     @GetMapping("/dashboard")
@@ -65,15 +65,15 @@ public class DashboardController {
         model.addAttribute("chartBranches", branches.stream().map(s -> s.branch()).toList());
         model.addAttribute("chartValues", branches.stream().mapToLong(s -> s.totalAmount()).boxed().toList());
         model.addAttribute("summaryUpdatedAt", updatedAt);
-        model.addAttribute("refreshProgress", productService.getStockRefreshProgress());
+        model.addAttribute("refreshProgress", stockRefreshService.getStockRefreshProgress());
         return "branch_inventory_dashboard";
     }
 
     @PostMapping("/dashboard/branches/delete-all")
     public String deleteAllBranchStocks(HttpSession session, RedirectAttributes redirectAttributes) {
         if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
-        productService.deleteAllBranchInventory();
-        redirectAttributes.addFlashAttribute("success", "지점 재고와 집계 테이블을 전체 삭제했어요.");
+        stockRefreshService.deleteAllBranchInventory();
+        redirectAttributes.addFlashAttribute("success", "지점 재고와 집계 테이블을 전체 삭제했습니다.");
         return "redirect:/dashboard/branches";
     }
 
@@ -81,9 +81,9 @@ public class DashboardController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> startBranchStockRefresh(HttpSession session) {
         if (!authSessionHelper.isLoggedIn(session)) {
-            return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요해요."));
+            return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요합니다."));
         }
-        var result = productService.startStockRefreshJob();
+        var result = stockRefreshService.startStockRefreshJob();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("started", result.started());
         body.put("message", result.message());
@@ -93,9 +93,9 @@ public class DashboardController {
 
     @GetMapping("/dashboard/branches/refresh-progress")
     @ResponseBody
-    public ResponseEntity<ProductService.StockRefreshProgress> branchStockRefreshProgress(HttpSession session) {
+    public ResponseEntity<StockRefreshService.StockRefreshProgress> branchStockRefreshProgress(HttpSession session) {
         if (!authSessionHelper.isLoggedIn(session)) return ResponseEntity.status(401).build();
-        return ResponseEntity.ok(productService.getStockRefreshProgress());
+        return ResponseEntity.ok(stockRefreshService.getStockRefreshProgress());
     }
 
     @GetMapping("/dashboard/branches/{branch}")

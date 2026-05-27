@@ -13,17 +13,17 @@
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">지점 수</div>
           <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${branchCount}">0</div>
-          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">현재 집계된 지점을 보여줘요.</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">현재 집계된 지점을 표시합니다.</div>
         </div>
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">총 재고 금액</div>
           <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div>
-          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격이 입력된 재고 기준 합계예요.</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격이 입력된 재고 기준 합계입니다.</div>
         </div>
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">최종 집계 시각</div>
           <div class="bookshelf-mt-2 bookshelf-title-base" th:text="${summaryUpdatedAt != null ? #temporals.format(summaryUpdatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</div>
-          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">차트와 목록이 마지막으로 갱신된 시각이에요.</div>
+          <div class="bookshelf-mt-1 bookshelf-subtitle-sm">차트와 목록이 마지막으로 갱신된 시각입니다.</div>
         </div>
       </section>
 
@@ -37,7 +37,7 @@
               <input type="hidden" name="_csrf" th:value="${_csrf.token}">
               <button id="refreshStocksButton" type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">일괄 갱신 시작</button>
             </form>
-            <form action="/dashboard/branches/delete-all" method="post" onsubmit="return confirm('지점 재고를 전부 삭제할까요? 되돌릴 수 없어요.');">
+            <form action="/dashboard/branches/delete-all" method="post" onsubmit="return confirm('지점 재고를 전부 삭제하시겠습니까? 되돌릴 수 없습니다.');">
               <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
               <button type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">전체 삭제</button>
             </form>
@@ -48,7 +48,7 @@
           <div class="flex flex-col bookshelf-p-2 sm:bookshelf-p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div class="bookshelf-title-sm">진행 상태</div>
-              <p id="refreshProgressMessage" class="bookshelf-mt-1 bookshelf-subtitle-sm" th:text="${refreshProgress.message}">아직 실행한 일괄 갱신 작업이 없어요.</p>
+              <p id="refreshProgressMessage" class="bookshelf-mt-1 bookshelf-subtitle-sm" th:text="${refreshProgress.message}">아직 실행한 일괄 갱신 작업이 없습니다.</p>
             </div>
             <div class="text-right">
               <div id="refreshProgressPercent" class="bookshelf-title-2xl" th:text="${refreshProgress.percent + '%'}">0%</div>
@@ -72,7 +72,7 @@
       <section class="bookshelf-card bookshelf-branch-mobile-compact bookshelf-pad-card-lg sm:bookshelf-p-6">
         <div class="bookshelf-mb-3 sm:bookshelf-mb-4">
           <h2 class="bookshelf-title-lg">지점별 재고 금액 비교</h2>
-          <p class="bookshelf-mt-1 bookshelf-subtitle-sm">집계 테이블 스냅샷 기준으로 차트와 목록을 안정적으로 보여줘요.</p>
+          <p class="bookshelf-mt-1 bookshelf-subtitle-sm">집계 테이블 스냅샷 기준으로 차트와 목록을 안정적으로 표시합니다.</p>
         </div>
         <div id="branchChartWrap" class="bookshelf-mt-3 rounded-[20px] border border-slate-200 bookshelf-pad-card" style="height: 640px; min-height: 640px;">
           <canvas id="branchChart"></canvas>
@@ -82,7 +82,7 @@
       <section class="bookshelf-card bookshelf-branch-mobile-compact bookshelf-pad-card-lg sm:bookshelf-p-6">
         <div class="bookshelf-mb-3 sm:bookshelf-mb-4">
           <h2 class="bookshelf-title-lg">지점별 재고 목록</h2>
-          <p class="bookshelf-mt-1 bookshelf-subtitle-sm">금액이 큰 지점부터 위에 오도록 정렬되어 있어요.</p>
+          <p class="bookshelf-mt-1 bookshelf-subtitle-sm">금액이 큰 지점부터 위에 오도록 정렬되어 있습니다.</p>
         </div>
         <div class="bookshelf-table-wrap desktop-only">
           <table class="bookshelf-table w-full text-sm">
@@ -95,7 +95,7 @@
             </tr>
             </thead>
             <tbody>
-            <tr th:if="${#lists.isEmpty(branches)}"><td colspan="4" class="bookshelf-px-4 bookshelf-py-5 text-center bookshelf-subtitle">표시할 지점 재고가 아직 없어요.</td></tr>
+            <tr th:if="${#lists.isEmpty(branches)}"><td colspan="4" class="bookshelf-px-4 bookshelf-py-5 text-center bookshelf-subtitle">표시할 지점 재고가 아직 없습니다.</td></tr>
             <tr th:each="b : ${branches}" class="border-t border-slate-200">
               <td class="bookshelf-px-4 bookshelf-py-3"><a th:href="@{/dashboard/branches/{branch}(branch=${b.branch})}" th:text="${b.branchName}" class="bookshelf-link"></a></td>
               <td class="bookshelf-px-4 bookshelf-py-3" th:text="${b.stockCount + '건'}"></td>
@@ -124,280 +124,15 @@
 
       <div th:replace="~{fragments/layout :: appFooter()}"></div>
       <script th:inline="javascript">
-        const rawLabels = /*[[${chartLabels}]]*/ [];
-        const rawBranches = /*[[${chartBranches}]]*/ [];
-        const data = /*[[${chartValues}]]*/ [];
-        const chartWrap = document.getElementById('branchChartWrap');
-        const canvas = document.getElementById('branchChart');
-        let branchChart = null;
-
-        const getBranchUrlByIndex = (index) => {
-          if (!Array.isArray(rawBranches) || !rawBranches[index]) {
-            return null;
-          }
-          return '/dashboard/branches/' + encodeURIComponent(String(rawBranches[index]).trim());
+        window.BookshelfBranchDashboard = {
+          chartLabels: /*[[${chartLabels}]]*/ [],
+          chartBranches: /*[[${chartBranches}]]*/ [],
+          chartValues: /*[[${chartValues}]]*/ [],
+          refreshRunning: /*[[${refreshProgress.running}]]*/ false
         };
-
-        const navigateBranchFromChart = (index) => {
-          const url = getBranchUrlByIndex(index);
-          if (!url) {
-            return;
-          }
-          window.location.href = url;
-        };
-
-        const handleChartNavigation = (event, elements) => {
-          const canvasRect = canvas?.getBoundingClientRect();
-          if (!canvasRect) {
-            return;
-          }
-
-          let index = null;
-
-          if (Array.isArray(elements) && elements.length > 0) {
-            index = elements[0].index;
-          } else if (event && branchChart) {
-            const y = event.clientY - canvasRect.top;
-            const yScale = branchChart.scales && branchChart.scales.y;
-            if (yScale && typeof yScale.getValueForPixel === 'function') {
-              const value = yScale.getValueForPixel(y);
-              const rounded = Math.round(value);
-              if (Number.isInteger(rounded)) {
-                index = rounded;
-              }
-            }
-          }
-
-          if (index === null || index < 0 || index >= rawLabels.length) {
-            return;
-          }
-
-          navigateBranchFromChart(index);
-        };
-
-        const renderBranchChart = () => {
-          if (!canvas || !chartWrap || !window.Chart || !Array.isArray(rawLabels) || !Array.isArray(data) || rawLabels.length === 0) {
-            return;
-          }
-
-          const isMobile = window.matchMedia('(max-width: 768px)').matches;
-          const branchCount = rawLabels.length;
-          const rowHeight = isMobile ? 34 : 54;
-          const baseHeight = isMobile ? 360 : 640;
-          const chartHeight = Math.max(baseHeight, (branchCount * rowHeight) + 120);
-          chartWrap.style.height = `${chartHeight}px`;
-          chartWrap.style.minHeight = `${chartHeight}px`;
-
-          const styles = getComputedStyle(document.documentElement);
-          const tick = styles.getPropertyValue('--bk-text-soft').trim() || '#777';
-          const grid = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'rgba(255,255,255,0.08)' : 'rgba(120,120,120,0.08)';
-          const palette = ['#7c5cff', '#38bdf8', '#fb923c', '#34d399', '#f472b6', '#facc15', '#60a5fa', '#a3e635'];
-          const labels = rawLabels.map((label) => {
-            const text = String(label ?? '');
-            if (text.length <= 10) return text;
-            const mid = Math.ceil(text.length / 2);
-            return [text.slice(0, mid), text.slice(mid)];
-          });
-          const colors = rawLabels.map((_, idx) => palette[idx % palette.length]);
-
-          const valueLabelPlugin = {
-            id: 'valueLabelPlugin',
-            afterDatasetsDraw(chart) {
-              try {
-                const { ctx } = chart;
-                const meta = chart.getDatasetMeta(0);
-                ctx.save();
-                ctx.fillStyle = tick;
-                ctx.font = isMobile ? '600 10px sans-serif' : '600 12px sans-serif';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                meta.data.forEach((bar, index) => {
-                  const value = data[index] ?? 0;
-                  const label = `${Number(value).toLocaleString()}원`;
-                  const x = typeof bar.x === 'number' ? bar.x : 0;
-                  const y = typeof bar.y === 'number' ? bar.y : 0;
-                  const offset = isMobile ? 6 : 10;
-                  ctx.fillText(label, x + offset, y);
-                });
-                ctx.restore();
-              } catch (error) {
-                console.error('branch chart label plugin error', error);
-              }
-            }
-          };
-
-          if (branchChart) {
-            branchChart.destroy();
-          }
-
-          branchChart = new Chart(canvas.getContext('2d'), {
-            type: 'bar',
-            data: {
-              labels,
-              datasets: [{
-                label: '총 금액',
-                data,
-                backgroundColor: colors.map(c => c + 'CC'),
-                borderColor: colors,
-                borderWidth: 1,
-                borderRadius: 10,
-                barThickness: isMobile ? 14 : 18,
-                maxBarThickness: isMobile ? 18 : 22,
-                categoryPercentage: isMobile ? 0.88 : 0.72,
-                barPercentage: isMobile ? 0.95 : 0.84
-              }]
-            },
-            options: {
-              indexAxis: 'y',
-              responsive: true,
-              maintainAspectRatio: false,
-              animation: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: (context) => Number(context.raw ?? 0).toLocaleString() + '원'
-                  }
-                }
-              },
-              onClick: (event, elements) => {
-                handleChartNavigation(event.native || event, elements);
-              },
-              layout: { padding: { left: isMobile ? 10 : 12, right: isMobile ? 70 : 90, top: 12, bottom: 12 } },
-              scales: {
-                x: {
-                  beginAtZero: true,
-                  ticks: {
-                    color: tick,
-                    callback: (value) => Number(value).toLocaleString() + '원',
-                    font: { size: isMobile ? 10 : 12 }
-                  },
-                  grid: { color: grid }
-                },
-                y: {
-                  ticks: { color: tick, autoSkip: false, crossAlign: 'far', padding: isMobile ? 10 : 14, font: { size: isMobile ? 10 : 12, weight: '600' } },
-                  grid: { display: false }
-                }
-              }
-            },
-            plugins: [valueLabelPlugin]
-          });
-        };
-
-        renderBranchChart();
-
-        if (canvas) {
-          let chartResizeTimer = null;
-          window.addEventListener('resize', () => {
-            if (!canvas) return;
-            if (chartResizeTimer) {
-              clearTimeout(chartResizeTimer);
-            }
-            chartResizeTimer = window.setTimeout(() => {
-              renderBranchChart();
-            }, 150);
-          });
-
-          canvas.addEventListener('click', (event) => {
-            const elements = branchChart ? branchChart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, false) : [];
-            handleChartNavigation(event, elements);
-          });
-        }
-
-        (() => {
-          const form = document.getElementById('refreshStocksForm');
-          const button = document.getElementById('refreshStocksButton');
-          const bar = document.getElementById('refreshProgressBar');
-          const percent = document.getElementById('refreshProgressPercent');
-          const counts = document.getElementById('refreshProgressCounts');
-          const message = document.getElementById('refreshProgressMessage');
-          const processed = document.getElementById('refreshProcessed');
-          const success = document.getElementById('refreshSuccess');
-          const empty = document.getElementById('refreshEmpty');
-          const fail = document.getElementById('refreshFail');
-          let pollTimer = null;
-          let wasRunning = /*[[${refreshProgress.running}]]*/ false;
-
-          const render = (progress) => {
-            if (!progress) return;
-            const total = Number(progress.total || 0);
-            const done = Number(progress.processed || 0);
-            const pct = Number(progress.percent || 0);
-            bar.style.width = `${pct}%`;
-            percent.textContent = `${pct}%`;
-            counts.textContent = `${done} / ${total}`;
-            message.textContent = progress.message || '진행 상태를 불러오는 중이에요.';
-            processed.textContent = String(done);
-            success.textContent = String(progress.success || 0);
-            empty.textContent = String(progress.empty || 0);
-            fail.textContent = String(progress.fail || 0);
-
-            if (button) {
-              button.disabled = !!progress.running;
-              button.textContent = progress.running ? '갱신 진행 중...' : '일괄 갱신 시작';
-            }
-          };
-
-          const startPolling = () => {
-            if (pollTimer) return;
-            pollTimer = window.setInterval(async () => {
-              try {
-                const response = await fetch('/dashboard/branches/refresh-progress', { headers: { 'Accept': 'application/json' } });
-                if (!response.ok) return;
-                const progress = await response.json();
-                render(progress);
-
-                if (wasRunning && !progress.running && (progress.completed || progress.failed)) {
-                  const toastText = progress.completed
-                      ? `일괄 갱신 완료 🌿 총 ${progress.total}권 중 ${progress.success}권 성공, ${progress.empty}권 재고없음, ${progress.fail}권 실패`
-                      : (progress.message || '일괄 갱신 중 오류가 발생했어요.');
-                  sessionStorage.setItem('branchRefreshToast', toastText);
-                  window.location.reload();
-                  return;
-                }
-
-                wasRunning = !!progress.running;
-                if (!progress.running) {
-                  clearInterval(pollTimer);
-                  pollTimer = null;
-                }
-              } catch (error) {
-                console.error('refresh progress polling error', error);
-              }
-            }, 1500);
-          };
-
-          if (form) {
-            form.addEventListener('submit', async (event) => {
-              event.preventDefault();
-              const formData = new FormData(form);
-              try {
-                const response = await fetch(form.action, {
-                  method: 'POST',
-                  body: formData,
-                  headers: { 'Accept': 'application/json' }
-                });
-                const payload = await response.json();
-                if (payload.progress) {
-                  render(payload.progress);
-                  wasRunning = !!payload.progress.running;
-                }
-                if (payload.message) {
-                  message.textContent = payload.message;
-                }
-                startPolling();
-              } catch (error) {
-                console.error('refresh stocks start error', error);
-                message.textContent = '일괄 갱신 시작 중 오류가 발생했어요.';
-              }
-            });
-          }
-
-          if (wasRunning) {
-            startPolling();
-          }
-        })();
       </script>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="/js/branch-inventory-dashboard.js" defer></script>
       <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
     </main>
   </div>

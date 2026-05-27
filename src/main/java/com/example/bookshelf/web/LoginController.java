@@ -1,6 +1,5 @@
 package com.example.bookshelf.web;
 
-import com.example.bookshelf.user.model.dto.LoginForm;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -25,8 +24,6 @@ public class LoginController {
                             Model model) {
         model.addAttribute("dbEnabled", dbEnabled);
         model.addAttribute("registrationEnabled", registrationEnabled);
-        model.addAttribute("loginForm", new LoginForm());
-
         if (error != null) {
             model.addAttribute("loginError", "아이디 또는 비밀번호가 일치하지 않습니다.");
         }

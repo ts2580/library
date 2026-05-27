@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DB_PATH="${1:-./bookshelf.sqlite}"
+DB_PATH="${1:-./data/bookshelf.sqlite}"
 
 if [[ ! -f "$DB_PATH" ]]; then
   echo "SQLite database not found: $DB_PATH" >&2

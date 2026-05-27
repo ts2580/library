@@ -73,7 +73,7 @@ class SecurityFlowTest {
     void signupSucceeds_andAutoLogsIn() throws Exception {
         Member created = new Member(1, "newuser", "bcrypt", "u@example.com", "새사용자", null);
         when(memberRegistrationService.register(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(MemberRegistrationService.RegistrationResult.success("회원가입 완료! 바로 로그인했어요.", created));
+                .thenReturn(MemberRegistrationService.RegistrationResult.success("회원가입이 완료되었습니다. 바로 로그인했습니다.", created));
 
         mockMvc.perform(post("/user/signup")
                         .with(csrf())

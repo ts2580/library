@@ -1,6 +1,7 @@
 package com.example.bookshelf.web;
 
-import com.example.bookshelf.integration.aladin.AladinApiService;
+import com.example.bookshelf.integration.aladin.AladinSearchService;
+import com.example.bookshelf.integration.aladin.AladinUsedStockService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -11,12 +12,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class AladinController {
 
     private final AuthSessionHelper authSessionHelper;
-    private final AladinApiService aladinApiService;
+    private final AladinSearchService aladinSearchService;
+    private final AladinUsedStockService aladinUsedStockService;
 
     public AladinController(AuthSessionHelper authSessionHelper,
-                            AladinApiService aladinApiService) {
+                            AladinSearchService aladinSearchService,
+                            AladinUsedStockService aladinUsedStockService) {
         this.authSessionHelper = authSessionHelper;
-        this.aladinApiService = aladinApiService;
+        this.aladinSearchService = aladinSearchService;
+        this.aladinUsedStockService = aladinUsedStockService;
     }
 
     @GetMapping("/aladin/search")
@@ -31,7 +35,7 @@ public class AladinController {
         model.addAttribute("query", query != null ? query : "");
 
         if (query != null && !query.trim().isEmpty()) {
-            model.addAttribute("searchView", aladinApiService.searchBookView(query.trim()));
+            model.addAttribute("searchView", aladinSearchService.searchBookView(query.trim()));
         }
         return "aladin_search";
     }
@@ -48,7 +52,7 @@ public class AladinController {
         authSessionHelper.populateMember(model, session);
         model.addAttribute("isbn13", isbn13);
         model.addAttribute("type", type);
-        model.addAttribute("usedView", aladinApiService.usedBookView(isbn13, type));
+        model.addAttribute("usedView", aladinUsedStockService.usedBookView(isbn13, type));
         return "aladin_used_search";
     }
 }

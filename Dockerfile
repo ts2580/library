@@ -19,7 +19,9 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 COPY --from=builder /app/build/libs/bookshelf-0.0.1-SNAPSHOT.jar /app/app.jar
+RUN mkdir -p /app/data
 
 EXPOSE 25647
+VOLUME ["/app/data"]
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

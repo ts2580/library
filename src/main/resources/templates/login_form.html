@@ -13,7 +13,7 @@
 
     <div th:if="${!dbEnabled}" class="bookshelf-mb-5 bookshelf-alert-info">DB 비활성 모드에서는 로그인할 수 없습니다.</div>
 
-    <form method="post" th:action="@{/user/login}" th:object="${loginForm}" class="bookshelf-space-y-4" th:if="${dbEnabled}">
+    <form method="post" th:action="@{/user/login}" class="bookshelf-space-y-4" th:if="${dbEnabled}">
       <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
       <h1 class="bookshelf-title-2xl">로그인</h1>
@@ -35,7 +35,7 @@
 
     <div th:if="${!dbEnabled}" class="bookshelf-space-y-4">
       <h1 class="bookshelf-title-2xl">로그인</h1>
-      <p class="bookshelf-subtitle-sm">현재는 화면만 확인 가능한 상태예요.</p>
+      <p class="bookshelf-subtitle-sm">현재는 화면만 확인 가능한 상태입니다.</p>
       <input disabled placeholder="아이디 (비활성)" class="bookshelf-input h-14 bookshelf-px-4 text-base text-slate-400">
       <input disabled type="password" placeholder="비밀번호 (비활성)" class="bookshelf-input h-14 bookshelf-px-4 text-base text-slate-400">
       <button type="button" disabled class="bookshelf-btn-ghost h-14 w-full bookshelf-px-4 bookshelf-btn-size-lg opacity-60">로그인 비활성</button>

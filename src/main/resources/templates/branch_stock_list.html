@@ -9,21 +9,21 @@
       <div th:replace="~{fragments/layout :: appTopbar('Branch Detail', branchName, '지점 재고 카드를 한 장씩 편하게 살펴봐요.')}"></div>
 
       <section class="grid bookshelf-p-4 sm:grid-cols-3">
-        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">전체 재고</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${totalCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">이 지점에 등록된 전체 재고 수예요.</div></div>
-        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">가격 입력</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${pricedCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격 정보가 채워진 재고만 따로 보여줘요.</div></div>
-        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">재고 합계</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">입력된 가격 기준으로 계산한 합계예요.</div></div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">전체 재고</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${totalCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">이 지점에 등록된 전체 재고 수입니다.</div></div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">가격 입력</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${pricedCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격 정보가 채워진 재고만 따로 표시합니다.</div></div>
+        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">재고 합계</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">입력된 가격 기준으로 계산한 합계입니다.</div></div>
       </section>
 
       <section class="bookshelf-card bookshelf-pad-card-lg sm:bookshelf-p-6">
         <div class="bookshelf-mb-4 flex flex-col bookshelf-p-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="bookshelf-title-xl">재고 카드</h2>
-            <p class="bookshelf-mt-1 bookshelf-subtitle-sm">권별 상태와 가격을 카드 형태로 정리했어요.</p>
+            <p class="bookshelf-mt-1 bookshelf-subtitle-sm">권별 상태와 가격을 카드 형태로 정리했습니다.</p>
           </div>
           <a href="/dashboard/branches" class="bookshelf-btn-ghost bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">목록으로 돌아가기</a>
         </div>
 
-        <div th:if="${#lists.isEmpty(stocks)}" class="text-center bookshelf-py-10 bookshelf-subtitle">이 지점에는 아직 표시할 재고가 없어요.</div>
+        <div th:if="${#lists.isEmpty(stocks)}" class="text-center bookshelf-py-10 bookshelf-subtitle">이 지점에는 아직 표시할 재고가 없습니다.</div>
 
         <div th:if="${not #lists.isEmpty(stocks)}" class="bookshelf-card-list sm:grid sm:grid-cols-2 lg:grid-cols-4">
           <article th:each="s : ${stocks}" class="bookshelf-panel bookshelf-hover-lift bookshelf-pad-card-sm sm:bookshelf-p-4 h-full flex flex-col">

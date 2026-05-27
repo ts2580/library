@@ -6,7 +6,7 @@
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('aladin-used')}"></aside>
     <main class="bookshelf-main">
-      <div th:replace="~{fragments/layout :: appTopbar('Used Inventory', '알라딘 중고 조회', 'ISBN13 기준 중고 재고와 응답 요약을 함께 확인해요.')}"></div>
+      <div th:replace="~{fragments/layout :: appTopbar('Used Inventory', '알라딘 중고 조회', 'ISBN13 기준 중고 재고와 응답 요약을 함께 확인합니다.')}"></div>
 
   <div class="bookshelf-card bookshelf-pad-card">
     <div class="flex flex-col bookshelf-p-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -54,7 +54,7 @@
         </article>
       </div>
 
-      <div th:if="${#lists.isEmpty(usedView.stocks)}" th:replace="~{fragments/layout :: emptyState('중고 재고가 없어요', '이 ISBN13 기준으로 조회 가능한 중고 재고를 찾지 못했어요.')}"></div>
+      <div th:if="${#lists.isEmpty(usedView.stocks)}" th:replace="~{fragments/layout :: emptyState('중고 재고가 없습니다', '이 ISBN13 기준으로 조회 가능한 중고 재고를 찾지 못했습니다.')}"></div>
     </section>
 
     <section class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">

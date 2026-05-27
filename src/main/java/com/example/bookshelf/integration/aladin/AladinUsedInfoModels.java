@@ -20,18 +20,11 @@ class AladinDropshippingItem {
     @JsonProperty("title")
     private String title;
 
-    @JsonProperty("link")
-    private String link;
-
     @JsonProperty("subInfo")
     private AladinDropshippingSubInfo subInfo;
 
     public String getTitle() {
         return title;
-    }
-
-    public String getLink() {
-        return link;
     }
 
     public AladinDropshippingSubInfo getSubInfo() {
@@ -57,19 +50,12 @@ class AladinUsedList {
     @JsonProperty("spaceUsed")
     private AladinUsedSummary spaceUsed;
 
-    @JsonProperty("userUsed")
-    private AladinUsedSummary userUsed;
-
     public AladinUsedSummary getAladinUsed() {
         return aladinUsed;
     }
 
     public AladinUsedSummary getSpaceUsed() {
         return spaceUsed;
-    }
-
-    public AladinUsedSummary getUserUsed() {
-        return userUsed;
     }
 }
 
@@ -117,13 +103,6 @@ class AladinOffStoreItem {
 
     @JsonProperty("link")
     private String link;
-
-    @JsonProperty("minPrice")
-    private Integer minPrice;
-
-    public Integer getMinPrice() {
-        return minPrice;
-    }
 
     public String getOffCode() {
         return offCode;

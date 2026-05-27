@@ -1,7 +1,6 @@
 package com.example.bookshelf.user.repository;
 
 import com.example.bookshelf.user.model.Member;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -9,6 +8,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class MemberRepository {
+
+    private static final String MEMBER_COLUMNS = "id, username, password_hash, email, name, description";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -28,7 +29,7 @@ public class MemberRepository {
     public Member findById(int id) {
         try {
             return jdbcTemplate.queryForObject(
-                    "SELECT id, username, password_hash, email, name, description FROM member WHERE id = ?",
+                    "SELECT " + MEMBER_COLUMNS + " FROM member WHERE id = ?",
                     mapper,
                     id
             );
@@ -40,7 +41,7 @@ public class MemberRepository {
     public Member findByUsername(String username) {
         try {
             return jdbcTemplate.queryForObject(
-                    "SELECT id, username, password_hash, email, name, description FROM member WHERE username = ?",
+                    "SELECT " + MEMBER_COLUMNS + " FROM member WHERE username = ?",
                     mapper,
                     username
             );
@@ -60,23 +61,11 @@ public class MemberRepository {
 
     public void createMember(Member member) {
         String sql = "INSERT INTO member (username, password_hash, email, name, description) VALUES (?, ?, ?, ?, ?)";
-        try {
-            jdbcTemplate.update(sql,
-                    member.username(),
-                    member.passwordHash(),
-                    member.email(),
-                    member.name(),
-                    member.description());
-        } catch (DuplicateKeyException e) {
-            throw e;
-        }
-    }
-
-    public String getPasswordHash(String username) {
-        try {
-            return jdbcTemplate.queryForObject("SELECT password_hash FROM member WHERE username = ?", String.class, username);
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        }
+        jdbcTemplate.update(sql,
+                member.username(),
+                member.passwordHash(),
+                member.email(),
+                member.name(),
+                member.description());
     }
 }

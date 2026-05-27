@@ -1,5 +1,6 @@
 package com.example.bookshelf.user.repository;
 
+import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.user.model.Book;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,7 +15,23 @@ import java.util.List;
 @Repository
 public class BookDataRepository {
 
-    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final String BOOK_COLUMNS = "b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate";
+    private static final String BOOK_TABLE_COLUMNS = "id, name, author, description, totalvolume, type, cover, NULL AS sync, createddate";
+    private static final String VOLUME_COUNT_JOIN = """
+            LEFT JOIN (
+                SELECT book, COUNT(*) AS volume_count
+                FROM book_volumes
+                WHERE book IS NOT NULL
+                GROUP BY book
+            ) v ON v.book = b.id
+            """;
+    private static final String LAST_VOLUME_JOIN = """
+            LEFT JOIN (
+                SELECT book, MAX(id) AS lastVolumeId
+                FROM book_volumes
+                GROUP BY book
+            ) v ON v.book = b.id
+            """;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -23,37 +40,19 @@ public class BookDataRepository {
     }
 
     public List<Book> searchBooksByKeywordOrderByVolumeDesc(String keyword, int limit, int offset) {
-        String like = '%' + normalizeForLike(keyword) + '%';
-        String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
-                FROM books b
-                LEFT JOIN (
-                    SELECT book, COUNT(*) AS volume_count
-                    FROM book_volumes
-                    WHERE book IS NOT NULL
-                    GROUP BY book
-                ) v ON v.book = b.id
-                WHERE b.name LIKE ? OR b.author LIKE ?
-                ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC
-                LIMIT ? OFFSET ?
-                """;
+        String like = Texts.likePattern(keyword);
+        String sql = "SELECT " + BOOK_COLUMNS + " FROM books b " + VOLUME_COUNT_JOIN + " WHERE b.name LIKE ? OR b.author LIKE ? ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, limit, offset);
     }
 
     public List<Book> searchBooksByKeywordFallback(String keyword, int limit, int offset) {
-        String like = '%' + normalizeForLike(keyword) + '%';
-        String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
-                FROM books b
-                WHERE b.name LIKE ? OR b.author LIKE ?
-                ORDER BY b.id DESC
-                LIMIT ? OFFSET ?
-                """;
+        String like = Texts.likePattern(keyword);
+        String sql = "SELECT " + BOOK_COLUMNS + " FROM books b WHERE b.name LIKE ? OR b.author LIKE ? ORDER BY b.id DESC LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, limit, offset);
     }
 
     public int countSearchBooksByKeyword(String keyword) {
-        String like = '%' + normalizeForLike(keyword) + '%';
+        String like = Texts.likePattern(keyword);
         String sql = "SELECT COUNT(*) FROM books WHERE name LIKE ? OR author LIKE ?";
         Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, like, like);
         return cnt == null ? 0 : cnt;
@@ -71,27 +70,15 @@ public class BookDataRepository {
     }
 
     public int countSearchBooksByKeywordAndType(String keyword, String type) {
-        String like = '%' + normalizeForLike(keyword) + '%';
+        String like = Texts.likePattern(keyword);
         String sql = "SELECT COUNT(*) FROM books WHERE (name LIKE ? OR author LIKE ?) AND type = ?";
         Integer cnt = jdbcTemplate.queryForObject(sql, Integer.class, like, like, type);
         return cnt == null ? 0 : cnt;
     }
 
     public List<Book> searchBooksByKeywordAndType(String keyword, String type, int limit, int offset) {
-        String like = '%' + normalizeForLike(keyword) + '%';
-        String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, b.createddate
-                FROM books b
-                LEFT JOIN (
-                    SELECT book, COUNT(*) AS volume_count
-                    FROM book_volumes
-                    WHERE book IS NOT NULL
-                    GROUP BY book
-                ) v ON v.book = b.id
-                WHERE (b.name LIKE ? OR b.author LIKE ?) AND b.type = ?
-                ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC
-                LIMIT ? OFFSET ?
-                """;
+        String like = Texts.likePattern(keyword);
+        String sql = "SELECT " + BOOK_COLUMNS + " FROM books b " + VOLUME_COUNT_JOIN + " WHERE (b.name LIKE ? OR b.author LIKE ?) AND b.type = ? ORDER BY COALESCE(v.volume_count, 0) DESC, b.id DESC LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, like, like, type, limit, offset);
     }
 
@@ -110,33 +97,12 @@ public class BookDataRepository {
     }
 
     public List<Book> findAllBooksByTypeAndCreatedDesc(String type, int limit, int offset) {
-        String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
-                FROM books b
-                LEFT JOIN (
-                    SELECT book, MAX(id) AS lastVolumeId
-                    FROM book_volumes
-                    GROUP BY book
-                ) v ON v.book = b.id
-                WHERE b.type = ?
-                ORDER BY COALESCE(v.lastVolumeId, b.id) DESC, b.id DESC
-                LIMIT ? OFFSET ?
-                """;
+        String sql = "SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate FROM books b " + LAST_VOLUME_JOIN + " WHERE b.type = ? ORDER BY COALESCE(v.lastVolumeId, b.id) DESC, b.id DESC LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, type, limit, offset);
     }
 
     public List<Book> findAllBooksOrderByCreatedDesc(int limit, int offset) {
-        String sql = """
-                SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
-                FROM books b
-                LEFT JOIN (
-                    SELECT book, MAX(id) AS lastVolumeId
-                    FROM book_volumes
-                    GROUP BY book
-                ) v ON v.book = b.id
-                ORDER BY COALESCE(v.lastVolumeId, b.id) DESC, b.id DESC
-                LIMIT ? OFFSET ?
-                """;
+        String sql = "SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate FROM books b " + LAST_VOLUME_JOIN + " ORDER BY COALESCE(v.lastVolumeId, b.id) DESC, b.id DESC LIMIT ? OFFSET ?";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, limit, offset);
     }
 
@@ -146,12 +112,12 @@ public class BookDataRepository {
     }
 
     public List<Book> findAllBooks() {
-        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS sync, createddate FROM books ORDER BY id DESC";
+        String sql = "SELECT " + BOOK_TABLE_COLUMNS + " FROM books ORDER BY id DESC";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK);
     }
 
     public Book findBookById(int id) {
-        String sql = "SELECT id, name, author, description, totalvolume, type, cover, NULL AS sync, createddate FROM books WHERE id = ?";
+        String sql = "SELECT " + BOOK_TABLE_COLUMNS + " FROM books WHERE id = ?";
         try {
             return jdbcTemplate.queryForObject(sql, BookRowMappers.BOOK, id);
         } catch (EmptyResultDataAccessException e) {
@@ -160,9 +126,14 @@ public class BookDataRepository {
     }
 
     public Integer findBookIdByNameAndAuthor(String name, String author) {
-        String sql = "SELECT id FROM books WHERE name = ? AND author = ? LIMIT 1";
+        String sql = """
+                SELECT id
+                FROM books
+                WHERE name = ? AND (author = ? OR (author IS NULL AND ? IS NULL))
+                LIMIT 1
+                """;
         try {
-            return jdbcTemplate.queryForObject(sql, Integer.class, name, author);
+            return jdbcTemplate.queryForObject(sql, Integer.class, name, author, author);
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -173,12 +144,12 @@ public class BookDataRepository {
         String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume) VALUES (?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(connection -> {
             var ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, name);
-            ps.setString(2, author);
-            ps.setString(3, description);
-            ps.setString(4, type);
-            ps.setString(5, cover);
-            ps.setString(6, totalVolume);
+            ps.setString(1, Texts.trimToNull(name));
+            ps.setString(2, Texts.trimToNull(author));
+            ps.setString(3, Texts.trimToNull(description));
+            ps.setString(4, Texts.trimToNull(type));
+            ps.setString(5, Texts.trimToNull(cover));
+            ps.setString(6, Texts.trimToNull(totalVolume));
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -192,21 +163,17 @@ public class BookDataRepository {
                 SET name = ?, author = ?, description = ?, cover = ?, type = ?, totalvolume = ?
                 WHERE id = ?
                 """;
-        jdbcTemplate.update(sql, normalize(name), normalize(author), normalize(description), normalize(cover), normalize(type), normalize(totalVolume), bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(name), Texts.trimToNull(author), Texts.trimToNull(description), Texts.trimToNull(cover), Texts.trimToNull(type), Texts.trimToNull(totalVolume), bookId);
     }
 
     public void deleteBookById(int bookId) {
         jdbcTemplate.update("DELETE FROM books WHERE id = ?", bookId);
     }
 
-    public int defaultPageSize() {
-        return DEFAULT_PAGE_SIZE;
-    }
-
     private QueryParts buildBookFilterQuery(boolean countOnly, String title, String author, String type) {
-        String normalizedTitle = normalize(title);
-        String normalizedAuthor = normalize(author);
-        String normalizedType = normalize(type);
+        String normalizedTitle = Texts.trimToNull(title);
+        String normalizedAuthor = Texts.trimToNull(author);
+        String normalizedType = Texts.trimToNull(type);
 
         StringBuilder sql = new StringBuilder();
         List<Object> args = new ArrayList<>();
@@ -214,22 +181,13 @@ public class BookDataRepository {
         if (countOnly) {
             sql.append("SELECT COUNT(*) ");
         } else {
-            sql.append("""
-                    SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate
-                    """);
+            sql.append("SELECT b.id, b.name, b.author, b.description, b.totalvolume, b.type, b.cover, NULL AS sync, COALESCE(v.lastVolumeId, b.id) AS createddate ");
         }
 
         sql.append("FROM books b ");
         if (!countOnly) {
-            sql.append("""
-                    LEFT JOIN (
-                        SELECT book, MAX(id) AS lastVolumeId
-                        FROM book_volumes
-                        GROUP BY book
-                    ) v ON v.book = b.id
-                    """);
+            sql.append(LAST_VOLUME_JOIN);
         }
-
         sql.append("WHERE 1=1 ");
 
         if (normalizedType != null) {
@@ -238,11 +196,11 @@ public class BookDataRepository {
         }
         if (normalizedAuthor != null) {
             sql.append("AND b.author LIKE ? ");
-            args.add('%' + normalizeForLike(normalizedAuthor) + '%');
+            args.add(Texts.likePattern(normalizedAuthor));
         }
         if (normalizedTitle != null) {
             sql.append("AND b.name LIKE ? ");
-            args.add('%' + normalizeForLike(normalizedTitle) + '%');
+            args.add(Texts.likePattern(normalizedTitle));
         }
 
         if (!countOnly) {
@@ -250,14 +208,6 @@ public class BookDataRepository {
         }
 
         return new QueryParts(sql.toString(), args);
-    }
-
-    private String normalizeForLike(String value) {
-        return value == null ? "" : value.replace("%", "").replace("_", "").trim();
-    }
-
-    private String normalize(String value) {
-        return (value == null || value.trim().isEmpty()) ? null : value.trim();
     }
 
     private record QueryParts(String sql, List<Object> args) {

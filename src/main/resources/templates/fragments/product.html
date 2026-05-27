@@ -11,7 +11,8 @@
   </div>
 
   <form action="/products" method="get" class="bookshelf-search-inline bookshelf-mb-4 bookshelf-p-2">
-    <input type="text" name="ownedQ" th:value="${ownedQ}" placeholder="예: 해리포터, 97911..., 특정 권 제목" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
+    <label for="ownedProductSearch" class="sr-only">내 책장 검색어</label>
+    <input id="ownedProductSearch" type="text" name="ownedQ" th:value="${ownedQ}" placeholder="예: 해리포터, 97911..., 특정 권 제목" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
     <input type="hidden" name="ownedSort" th:value="${ownedSort}">
     <input type="hidden" name="aladinPage" th:value="${aladinPage}">
     <input type="hidden" name="tab" th:value="${activeTab}">
@@ -22,7 +23,7 @@
   <div class="bookshelf-mb-4 bookshelf-subtitle-sm">현재 <span th:text="${ownedFrom}"></span>~<span th:text="${ownedTo}"></span> / 전체 <span th:text="${totalOwned}"></span>권</div>
 
   <div th:if="${#lists.isEmpty(ownedVolumes)}" class="bookshelf-empty bookshelf-p-6 sm:bookshelf-p-8 text-center">
-    <h3 class="bookshelf-title-lg">보유 권이 비어 있어요</h3>
+    <h3 class="bookshelf-title-lg">보유 권이 비어 있습니다</h3>
     <p class="bookshelf-mt-2 bookshelf-subtitle-sm">권 제목이나 ISBN13 기준으로 다시 찾아보세요.</p>
   </div>
 
@@ -55,7 +56,8 @@
   </div>
 
   <form action="/products" method="get" class="bookshelf-search-inline bookshelf-mb-4 bookshelf-p-2">
-    <input type="text" name="q" th:value="${query}" placeholder="신권 만화책 검색" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
+    <label for="aladinProductSearch" class="sr-only">알라딘 검색어</label>
+    <input id="aladinProductSearch" type="text" name="q" th:value="${query}" placeholder="신권 만화책 검색" class="bookshelf-input bookshelf-search-inline__input bookshelf-px-4 text-sm"/>
     <input type="hidden" name="ownedSort" th:value="${ownedSort}">
     <input type="hidden" name="ownedQ" th:value="${ownedQ}">
     <input type="hidden" name="ownedPage" th:value="${ownedPage}">
@@ -66,8 +68,8 @@
   <div class="bookshelf-mb-4 bookshelf-subtitle-sm">현재 <span th:text="${aladinFrom}"></span>~<span th:text="${aladinTo}"></span> / 전체 <span th:text="${totalAladinResults}"></span>건</div>
 
   <div th:if="${#lists.isEmpty(aladinResults)}" class="bookshelf-empty bookshelf-p-6 sm:bookshelf-p-8 text-center">
-    <h3 class="bookshelf-title-lg">알라딘 결과가 없어요</h3>
-    <p class="bookshelf-mt-2 bookshelf-subtitle-sm">검색어를 입력하면 외부 결과를 카드형으로 보여드릴게요.</p>
+    <h3 class="bookshelf-title-lg">알라딘 결과가 없습니다</h3>
+    <p class="bookshelf-mt-2 bookshelf-subtitle-sm">검색어를 입력하면 외부 결과를 카드형으로 표시합니다.</p>
   </div>
 
   <div th:if="${not #lists.isEmpty(aladinResults)}" class="grid grid-cols-2 xl:grid-cols-3 bookshelf-gap-3">
@@ -106,16 +108,26 @@
             <input type="hidden" name="aladinPage" th:value="${aladinPage}">
             <input type="hidden" name="tab" th:value="${activeTab}">
             <input type="hidden" name="targetBookId" class="target-book-id">
-            <div class="relative w-full min-w-0 sm:min-w-[260px] sm:max-w-[360px] flex-1">
+            <label class="relative flex w-full min-w-0 flex-col sm:min-w-[260px] sm:max-w-[360px] sm:flex-1">
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">기존 책</span>
               <input type="text" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs target-book-search" placeholder="기존 책 검색, 비우면 새 책으로 등록" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
               <div class="target-book-results absolute left-0 right-0 top-[calc(100%+4px)] z-10 hidden rounded-[16px] border border-slate-200 bg-white/95 bookshelf-p-2 shadow-lg backdrop-blur" role="listbox"></div>
-            </div>
-            <input type="number" name="volume" min="1" placeholder="권 번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[120px]">
-            <select name="type" class="bookshelf-select bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[140px]" aria-label="타입 선택">
-              <option value="">타입</option>
-              <option th:each="type : ${bookTypes}" th:value="${type}" th:text="${type}"></option>
-            </select>
-            <input type="text" name="totalVolume" placeholder="총 권수" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs w-full sm:w-[120px]">
+            </label>
+            <label class="flex w-full flex-col sm:w-[120px]">
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">권 번호</span>
+              <input type="number" name="volume" min="1" placeholder="권 번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs">
+            </label>
+            <label class="flex w-full flex-col sm:w-[140px]">
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">타입</span>
+              <select name="type" class="bookshelf-select bookshelf-px-3 bookshelf-py-2 text-xs" aria-label="타입 선택">
+                <option value="">타입</option>
+                <option th:each="type : ${bookTypes}" th:value="${type}" th:text="${type}"></option>
+              </select>
+            </label>
+            <label class="flex w-full flex-col sm:w-[120px]">
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">총 권수</span>
+              <input type="text" name="totalVolume" placeholder="총 권수" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs">
+            </label>
             <button type="submit" class="bookshelf-btn bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs sm:w-auto">선택한 책에 담기</button>
           </form>
         </div>
@@ -126,7 +138,7 @@
   <div class="bookshelf-pagination  bookshelf-mt-4 " th:if="${totalAladinPages > 1}">
     <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=1, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="첫 페이지">≪</a>
     <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage > 1}" th:href="@{/products(aladinPage=${aladinPage - 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="이전 페이지">‹</a>
-    <a class="bookshelf-pagination__page" th:each="p : ${#numbers.sequence(aladinStartPage, aladinEndPage)}" th:href="@{/products(aladinPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" th:class="${p == aladinPage ? 'bookshelf-pagination__page is-current-page bookshelf-btn-soft' : 'bookshelf-pagination__page bookshelf-btn-ghost'}" th:attr="aria-current=${p == aladinPage ? 'page' : null}"><span th:text="${p}"></span></a>
+    <a class="bookshelf-pagination__page" th:each="p : ${#numbers.sequence(aladinStartPage, aladinEndPage)}" th:href="@{/products(aladinPage=${p}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" th:classappend="${p == aladinPage ? ' is-current-page bookshelf-btn-soft' : ' bookshelf-btn-ghost'}" th:attr="aria-current=${p == aladinPage ? 'page' : null}"><span th:text="${p}"></span></a>
     <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${aladinPage + 1}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="다음 페이지">›</a>
     <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${aladinPage < totalAladinPages}" th:href="@{/products(aladinPage=${totalAladinPages}, ownedSort=${ownedSort}, ownedQ=${ownedQ}, q=${query}, ownedPage=${ownedPage}, tab=${activeTab})}" aria-label="마지막 페이지">≫</a>
   </div>
