@@ -20,9 +20,11 @@ public class AuthSessionHelper {
     }
 
     public Integer getMemberId(HttpSession session) {
-        Object memberId = session.getAttribute(SessionKeys.LOGIN_MEMBER_ID);
-        if (memberId instanceof Integer) {
-            return (Integer) memberId;
+        if (session != null) {
+            Object memberId = session.getAttribute(SessionKeys.LOGIN_MEMBER_ID);
+            if (memberId instanceof Integer) {
+                return (Integer) memberId;
+            }
         }
 
         return resolveMemberIdFromSecurityContext();

@@ -34,6 +34,13 @@ CREATE TABLE IF NOT EXISTS member (
     description TEXT
 );
 
+CREATE TABLE IF NOT EXISTS persistent_logins (
+    username TEXT NOT NULL,
+    series TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    last_used TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS book_volumes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     seq INTEGER,

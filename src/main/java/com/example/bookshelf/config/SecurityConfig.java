@@ -5,9 +5,17 @@ import com.example.bookshelf.web.SessionKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +25,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 
 @Configuration
 public class SecurityConfig {
@@ -24,12 +35,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticationSuccessHandler authenticationSuccessHandler,
-                                                   DaoAuthenticationProvider daoAuthenticationProvider,
-                                                   UserDetailsService userDetailsService) throws Exception {
+                                                   UserDetailsService userDetailsService,
+                                                   PersistentTokenRepository persistentTokenRepository,
+                                                   @Value("${app.security.remember-me-key:bookshelf-dev-remember-me-change-me}")
+                                                   String rememberMeKey) throws Exception {
         http
-                .authenticationProvider(daoAuthenticationProvider)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/user/login", "/user/signup", "/error", "/css/**", "/js/**", "/images/**").permitAll()
+                        .requestMatchers(
+                                "/user/login", "/user/signup", "/error", "/css/**", "/js/**", "/images/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
@@ -41,8 +55,10 @@ public class SecurityConfig {
                 )
                 .rememberMe(rememberMe -> rememberMe
                         .userDetailsService(userDetailsService)
-                        .key("bookshelf-remember-me")
-                        .alwaysRemember(true)
+                        .tokenRepository(persistentTokenRepository)
+                        .key(rememberMeKey)
+                        .rememberMeParameter("remember-me")
+                        .alwaysRemember(false)
                         .tokenValiditySeconds(30 * 24 * 60 * 60)
                 )
                 .logout(logout -> logout
@@ -73,21 +89,25 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new LegacyAwarePasswordEncoder();
     }
 
     @Bean
-    public DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService userDetailsService,
-                                                               PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder);
-        return provider;
+    public PersistentTokenRepository persistentTokenRepository(ObjectProvider<DataSource> dataSourceProvider) {
+        DataSource dataSource = dataSourceProvider.getIfAvailable();
+        if (dataSource == null) {
+            return new InMemoryTokenRepositoryImpl();
+        }
+        JdbcTokenRepositoryImpl repository = new JdbcTokenRepositoryImpl();
+        repository.setDataSource(dataSource);
+        return repository;
     }
 
     @Bean
     public AuthenticationSuccessHandler authenticationSuccessHandler(MemberRepository memberRepository) {
-        return (HttpServletRequest request, HttpServletResponse response, org.springframework.security.core.Authentication authentication) -> {
+        return (HttpServletRequest request,
+                HttpServletResponse response,
+                org.springframework.security.core.Authentication authentication) -> {
             var member = memberRepository.findByUsername(authentication.getName());
             HttpSession session = request.getSession(true);
             if (member != null) {
@@ -95,5 +115,67 @@ public class SecurityConfig {
             }
             response.sendRedirect("/dashboard");
         };
+    }
+
+    private static class LegacyAwarePasswordEncoder implements PasswordEncoder {
+        private static final Pattern SHA_256_HEX = Pattern.compile("^[0-9a-fA-F]{64}$");
+        private static final String BCRYPT_PREFIX = "{bcrypt}";
+
+        private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+
+        @Override
+        public String encode(CharSequence rawPassword) {
+            return bcrypt.encode(rawPassword);
+        }
+
+        @Override
+        public boolean matches(CharSequence rawPassword, String encodedPassword) {
+            if (rawPassword == null || encodedPassword == null || encodedPassword.isBlank()) {
+                return false;
+            }
+            if (isBcrypt(encodedPassword)) {
+                return bcrypt.matches(rawPassword, normalizeBcrypt(encodedPassword));
+            }
+            if (SHA_256_HEX.matcher(encodedPassword).matches()) {
+                return matchesLegacySha256(rawPassword, encodedPassword);
+            }
+            return false;
+        }
+
+        @Override
+        public boolean upgradeEncoding(String encodedPassword) {
+            return encodedPassword != null && !isBcrypt(encodedPassword);
+        }
+
+        private boolean isBcrypt(String encodedPassword) {
+            return encodedPassword.startsWith("$2a$")
+                    || encodedPassword.startsWith("$2b$")
+                    || encodedPassword.startsWith("$2y$")
+                    || encodedPassword.startsWith(BCRYPT_PREFIX);
+        }
+
+        private String normalizeBcrypt(String encodedPassword) {
+            if (encodedPassword.startsWith(BCRYPT_PREFIX)) {
+                return encodedPassword.substring(BCRYPT_PREFIX.length());
+            }
+            return encodedPassword;
+        }
+
+        private boolean matchesLegacySha256(CharSequence rawPassword, String encodedPassword) {
+            String rawHash = sha256Hex(rawPassword.toString());
+            return MessageDigest.isEqual(
+                    rawHash.getBytes(StandardCharsets.UTF_8),
+                    encodedPassword.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8)
+            );
+        }
+
+        private String sha256Hex(String value) {
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 is not available", e);
+            }
+        }
     }
 }
