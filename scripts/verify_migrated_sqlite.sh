@@ -31,6 +31,12 @@ if [[ -n "$fk_errors" ]]; then
   exit 1
 fi
 
+isbn_duplicates="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM (SELECT isbn13 FROM book_volumes WHERE isbn13 IS NOT NULL AND TRIM(isbn13) <> '' GROUP BY isbn13 HAVING COUNT(*) > 1);")"
+if [[ "$isbn_duplicates" != "0" ]]; then
+  echo "Duplicate non-blank isbn13 values found: $isbn_duplicates" >&2
+  exit 1
+fi
+
 echo "migrated sqlite verification passed: $DB_PATH"
 for table in "${required_tables[@]}"; do
   count="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM \"$table\";")"

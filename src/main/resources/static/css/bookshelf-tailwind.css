@@ -810,6 +810,10 @@ video {
   align-items: center;
 }
 
+.justify-end {
+  justify-content: flex-end;
+}
+
 .justify-center {
   justify-content: center;
 }
@@ -976,18 +980,9 @@ video {
   letter-spacing: -0.025em;
 }
 
-.text-slate-400 {
-  --tw-text-opacity: 1;
-  color: rgb(148 163 184 / var(--tw-text-opacity, 1));
-}
-
 .text-violet-600 {
   --tw-text-opacity: 1;
   color: rgb(124 58 237 / var(--tw-text-opacity, 1));
-}
-
-.opacity-60 {
-  opacity: 0.6;
 }
 
 .shadow-2xl {
@@ -1135,10 +1130,6 @@ video {
 
   .sm\:gap-5 {
     gap: 1.25rem;
-  }
-
-  .sm\:p-4 {
-    padding: 1rem;
   }
 
   .sm\:text-left {

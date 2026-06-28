@@ -49,11 +49,10 @@ class FrontendPrinciplesTest {
         String product = read("src/main/resources/templates/fragments/product.html");
 
         assertThat(product)
-                .contains("for=\"ownedProductSearch\"")
                 .contains("for=\"aladinProductSearch\"")
                 .contains(">기존 책<")
                 .contains(">권 번호<")
-                .contains(">타입<")
+                .contains(">카테고리<")
                 .contains(">총 권수<");
     }
 
@@ -73,7 +72,7 @@ class FrontendPrinciplesTest {
     private void collectCopyOffenders(Path root, Pattern pattern, List<String> offenders) throws IOException {
         try (Stream<Path> paths = Files.walk(root)) {
             paths.filter(Files::isRegularFile)
-                    .filter(path -> !path.toString().contains("blinko-tailwind.css"))
+                    .filter(path -> !path.toString().contains("bookshelf-tailwind.css"))
                     .forEach(path -> collectFromFile(path, pattern, offenders));
         }
     }

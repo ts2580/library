@@ -1,0 +1,21 @@
+services:
+  bookshelf:
+    image: trstyq/bookshelf:latest
+    container_name: bookshelf
+    restart: unless-stopped
+    ports:
+      - "25647:25647"
+    environment:
+      SERVER_PORT: "25647"
+      REGISTRATION: "false"
+      ALADIN_TTB_KEY: ""
+      # Remember-me cookie signing key. Replace in production with a stable random value,
+      # for example: openssl rand -hex 32
+      APP_REMEMBER_ME_KEY: "change-this-long-random-value"
+      # Set true only when serving through HTTPS. Keep false for direct HTTP/local access.
+      SESSION_COOKIE_SECURE: "false"
+    volumes:
+      - bookshelf-data:/data
+
+volumes:
+  bookshelf-data:
