@@ -14,18 +14,32 @@ spring:
     cache: false
 
 app:
-  db:
-    enabled: ${APP_DB_ENABLED:true}
   registration:
     enabled: ${REGISTRATION:${APP_REGISTRATION_ENABLED:false}}
+  security:
+    remember-me-key: ${APP_REMEMBER_ME_KEY:bookshelf-dev-remember-me-change-me}
 
 aladin:
-  ttb-key: ${ALADIN_TTB_KEY:ttbtrstyq0151001}
+  ttb-key: ${ALADIN_TTB_KEY:}
 
 server:
   port: ${SERVER_PORT:25647}
   servlet:
     session:
-      timeout: 6h
+      timeout: 30d
       cookie:
-        max-age: 1d
+        max-age: 30d
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  sql:
+    init:
+      mode: never
+  thymeleaf:
+    cache: true

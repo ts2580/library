@@ -8,8 +8,10 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -17,16 +19,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.util.List;
-
 @Controller
 @RequestMapping("/user/signup")
 public class SignupController {
 
     private final MemberRegistrationService memberRegistrationService;
-
-    @Value("${app.db.enabled:true}")
-    private boolean dbEnabled;
 
     @Value("${app.registration.enabled:true}")
     private boolean registrationEnabled;
@@ -37,11 +34,10 @@ public class SignupController {
 
     @GetMapping
     public String signupPage(Model model) {
-        if (!dbEnabled || !registrationEnabled) {
+        if (!registrationEnabled) {
             return "redirect:/user/login?signupDisabled=true";
         }
 
-        model.addAttribute("dbEnabled", dbEnabled);
         model.addAttribute("registrationEnabled", registrationEnabled);
         model.addAttribute("signupForm", new SignupForm());
         return "signup_form";
@@ -52,11 +48,10 @@ public class SignupController {
                          BindingResult bindingResult,
                          Model model,
                          HttpServletRequest request) {
-        if (!dbEnabled || !registrationEnabled) {
+        if (!registrationEnabled) {
             return "redirect:/user/login?signupDisabled=true";
         }
 
-        model.addAttribute("dbEnabled", dbEnabled);
         model.addAttribute("registrationEnabled", registrationEnabled);
         model.addAttribute("signupForm", signupForm);
 
@@ -73,7 +68,7 @@ public class SignupController {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 result.member().username(),
                 null,
-                List.of()
+                AuthorityUtils.createAuthorityList("ROLE_USER")
         );
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
@@ -81,7 +76,7 @@ public class SignupController {
 
         HttpSession session = request.getSession(true);
         session.setAttribute(SessionKeys.LOGIN_MEMBER_ID, result.member().id());
-        session.setAttribute("SPRING_SECURITY_CONTEXT", context);
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
 
         return "redirect:/dashboard";
     }

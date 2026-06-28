@@ -11,9 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequestMapping("/user")
 public class LoginController {
 
-    @Value("${app.db.enabled:false}")
-    private boolean dbEnabled;
-
     @Value("${app.registration.enabled:false}")
     private boolean registrationEnabled;
 
@@ -22,7 +19,6 @@ public class LoginController {
                             @RequestParam(value = "logout", required = false) String logout,
                             @RequestParam(value = "signupDisabled", required = false) String signupDisabled,
                             Model model) {
-        model.addAttribute("dbEnabled", dbEnabled);
         model.addAttribute("registrationEnabled", registrationEnabled);
         if (error != null) {
             model.addAttribute("loginError", "아이디 또는 비밀번호가 일치하지 않습니다.");
