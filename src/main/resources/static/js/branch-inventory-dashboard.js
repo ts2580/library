@@ -138,9 +138,19 @@
           if (payload.message && view.message) {
             view.message.textContent = payload.message;
           }
+          if (!payload.started) {
+            if (payload.progress?.failed) {
+              showRefreshToast(payload.message || payload.progress.message || '일괄 갱신을 시작할 수 없습니다.', 'error');
+            }
+            if (payload.progress?.running) {
+              startPolling();
+            }
+            return;
+          }
           startPolling();
         } catch (error) {
           console.error('refresh stocks start error', error);
+          showRefreshToast(error.message || '일괄 갱신 시작 중 오류가 발생했습니다.', 'error');
           if (view.message) {
             view.message.textContent = '일괄 갱신 시작 중 오류가 발생했습니다.';
           }
@@ -309,12 +319,51 @@
     return `일괄 갱신 완료 총 ${progress.total}권 중 ${progress.success}권 성공, ${progress.empty}권 재고없음, ${progress.fail}권 실패`;
   }
 
+  function showRefreshToast(message, kind = 'success') {
+    const text = String(message || '').trim();
+    if (!text) return;
+
+    const host = ensureRefreshToastHost();
+    const toast = document.createElement('div');
+    toast.className = `bookshelf-toast ${kind === 'error' ? 'bookshelf-toast-error' : 'bookshelf-toast-success'}`;
+    toast.textContent = text;
+    host.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 240);
+    }, 2600);
+  }
+
+  function ensureRefreshToastHost() {
+    let host = document.getElementById('bookshelf-toast-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'bookshelf-toast-host';
+      host.className = 'bookshelf-toast-host';
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
   async function postRefreshStart(form) {
     const response = await fetch(form.action, {
       method: 'POST',
       body: new FormData(form),
       headers: { 'Accept': 'application/json' }
     });
-    return response.json();
+    const text = await response.text();
+    let payload = {};
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch (error) {
+        throw new Error('일괄 갱신 응답을 해석할 수 없습니다.');
+      }
+    }
+    if (!response.ok) {
+      throw new Error(payload.message || '일괄 갱신 시작 중 오류가 발생했습니다.');
+    }
+    return payload;
   }
 })();

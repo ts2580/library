@@ -34,8 +34,7 @@ public class ProductController {
     }
 
     @GetMapping("/products")
-    public String products(HttpSession session,
-                           @RequestParam(value = "ownedQ", required = false) String ownedQ,
+    public String products(@RequestParam(value = "ownedQ", required = false) String ownedQ,
                            @RequestParam(value = "q", required = false) String q,
                            @RequestParam(value = "tab", required = false) String tab,
                            @RequestParam(value = "ownedPage", defaultValue = "1") Integer ownedPage,
@@ -43,10 +42,6 @@ public class ProductController {
                            @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
                            @RequestHeader(value = "User-Agent", required = false) String userAgent,
                            Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) {
-            return "redirect:/user/login";
-        }
-
         ProductSearchViewModel vm = productSearchService.search(new ProductSearchService.ProductSearchRequest(
                 ownedQ, q, ownedPage, aladinPage, ownedSort, userAgent
         ));
@@ -54,9 +49,8 @@ public class ProductController {
             return buildRedirect(vm.ownedQ(), vm.query(), vm.ownedPage(), vm.aladinPage(), vm.ownedSort(), normalizeTab(tab));
         }
 
-        authSessionHelper.populateMember(model, session);
         applyViewModel(model, vm);
-        model.addAttribute("activeTab", normalizeTab(tab));
+        model.addAttribute("activeTab", "aladin");
         return "product_search";
     }
 
@@ -88,12 +82,7 @@ public class ProductController {
                                 @RequestParam(value = "ownedPage", defaultValue = "1") int ownedPage,
                                 @RequestParam(value = "aladinPage", defaultValue = "1") int aladinPage,
                                 @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
-                                HttpSession session,
                                 RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) {
-            return "redirect:/user/login";
-        }
-
         var result = productService.importProduct(new ProductService.ProductImportCommand(
                 title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume
         ));
@@ -108,7 +97,6 @@ public class ProductController {
         model.addAttribute("pageSize", vm.pageSize());
         model.addAttribute("bookTypes", vm.bookTypes());
         model.addAttribute("ownedVolumes", vm.ownedVolumes());
-        model.addAttribute("ownedBooks", vm.ownedBooks());
         model.addAttribute("ownedPage", vm.ownedPage());
         model.addAttribute("ownedFrom", vm.ownedFrom());
         model.addAttribute("ownedTo", vm.ownedTo());
@@ -131,7 +119,7 @@ public class ProductController {
         query.append("ownedPage=").append(ownedPage > 0 ? ownedPage : 1)
                 .append("&aladinPage=").append(aladinPage > 0 ? aladinPage : 1)
                 .append("&ownedSort=").append(normalizeOwnedSort(ownedSort))
-                .append("&tab=").append(normalizeTab(tab));
+                .append("&tab=aladin");
         if (ownedQ != null && !ownedQ.trim().isEmpty()) {
             query.append("&ownedQ=").append(urlEncode(ownedQ));
         }
@@ -150,7 +138,7 @@ public class ProductController {
     }
 
     private String normalizeTab(String tab) {
-        return "aladin".equalsIgnoreCase(tab) ? "aladin" : "owned";
+        return "aladin";
     }
 
     private String normalizeOwnedSort(String sort) {

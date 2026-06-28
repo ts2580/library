@@ -25,6 +25,16 @@ CREATE INDEX IF NOT EXISTS idx_books_author ON books (author);
 CREATE INDEX IF NOT EXISTS idx_books_type ON books (type);
 CREATE INDEX IF NOT EXISTS idx_books_type_id ON books (type, id);
 
+CREATE TABLE IF NOT EXISTS book_categories (
+    name TEXT PRIMARY KEY,
+    createddate TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO book_categories (name)
+SELECT DISTINCT TRIM(type)
+FROM books
+WHERE type IS NOT NULL AND TRIM(type) <> '';
+
 CREATE TABLE IF NOT EXISTS member (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -65,6 +75,7 @@ CREATE TABLE IF NOT EXISTS book_volumes (
 CREATE INDEX IF NOT EXISTS idx_book_volumes_book ON book_volumes (book);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_book_volume ON book_volumes (book, volume);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_isbn13 ON book_volumes (isbn13);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_book_volumes_isbn13_not_blank ON book_volumes (isbn13) WHERE isbn13 IS NOT NULL AND TRIM(isbn13) <> '';
 CREATE INDEX IF NOT EXISTS idx_book_volumes_ispurchased ON book_volumes (ispurchased);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_createddate ON book_volumes (createddate);
 

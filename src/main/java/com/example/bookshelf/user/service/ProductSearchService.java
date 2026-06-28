@@ -3,6 +3,7 @@ package com.example.bookshelf.user.service;
 import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.integration.aladin.AladinSearchResult;
 import com.example.bookshelf.integration.aladin.AladinSearchService;
+import com.example.bookshelf.integration.aladin.AladinSearchViewItem;
 import com.example.bookshelf.user.model.Book;
 import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookDataRepository;
@@ -58,11 +59,25 @@ public class ProductSearchService {
                 pageSize,
                 bookDataRepository.findAllBookTypes(),
                 ownedVolumes,
-                bookDataRepository.findAllBooks(),
                 requestedOwnedPage,
                 totalOwned,
                 requestedAladinPage,
-                aladinResult.items(),
+                aladinResult.items().stream()
+                        .map(item -> new AladinSearchViewItem(
+                                item.title(),
+                                item.author(),
+                                item.cover(),
+                                item.isbn13(),
+                                item.isbn(),
+                                item.priceSales(),
+                                item.priceStandard(),
+                                item.pubDate(),
+                                item.description(),
+                                item.itemId(),
+                                item.stockStatus(),
+                                item.isbn13() != null && bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+                        ))
+                        .toList(),
                 aladinResult.totalResults()
         );
     }

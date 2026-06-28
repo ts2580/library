@@ -91,7 +91,7 @@
                 <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
                 <div class="bookshelf-mt-1 truncate text-xs text-slate-500">${escapeHtml(item.author || '저자 미입력')}</div>
               </div>
-              <div class="shrink-0 rounded-full border border-slate-200 bookshelf-px-2 bookshelf-py-0-5 text-[11px] font-medium text-slate-500">${escapeHtml(item.type || '타입없음')}</div>
+              <div class="shrink-0 rounded-full border border-slate-200 bookshelf-px-2 bookshelf-py-0-5 text-[11px] font-medium text-slate-500">${escapeHtml(item.type || '카테고리 없음')}</div>
             </div>
             <div class="bookshelf-mt-2 flex flex-wrap bookshelf-gap-1-5 text-[11px] text-slate-500">
               <span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">#${escapeHtml(item.id)}</span>

@@ -5,7 +5,6 @@ import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.web.viewmodel.BookDetailViewModel;
 import com.example.bookshelf.web.viewmodel.BookListViewModel;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
@@ -21,43 +20,52 @@ import java.util.List;
 @Controller
 public class BookshelfController {
 
-    private final AuthSessionHelper authSessionHelper;
     private final BookCatalogService bookCatalogService;
     private final BookDataRepository bookDataRepository;
     private final BookVolumeRepository bookVolumeRepository;
 
-    public BookshelfController(AuthSessionHelper authSessionHelper,
-                               BookCatalogService bookCatalogService,
+    public BookshelfController(BookCatalogService bookCatalogService,
                                BookDataRepository bookDataRepository,
                                BookVolumeRepository bookVolumeRepository) {
-        this.authSessionHelper = authSessionHelper;
         this.bookCatalogService = bookCatalogService;
         this.bookDataRepository = bookDataRepository;
         this.bookVolumeRepository = bookVolumeRepository;
     }
 
     @RequestMapping("/books")
-    public String list(HttpSession session,
-                       @RequestParam(value = "search", required = false) String search,
+    public String list(@RequestParam(value = "search", required = false) String search,
                        @RequestParam(value = "page", defaultValue = "1") Integer page,
                        @RequestParam(value = "type", required = false) String type,
                        @RequestParam(value = "title", required = false) String title,
                        @RequestParam(value = "author", required = false) String author,
                        Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
-
-        authSessionHelper.populateMember(model, session);
         applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page));
         return "book_list";
     }
 
+    @PostMapping("/books")
+    public String createBook(@RequestParam("name") String name,
+                             @RequestParam(value = "author", required = false) String author,
+                             @RequestParam(value = "description", required = false) String description,
+                             @RequestParam(value = "cover", required = false) String cover,
+                             @RequestParam(value = "type", required = false) String type,
+                             @RequestParam(value = "totalvolume", required = false) String totalVolume,
+                             RedirectAttributes redirectAttributes) {
+        if (name == null || name.isBlank()) {
+            redirectAttributes.addFlashAttribute("error", "책 제목을 입력해 주세요.");
+            return "redirect:/books";
+        }
+
+        int bookId = bookDataRepository.insertBook(name, author, description, cover, type, totalVolume);
+        redirectAttributes.addFlashAttribute("success", "책을 추가했습니다.");
+        return "redirect:/books/" + bookId;
+    }
+
     @GetMapping("/books/{id}")
-    public String detail(@PathVariable int id, HttpSession session, Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
+    public String detail(@PathVariable int id, Model model) {
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
-        authSessionHelper.populateMember(model, session);
         BookDetailViewModel vm = new BookDetailViewModel(
                 book,
                 bookVolumeRepository.findVolumesByBookId(id),
@@ -78,9 +86,7 @@ public class BookshelfController {
                              @RequestParam(value = "cover", required = false) String cover,
                              @RequestParam(value = "type", required = false) String type,
                              @RequestParam(value = "totalvolume", required = false) String totalVolume,
-                             HttpSession session,
                              RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
@@ -99,9 +105,7 @@ public class BookshelfController {
                                @RequestParam(value = "purchased", defaultValue = "false") boolean purchased,
                                @RequestParam(value = "seq", required = false) Integer seq,
                                @RequestParam(value = "type", required = false) String type,
-                               HttpSession session,
                                RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
@@ -115,8 +119,7 @@ public class BookshelfController {
 
     @PostMapping("/books/{id}/delete")
     @Transactional
-    public String deleteBook(@PathVariable int id, HttpSession session, RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
+    public String deleteBook(@PathVariable int id, RedirectAttributes redirectAttributes) {
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
@@ -130,9 +133,7 @@ public class BookshelfController {
     @Transactional
     public String deleteVolumes(@PathVariable int id,
                                 @RequestParam(value = "volumeIds", required = false) List<Integer> volumeIds,
-                                HttpSession session,
                                 RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
         if (volumeIds == null || volumeIds.isEmpty()) {

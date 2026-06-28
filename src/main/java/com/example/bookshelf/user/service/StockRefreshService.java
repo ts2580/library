@@ -54,6 +54,13 @@ public class StockRefreshService {
             return new JobStartResult(false, refreshProgress.get(), "이미 일괄 갱신이 진행 중입니다.");
         }
 
+        if (!aladinUsedStockService.isApiConfigured()) {
+            String message = "알라딘 TTB 키가 설정되어 있지 않습니다. ALADIN_TTB_KEY를 설정한 뒤 다시 시도해 주세요.";
+            StockRefreshProgress failed = StockRefreshProgress.failed(0, 0, 0, 0, 0, message);
+            refreshProgress.set(failed);
+            return new JobStartResult(false, failed, message);
+        }
+
         int total = bookVolumeRepository.countUnpurchasedVolumes();
         if (total == 0) {
             StockRefreshProgress idle = StockRefreshProgress.completed(0, 0, 0, 0, "조회할 미구매 항목이 없습니다. (ispurchased = false)");
@@ -122,10 +129,10 @@ public class StockRefreshService {
         try {
             List<AladinBranchStock> stocks = aladinUsedStockService.findUsedStocksByIsbn13(isbn13);
             if (stocks.isEmpty()) {
+                branchInventoryRepository.deleteBranchBooksByBookAndVolume(volume.bookId(), volume.seq());
                 counters.empty.incrementAndGet();
             } else {
-                branchInventoryRepository.deleteBranchBooksByBookAndVolume(volume.bookId(), volume.seq());
-                branchInventoryRepository.insertBranchBooks(volume.bookId(), safeTitle(volume), volume.seq(), stocks);
+                branchInventoryRepository.replaceBranchBooks(volume.bookId(), safeTitle(volume), volume.seq(), stocks);
                 counters.success.incrementAndGet();
             }
         } catch (RuntimeException e) {

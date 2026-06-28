@@ -14,7 +14,7 @@
         <div><label for="bookEditAuthor" class="bookshelf-mb-1 block bookshelf-detail-label">저자</label><input id="bookEditAuthor" name="author" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="저자"></div>
         <div class="grid bookshelf-p-4 sm:grid-cols-2">
           <div><label for="bookEditTotalVolume" class="bookshelf-mb-1 block bookshelf-detail-label">총 권수</label><input id="bookEditTotalVolume" name="totalvolume" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="총 권수"></div>
-          <div><label for="bookEditType" class="bookshelf-mb-1 block bookshelf-detail-label">타입</label><input id="bookEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="타입"></div>
+          <div><label for="bookEditType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="bookEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="카테고리"></div>
         </div>
         <div><label for="bookEditCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookEditCover" name="cover" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="표지 URL"></div>
         <div><label for="bookEditDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="bookEditDescription" name="description" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3" rows="4" placeholder="설명"></textarea></div>
@@ -44,7 +44,7 @@
           <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
           <div class="grid bookshelf-p-4 sm:grid-cols-2">
             <div><label for="volumeEditSeq" class="bookshelf-mb-1 block bookshelf-detail-label">권 번호</label><input id="volumeEditSeq" name="seq" type="number" min="1" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
-            <div><label for="volumeEditType" class="bookshelf-mb-1 block bookshelf-detail-label">타입</label><input id="volumeEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+            <div><label for="volumeEditType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="volumeEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           </div>
           <div><label for="volumeEditName" class="bookshelf-mb-1 block bookshelf-detail-label">권 제목</label><input id="volumeEditName" name="name" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           <div class="grid bookshelf-p-4 sm:grid-cols-2">

@@ -59,7 +59,7 @@ public class BookDataRepository {
     }
 
     public List<String> findAllBookTypes() {
-        String sql = "SELECT DISTINCT type FROM books WHERE type IS NOT NULL AND TRIM(type) <> '' ORDER BY type ASC";
+        String sql = "SELECT name FROM book_categories ORDER BY name ASC";
         return jdbcTemplate.queryForList(sql, String.class);
     }
 
@@ -140,6 +140,7 @@ public class BookDataRepository {
     }
 
     public int insertBook(String name, String author, String description, String cover, String type, String totalVolume) {
+        saveCategory(type);
         KeyHolder keyHolder = new GeneratedKeyHolder();
         String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume) VALUES (?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(connection -> {
@@ -158,6 +159,7 @@ public class BookDataRepository {
     }
 
     public void updateBook(int bookId, String name, String author, String description, String cover, String type, String totalVolume) {
+        saveCategory(type);
         String sql = """
                 UPDATE books
                 SET name = ?, author = ?, description = ?, cover = ?, type = ?, totalvolume = ?
@@ -168,6 +170,14 @@ public class BookDataRepository {
 
     public void deleteBookById(int bookId) {
         jdbcTemplate.update("DELETE FROM books WHERE id = ?", bookId);
+    }
+
+    public void saveCategory(String category) {
+        String normalizedCategory = Texts.trimToNull(category);
+        if (normalizedCategory == null) {
+            return;
+        }
+        jdbcTemplate.update("INSERT OR IGNORE INTO book_categories (name) VALUES (?)", normalizedCategory);
     }
 
     private QueryParts buildBookFilterQuery(boolean countOnly, String title, String author, String type) {
