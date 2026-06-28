@@ -36,28 +36,29 @@ public class DashboardController {
     }
 
     @GetMapping("/dashboard")
-    public String dashboard(HttpSession session, Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
-        authSessionHelper.populateMember(model, session);
+    public String dashboard(Model model) {
+        var categorySummaries = bookVolumeRepository.findCategorySummaries();
         model.addAttribute("bookCount", bookVolumeRepository.countAllBookVolumes());
+        model.addAttribute("purchasedAmount", bookVolumeRepository.sumPurchasedAmount());
+        model.addAttribute("plannedPurchaseAmount", bookVolumeRepository.sumPlannedPurchaseAmount());
+        model.addAttribute("categorySummaries", categorySummaries);
+        model.addAttribute("categoryLabels", categorySummaries.stream().map(BookVolumeRepository.CategorySummary::category).toList());
+        model.addAttribute("categoryCounts", categorySummaries.stream().map(BookVolumeRepository.CategorySummary::volumeCount).toList());
+        model.addAttribute("categoryAmounts", categorySummaries.stream().map(BookVolumeRepository.CategorySummary::totalAmount).toList());
         return "dashboard";
     }
 
     @GetMapping("/")
-    public String rootToDashboard(HttpSession session) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
+    public String rootToDashboard() {
         return "redirect:/dashboard";
     }
 
     @GetMapping("/dashboard/branches")
-    public String branchDashboard(HttpSession session, Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
-
+    public String branchDashboard(Model model) {
         var branches = branchInventoryRepository.findBranchInventorySummaries();
         long totalAmount = branches.stream().mapToLong(s -> s.totalAmount()).sum();
         var updatedAt = branchInventoryRepository.findLatestBranchInventorySummaryUpdatedAt();
 
-        authSessionHelper.populateMember(model, session);
         model.addAttribute("branches", branches);
         model.addAttribute("totalAmount", totalAmount);
         model.addAttribute("branchCount", branches.size());
@@ -70,8 +71,7 @@ public class DashboardController {
     }
 
     @PostMapping("/dashboard/branches/delete-all")
-    public String deleteAllBranchStocks(HttpSession session, RedirectAttributes redirectAttributes) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
+    public String deleteAllBranchStocks(RedirectAttributes redirectAttributes) {
         stockRefreshService.deleteAllBranchInventory();
         redirectAttributes.addFlashAttribute("success", "지점 재고와 집계 테이블을 전체 삭제했습니다.");
         return "redirect:/dashboard/branches";
@@ -99,16 +99,13 @@ public class DashboardController {
     }
 
     @GetMapping("/dashboard/branches/{branch}")
-    public String branchDetail(HttpSession session, @PathVariable("branch") String branch, Model model) {
-        if (!authSessionHelper.isLoggedIn(session)) return "redirect:/user/login";
-
+    public String branchDetail(@PathVariable("branch") String branch, Model model) {
         var stocks = branchInventoryRepository.findStocksByBranch(branch);
         String branchName = stocks.isEmpty() ? branch : stocks.get(0).branchName();
         int totalCount = stocks.size();
         long pricedCount = stocks.stream().filter(s -> s.price() != null && !s.price().isBlank()).count();
         long totalAmount = stocks.stream().mapToLong(s -> parsePriceSafe(s.price())).sum();
 
-        authSessionHelper.populateMember(model, session);
         model.addAttribute("branch", branch);
         model.addAttribute("branchName", branchName);
         model.addAttribute("stocks", stocks);
@@ -119,8 +116,8 @@ public class DashboardController {
     }
 
     @GetMapping("/dashboard/branches/detail")
-    public String branchDetailLegacy(HttpSession session, @RequestParam("branch") String branch, Model model) {
-        return branchDetail(session, branch, model);
+    public String branchDetailLegacy(@RequestParam("branch") String branch, Model model) {
+        return branchDetail(branch, model);
     }
 
     private long parsePriceSafe(String price) {
