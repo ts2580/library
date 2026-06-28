@@ -134,7 +134,7 @@ csrf_name="${csrf_pair%%$'\t'*}"
 csrf_value="${csrf_pair#*$'\t'}"
 
 login_code="$(curl -sS -L -b "$COOKIE_JAR" -c "$COOKIE_JAR" -o "$BODY" -w '%{http_code}' \
-  -X POST "$BASE_URL/user/login" \
+  "$BASE_URL/user/login" \
   --data-urlencode "$csrf_name=$csrf_value" \
   --data-urlencode "username=$USERNAME" \
   --data-urlencode "password=$PASSWORD")"

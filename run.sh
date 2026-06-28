@@ -75,7 +75,7 @@ build_tailwind() {
     return
   fi
 
-  if [[ ! -f "package.json" ]] || [[ ! -f "src/main/resources/static/css/blinko-tailwind-input.css" ]]; then
+  if [[ ! -f "package.json" ]] || [[ ! -f "src/main/resources/static/css/bookshelf-tailwind-input.css" ]]; then
     echo "[run] Tailwind source not found. Skip css:build."
     return
   fi
@@ -88,6 +88,9 @@ build_tailwind() {
   echo "[run] Building tailwind css..."
   if [[ -d node_modules ]] && [[ -d node_modules/tailwindcss ]] && [[ -f node_modules/tailwindcss/package.json ]]; then
     echo "[run] node_modules already installed. Skip npm install."
+  elif [[ -f package-lock.json ]]; then
+    echo "[run] node_modules not found. Installing from package-lock.json..."
+    npm ci --no-audit --no-fund
   else
     echo "[run] node_modules not found. Installing..."
     npm install --no-audit --no-fund

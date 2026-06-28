@@ -20,10 +20,18 @@ SERVER_PORT=25647 \
 
 기본값은 SQLite입니다. DB URL 환경변수를 주입하지 않아도 루트의 `data/bookshelf.sqlite` 파일을 사용하고, 시작 시 `src/main/resources/schema.sql`로 필요한 테이블을 생성합니다.
 
-알라딘 API 키는 기본값을 사용하지만, 운영 환경에서는 환경변수로 덮어쓰는 편이 낫습니다.
+알라딘 API 연동은 `ALADIN_TTB_KEY`가 있을 때만 동작합니다. 키가 없으면 외부 검색/재고 갱신은 빈 결과로 안전하게 실패하고, 내부 책장 화면은 계속 사용할 수 있습니다.
 
 ```bash
 ALADIN_TTB_KEY=your-key ./gradlew bootRun
+```
+
+운영 환경에서는 remember-me 서명 키도 고정된 랜덤 문자열로 주입하세요.
+
+```bash
+APP_REMEMBER_ME_KEY="$(openssl rand -hex 32)" \
+ALADIN_TTB_KEY=your-key \
+./gradlew bootRun
 ```
 
 애플리케이션을 SQLite DB로 실행한 뒤 주요 화면 smoke test를 돌릴 수 있습니다.
@@ -49,10 +57,6 @@ npm run verify:local
 ```
 
 앱 실행용 `.env`에는 SQLite URL을 넣지 않습니다. 애플리케이션은 루트 `data/bookshelf.sqlite`를 자동으로 사용합니다.
-
-```bash
-APP_DB_ENABLED=true
-```
 
 루트에서 바로 실행하고 싶으면 `run.sh`를 써요.
 
@@ -81,9 +85,9 @@ APP_DB_ENABLED=true
 - 외부 API(알라딘) 연동 실패는 로그 남기고 화면은 최대한 정상 동작 유지
 
 ## 빌드/실행 보완
-- `./run.sh` 기본 동작은 Tailwind CSS 빌드를 먼저 수행합니다 (`npm install --no-audit --no-fund`(처음 1회) 후 `npm run css:build`). 이미 node_modules가 이미 있는 경우에는 재설치 없이 바로 빌드만 수행합니다. `--skip-css` 옵션 시 빌드를 완전히 건너뜁니다.
+- `./run.sh` 기본 동작은 vendor JS 복사와 Tailwind CSS 빌드를 먼저 수행합니다. `node_modules`가 없고 `package-lock.json`이 있으면 `npm ci --no-audit --no-fund`를 사용하고, lockfile이 없을 때만 `npm install --no-audit --no-fund`로 설치합니다. `--skip-css` 옵션 시 빌드를 완전히 건너뜁니다.
 - Docker 이미지는 빌드 단계에서 Tailwind CSS를 생성한 뒤 JAR을 빌드합니다.
   ```bash
-  docker build -t bookshelf .
-  docker run --rm -p 25647:25647 -v "$PWD/data:/app/data" bookshelf
+  docker build -t bookshelf:1.5.1 .
+  docker run --rm -p 25647:25647 -v "$PWD/data:/data" bookshelf:1.5.1
   ```

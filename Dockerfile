@@ -8,7 +8,7 @@ WORKDIR /app
 RUN apk add --no-cache nodejs npm
 
 COPY package*.json ./
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 RUN npm run css:build
@@ -18,10 +18,11 @@ RUN ./gradlew bootJar --no-daemon -x test
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-COPY --from=builder /app/build/libs/bookshelf-0.0.1-SNAPSHOT.jar /app/app.jar
-RUN mkdir -p /app/data
+COPY --from=builder /app/build/libs/bookshelf-*.jar /app/app.jar
+RUN mkdir -p /data
+ENV SPRING_DATASOURCE_URL="jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
 
 EXPOSE 25647
-VOLUME ["/app/data"]
+VOLUME ["/data"]
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

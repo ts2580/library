@@ -43,6 +43,10 @@ SQL
 book_matches="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM books WHERE name LIKE '%테스트%' OR author LIKE '%테스트%';")"
 summary="$(sqlite3 "$DB_PATH" "SELECT branch || '|' || branch_name || '|' || stock_count || '|' || priced_count || '|' || total_amount FROM branch_inventory_summary;")"
 fk_errors="$(sqlite3 "$DB_PATH" "PRAGMA foreign_key_check;")"
+if sqlite3 "$DB_PATH" "INSERT INTO book_volumes (book, isbn13, name, ispurchased, volume) VALUES (1, '9781234567890', '중복 ISBN', 0, 2);" >/dev/null 2>&1; then
+  echo "Expected duplicate isbn13 insert to fail, but it succeeded." >&2
+  exit 1
+fi
 
 if [[ "$book_matches" != "1" ]]; then
   echo "Expected one matching book, got: $book_matches" >&2
