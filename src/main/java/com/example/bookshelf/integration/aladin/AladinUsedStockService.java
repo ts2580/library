@@ -28,6 +28,10 @@ public class AladinUsedStockService {
         this.objectMapper = objectMapper;
     }
 
+    public boolean isApiConfigured() {
+        return aladinClient.isApiConfigured();
+    }
+
     public AladinUsedView usedBookView(String isbn13, String type) {
         String normalizedIsbn13 = Texts.trimToEmpty(isbn13);
         String normalizedType = Texts.trimToNull(type) == null ? "dropshipping" : type.trim();
@@ -246,7 +250,7 @@ public class AladinUsedStockService {
     private String makeAbsoluteUrl(String url) {
         if (url == null || url.isBlank()) return null;
         if (url.startsWith("http://") || url.startsWith("https://")) return url;
-        return "http://www.aladin.co.kr" + (url.startsWith("/") ? "" : "/") + url;
+        return "https://www.aladin.co.kr" + (url.startsWith("/") ? "" : "/") + url;
     }
 
     private String serializeToJson(Object obj) {

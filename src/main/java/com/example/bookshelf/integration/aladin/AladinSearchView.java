@@ -5,7 +5,7 @@ import java.util.List;
 public record AladinSearchView(
         String query,
         int totalResults,
-        List<AladinItem> items,
+        List<AladinSearchViewItem> items,
         String rawJson,
         boolean hasError,
         String message
