@@ -16,6 +16,7 @@ import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +53,7 @@ class StockRefreshServiceTest {
 
     @Test
     void startStockRefreshJob_rebuildsSummaryAfterProcessing() {
+        when(aladinUsedStockService.isApiConfigured()).thenReturn(true);
         when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(1);
         when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
                 new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, false, "1")
@@ -65,8 +67,38 @@ class StockRefreshServiceTest {
         assertThat(result.started()).isTrue();
         // No sleep needed because executors are synchronous
 
-        verify(branchInventoryRepository).deleteBranchBooksByBookAndVolume(10, 1);
-        verify(branchInventoryRepository).insertBranchBooks(10, "책1", 1, List.of(new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "책1")));
+        verify(branchInventoryRepository).replaceBranchBooks(10, "책1", 1, List.of(new AladinBranchStock("B1", "강남점", "A", "link", null, "9000", 1, "책1")));
         verify(branchInventoryRepository).rebuildBranchInventorySummary();
+    }
+
+    @Test
+    void startStockRefreshJob_deletesPreviousStocks_whenLookupSucceedsWithEmptyResult() {
+        when(aladinUsedStockService.isApiConfigured()).thenReturn(true);
+        when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(1);
+        when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
+                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, false, "1")
+        ));
+        when(bookVolumeRepository.findUnpurchasedVolumesAfterId(1, 100)).thenReturn(List.of());
+        when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of());
+
+        var result = stockRefreshService.startStockRefreshJob();
+
+        assertThat(result.started()).isTrue();
+        verify(branchInventoryRepository).deleteBranchBooksByBookAndVolume(10, 1);
+        verify(branchInventoryRepository, never()).replaceBranchBooks(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyList());
+        verify(branchInventoryRepository).rebuildBranchInventorySummary();
+    }
+
+    @Test
+    void startStockRefreshJob_returnsFailedProgress_whenAladinKeyIsMissing() {
+        when(aladinUsedStockService.isApiConfigured()).thenReturn(false);
+
+        var result = stockRefreshService.startStockRefreshJob();
+
+        assertThat(result.started()).isFalse();
+        assertThat(result.progress().failed()).isTrue();
+        assertThat(result.message()).contains("TTB 키");
+        verify(bookVolumeRepository, never()).countUnpurchasedVolumes();
+        verify(branchInventoryRepository, never()).rebuildBranchInventorySummary();
     }
 }

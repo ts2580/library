@@ -10,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.NoTransactionException;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 @Service
 public class ProductService {
@@ -31,6 +34,7 @@ public class ProductService {
         this.aladinUsedStockService = aladinUsedStockService;
     }
 
+    @Transactional
     public ProductImportResult importProduct(ProductImportCommand command) {
         String normalizedTitle = Texts.trimToNull(command.title());
         String normalizedAuthor = Texts.trimToNull(command.author());
@@ -57,7 +61,8 @@ public class ProductService {
             String stockMessage = stockCount < 0 ? " (재고 조회 실패)" : stockCount == 0 ? " (재고 정보 없음)" : " (중고 후보: " + stockCount + "개)";
             return ProductImportResult.success("등록 완료: " + normalizedTitle + stockMessage);
         } catch (DuplicateKeyException e) {
-            return ProductImportResult.error("이미 같은 ISBN이 등록되어 있어 추가가 중단되었습니다: " + keyIsbn);
+            markRollbackOnlyIfTransactional();
+            return ProductImportResult.error("이미 같은 ISBN 또는 권 번호가 등록되어 있어 추가가 중단되었습니다: " + keyIsbn);
         }
     }
 
@@ -129,6 +134,14 @@ public class ProductService {
 
     private Integer normalizeRequestedVolume(Integer volume) {
         return volume != null && volume > 0 ? volume : null;
+    }
+
+    private void markRollbackOnlyIfTransactional() {
+        try {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        } catch (NoTransactionException ignored) {
+            // Unit tests instantiate the service without a Spring transaction.
+        }
     }
 
     private record BookTarget(boolean success, int bookId, int seq, String message) {

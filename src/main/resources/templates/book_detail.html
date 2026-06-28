@@ -24,7 +24,7 @@
           <div class="bookshelf-mt-3 sm:bookshelf-mt-4 bookshelf-space-y-2 bookshelf-subtitle-sm">
             <p><span class="bookshelf-detail-label">저자</span> · <span th:text="${book.author}"></span></p>
             <p><span class="bookshelf-detail-label">총권수</span> · <span th:text="${book.totalvolume}"></span></p>
-            <p><span class="bookshelf-detail-label">타입</span> · <span th:text="${book.type}"></span></p>
+            <p><span class="bookshelf-detail-label">카테고리</span> · <span th:text="${book.type}"></span></p>
             <p><span class="bookshelf-detail-label">동기화</span> · <span th:text="${book.sync}"></span></p>
           </div>
           <p class="bookshelf-mt-4 rounded-[18px] border border-slate-200 bookshelf-p-4 bookshelf-subtitle-sm" th:text="${book.description ?: '설명이 없습니다.'}"></p>

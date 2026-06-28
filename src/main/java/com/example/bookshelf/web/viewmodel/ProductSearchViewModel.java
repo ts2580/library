@@ -1,7 +1,6 @@
 package com.example.bookshelf.web.viewmodel;
 
-import com.example.bookshelf.integration.aladin.AladinItem;
-import com.example.bookshelf.user.model.Book;
+import com.example.bookshelf.integration.aladin.AladinSearchViewItem;
 import com.example.bookshelf.user.model.BookVolume;
 
 import java.util.List;
@@ -13,7 +12,6 @@ public record ProductSearchViewModel(
         int pageSize,
         List<String> bookTypes,
         List<BookVolume> ownedVolumes,
-        List<Book> ownedBooks,
         int ownedPage,
         int ownedFrom,
         int ownedTo,
@@ -22,7 +20,7 @@ public record ProductSearchViewModel(
         int ownedStartPage,
         int ownedEndPage,
         int aladinPage,
-        List<AladinItem> aladinResults,
+        List<AladinSearchViewItem> aladinResults,
         int totalAladinResults,
         int totalAladinPages,
         int aladinFrom,
@@ -37,11 +35,10 @@ public record ProductSearchViewModel(
             int pageSize,
             List<String> bookTypes,
             List<BookVolume> ownedVolumes,
-            List<Book> ownedBooks,
             int requestedOwnedPage,
             int totalOwned,
             int requestedAladinPage,
-            List<AladinItem> aladinResults,
+            List<AladinSearchViewItem> aladinResults,
             int totalAladinResults
     ) {
         PageWindow ownedWindow = PageWindow.of(requestedOwnedPage, totalOwned, pageSize);
@@ -54,7 +51,6 @@ public record ProductSearchViewModel(
                 pageSize,
                 bookTypes,
                 ownedVolumes,
-                ownedBooks,
                 ownedWindow.currentPage(),
                 ownedWindow.from(),
                 ownedWindow.to(),

@@ -9,14 +9,15 @@
       <div th:replace="~{fragments/layout :: appTopbar(null, '내 책장', null)}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
+      <div class="flex justify-end bookshelf-px-4">
+        <button id="openBookCreateDialog" type="button" class="bookshelf-btn h-11 bookshelf-px-4 bookshelf-btn-size-sm sm:w-auto">책 수동 추가</button>
+      </div>
+
       <section class="bookshelf-card bookshelf-p-4 sm:bookshelf-p-4">
         <form action="/books" method="get" class="grid bookshelf-gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
-            <label class="bookshelf-mb-2 block bookshelf-form-label" for="bookTypeFilter">타입</label>
-            <select id="bookTypeFilter" name="type" class="bookshelf-select h-11 w-full bookshelf-px-4 text-sm">
-              <option value="">전체 타입</option>
-              <option th:each="t : ${types}" th:value="${t}" th:text="${t}" th:selected="${t == type}"></option>
-            </select>
+            <label class="bookshelf-mb-2 block bookshelf-form-label" for="bookTypeFilter">카테고리</label>
+            <input id="bookTypeFilter" name="type" list="book-category-options" th:value="${type}" placeholder="전체 카테고리" class="bookshelf-input h-11 w-full bookshelf-px-4 text-sm">
           </div>
           <div>
             <label class="bookshelf-mb-2 block bookshelf-form-label" for="bookAuthorFilter">작가</label>
@@ -33,6 +34,7 @@
           <input type="hidden" name="search" th:value="${search}">
         </form>
       </section>
+      <datalist id="book-category-options"><option th:each="t : ${types}" th:value="${t}"></option></datalist>
 
       <div class="bookshelf-subtitle-sm" th:if="${totalCount > 0}">
         현재 <span th:text="${from}">0</span>~<span th:text="${to}">0</span> / 전체 <span th:text="${totalCount}">0</span>권
@@ -41,7 +43,7 @@
       <section th:if="${not #lists.isEmpty(books)}" class="bookshelf-card-list grid grid-cols-2 bookshelf-gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <a th:each="book : ${books}" th:href="@{'/books/' + ${book.id}}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4"><div class="bookshelf-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100"><div th:if="${book.cover != null and !#strings.isEmpty(book.cover)}" class="h-full w-full"><img th:src="${book.cover}" th:alt="${book.name} + ' cover'" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low"></div><div th:unless="${book.cover != null and !#strings.isEmpty(book.cover)}" class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover">NO COVER</div></div><div class="bookshelf-mt-3 sm:bookshelf-mt-4 bookshelf-space-y-1-5"><h2 class="line-clamp-2 bookshelf-title-base" th:text="${book.name}"></h2><p class="bookshelf-subtitle-sm" th:text="${book.author}"></p><div class="flex items-center justify-between bookshelf-subtitle-xs"><span th:text="${'권수 · ' + (book.totalvolume ?: '-')}"/><span class="bookshelf-chip bookshelf-chip-tag" th:text="${book.type != null ? book.type : '미분류'}"></span></div></div></a>
       </section>
-      <div th:if="${#lists.isEmpty(books)}" class="bookshelf-empty bookshelf-pad-xxl text-center"><h3 class="bookshelf-title-lg">표시할 책이 없습니다</h3><p class="bookshelf-mt-2 bookshelf-subtitle-sm">타입, 작가, 제목 조건을 바꾸거나 책을 추가해 주세요.</p></div>
+      <div th:if="${#lists.isEmpty(books)}" class="bookshelf-empty bookshelf-pad-xxl text-center"><h3 class="bookshelf-title-lg">표시할 책이 없습니다</h3><p class="bookshelf-mt-2 bookshelf-subtitle-sm">카테고리, 작가, 제목 조건을 바꾸거나 책을 추가해 주세요.</p></div>
 
       <div class="bookshelf-pagination" th:if="${totalPages > 1}">
         <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${page > 1}" th:href="@{/books(page=1, search=${search}, type=${type}, title=${title}, author=${author})}" aria-label="첫 페이지">≪</a>
@@ -51,10 +53,35 @@
         <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${page < totalPages}" th:href="@{/books(page=${totalPages}, search=${search}, type=${type}, title=${title}, author=${author})}" aria-label="마지막 페이지">≫</a>
       </div>
 
+      <dialog id="bookCreateDialog" role="dialog" aria-modal="true" aria-labelledby="bookCreateTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
+        <form id="bookCreateForm" method="post" action="/books" class="bookshelf-card overflow-hidden border-0 shadow-none">
+          <div class="flex items-center justify-between border-b border-slate-200 bookshelf-px-5 bookshelf-py-4 sm:bookshelf-px-6">
+            <div><h3 id="bookCreateTitle" class="bookshelf-title-lg">책 수동 추가</h3></div>
+            <button type="button" id="bookCreateClose" class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">닫기</button>
+          </div>
+          <div class="grid bookshelf-p-4 bookshelf-px-5 bookshelf-py-5 sm:bookshelf-px-6">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <div><label for="bookCreateName" class="bookshelf-mb-1 block bookshelf-detail-label">책 제목</label><input id="bookCreateName" name="name" type="text" required class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="책 제목"></div>
+            <div><label for="bookCreateAuthor" class="bookshelf-mb-1 block bookshelf-detail-label">저자</label><input id="bookCreateAuthor" name="author" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="저자"></div>
+            <div class="grid bookshelf-p-4 sm:grid-cols-2">
+              <div><label for="bookCreateTotalVolume" class="bookshelf-mb-1 block bookshelf-detail-label">총 권수</label><input id="bookCreateTotalVolume" name="totalvolume" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="총 권수"></div>
+              <div><label for="bookCreateType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="bookCreateType" name="type" list="book-category-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="카테고리"></div>
+            </div>
+            <div><label for="bookCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookCreateCover" name="cover" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="표지 URL"></div>
+            <div><label for="bookCreateDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="bookCreateDescription" name="description" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3" rows="4" placeholder="설명"></textarea></div>
+          </div>
+          <div class="flex flex-col bookshelf-p-2 border-t border-slate-200 bookshelf-px-5 bookshelf-py-4 sm:flex-row sm:justify-end sm:bookshelf-px-6">
+            <button type="button" id="bookCreateCancel" class="bookshelf-btn-ghost bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">취소</button>
+            <button type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">추가</button>
+          </div>
+        </form>
+      </dialog>
+
       <div th:replace="~{fragments/layout :: appFooter()}"></div>
     </main>
   </div>
 </div>
+<script src="/js/book-list.js" defer></script>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>
 </html>

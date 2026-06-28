@@ -7,6 +7,7 @@ import com.example.bookshelf.user.model.BranchStockItem;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -97,6 +98,12 @@ public class BranchInventoryRepository {
 
     public void deleteBranchBooksByBookAndVolume(int bookId, int volume) {
         jdbcTemplate.update("DELETE FROM branchbook WHERE book = ? AND volume = ?", bookId, volume);
+    }
+
+    @Transactional
+    public void replaceBranchBooks(int bookId, String bookName, int volume, List<AladinBranchStock> stocks) {
+        deleteBranchBooksByBookAndVolume(bookId, volume);
+        insertBranchBooks(bookId, bookName, volume, stocks);
     }
 
     public void insertBranchBooks(int bookId, String bookName, int volume, List<AladinBranchStock> stocks) {
