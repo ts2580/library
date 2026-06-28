@@ -17,10 +17,12 @@ public class AladinSearchService {
 
     private final AladinClient aladinClient;
     private final ObjectMapper objectMapper;
+    private final com.example.bookshelf.user.repository.BookVolumeRepository bookVolumeRepository;
 
-    public AladinSearchService(AladinClient aladinClient, ObjectMapper objectMapper) {
+    public AladinSearchService(AladinClient aladinClient, ObjectMapper objectMapper, com.example.bookshelf.user.repository.BookVolumeRepository bookVolumeRepository) {
         this.aladinClient = aladinClient;
         this.objectMapper = objectMapper;
+        this.bookVolumeRepository = bookVolumeRepository;
     }
 
     public AladinSearchResult searchBookItems(String query, int page) {
@@ -41,8 +43,12 @@ public class AladinSearchService {
     }
 
     public AladinSearchView searchBookView(String query) {
-        String normalizedQuery = Texts.trimToEmpty(query);
-        AladinSearchResponse response = aladinClient.getBookInfo(normalizedQuery, 1, PAGE_SIZE);
+        return searchBookView(AladinSearchOptions.simple(query, 1, PAGE_SIZE));
+    }
+
+    public AladinSearchView searchBookView(AladinSearchOptions options) {
+        String normalizedQuery = Texts.trimToEmpty(options.query());
+        AladinSearchResponse response = aladinClient.getBookInfo(options);
 
         String json = serializeToJson(response);
 
@@ -52,9 +58,24 @@ public class AladinSearchService {
 
         int totalResults = response.totalResults() != null ? response.totalResults() : 0;
         java.util.List<AladinItem> items = response.item() != null ? response.item() : Collections.emptyList();
+        
+        java.util.List<AladinSearchViewItem> viewItems = items.stream().map(item -> new AladinSearchViewItem(
+                item.title(),
+                item.author(),
+                item.cover(),
+                item.isbn13(),
+                item.isbn(),
+                item.priceSales(),
+                item.priceStandard(),
+                item.pubDate(),
+                item.description(),
+                item.itemId(),
+                item.stockStatus(),
+                item.isbn13() != null && bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+        )).toList();
 
-        String message = items.isEmpty() ? "검색 결과가 없습니다." : null;
-        return new AladinSearchView(normalizedQuery, totalResults, items, json, false, message);
+        String message = viewItems.isEmpty() ? "검색 결과가 없습니다." : null;
+        return new AladinSearchView(normalizedQuery, totalResults, viewItems, json, false, message);
     }
 
     private String serializeToJson(Object obj) {

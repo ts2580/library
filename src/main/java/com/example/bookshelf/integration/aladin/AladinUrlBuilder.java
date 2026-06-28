@@ -12,28 +12,42 @@ import java.util.StringJoiner;
 @Component
 public class AladinUrlBuilder {
 
-    private static final String API_BASE_URL = "http://www.aladin.co.kr/ttb/api/";
+    private static final String API_BASE_URL = "https://www.aladin.co.kr/ttb/api/";
     private static final String API_VERSION = "20131101";
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final String ttbKey;
 
-    public AladinUrlBuilder(@Value("${aladin.ttb-key:ttbtrstyq0151001}") String ttbKey) {
-        this.ttbKey = ttbKey;
+    public AladinUrlBuilder(@Value("${aladin.ttb-key:}") String ttbKey) {
+        this.ttbKey = ttbKey == null ? "" : ttbKey.trim();
+    }
+
+    public boolean isConfigured() {
+        return !ttbKey.isBlank();
     }
 
     public String bookSearchUrl(String searchWord, int page, int pageSize) {
-        int size = pageSize > 0 ? pageSize : DEFAULT_PAGE_SIZE;
-        int start = ((Math.max(page, 1) - 1) * size) + 1;
+        return bookSearchUrl(AladinSearchOptions.simple(searchWord, page, pageSize));
+    }
 
+    public String bookSearchUrl(AladinSearchOptions options) {
         Map<String, String> params = defaultParams();
-        params.put("Query", searchWord);
-        params.put("Sort", "PublishTime");
-        params.put("QueryType", "Title");
-        params.put("MaxResults", String.valueOf(size));
-        params.put("start", String.valueOf(start));
-        params.put("Cover", "Big");
-        params.put("SearchTarget", "Book");
+        params.put("Query", options.query());
+        params.put("Sort", options.sort());
+        params.put("QueryType", options.queryType());
+        params.put("MaxResults", String.valueOf(options.maxResults()));
+        params.put("start", String.valueOf(options.start()));
+        params.put("Cover", options.cover());
+        params.put("SearchTarget", options.searchTarget());
+        if (options.categoryId() != null) {
+            params.put("CategoryId", String.valueOf(options.categoryId()));
+        }
+        if (options.recentPublishFilter() > 0) {
+            params.put("RecentPublishFilter", String.valueOf(options.recentPublishFilter()));
+        }
+        if (options.outOfStockFilter()) {
+            params.put("outofStockfilter", "1");
+        }
         return queryUrl("ItemSearch.aspx", params);
     }
 

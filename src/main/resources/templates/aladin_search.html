@@ -9,9 +9,86 @@
       <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인합니다.')}"></div>
 
       <form action="/aladin/search" method="get" class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-5">
-        <label for="query" class="bookshelf-mb-2 block bookshelf-form-label">검색어</label>
-        <div class="flex flex-col bookshelf-p-2 sm:flex-row">
-          <input id="query" name="query" th:value="${query}" placeholder="예: 해리포터" class="bookshelf-input h-11 flex-1 bookshelf-px-4 text-sm"/>
+        <div class="grid bookshelf-gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,minmax(140px,1fr))]">
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">검색어</span>
+            <input id="query" name="query" th:value="${options.query}" placeholder="예: 해리포터" class="bookshelf-input h-11 bookshelf-px-4 text-sm"/>
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">검색 기준</span>
+            <select name="queryType" class="bookshelf-select h-11 bookshelf-px-3 text-sm">
+              <option value="Title" th:selected="${options.queryType == 'Title'}">제목</option>
+              <option value="Keyword" th:selected="${options.queryType == 'Keyword'}">제목+저자</option>
+              <option value="Author" th:selected="${options.queryType == 'Author'}">작가</option>
+              <option value="Publisher" th:selected="${options.queryType == 'Publisher'}">출판사</option>
+            </select>
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">검색 대상</span>
+            <select name="searchTarget" class="bookshelf-select h-11 bookshelf-px-3 text-sm">
+              <option value="Book" th:selected="${options.searchTarget == 'Book'}">도서</option>
+              <option value="Foreign" th:selected="${options.searchTarget == 'Foreign'}">외국도서</option>
+              <option value="Music" th:selected="${options.searchTarget == 'Music'}">음반</option>
+              <option value="DVD" th:selected="${options.searchTarget == 'DVD'}">DVD</option>
+              <option value="Used" th:selected="${options.searchTarget == 'Used'}">중고샵</option>
+              <option value="eBook" th:selected="${options.searchTarget == 'eBook'}">전자책</option>
+              <option value="All" th:selected="${options.searchTarget == 'All'}">전체</option>
+            </select>
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">정렬</span>
+            <select name="sort" class="bookshelf-select h-11 bookshelf-px-3 text-sm">
+              <option value="PublishTime" th:selected="${options.sort == 'PublishTime'}">출간일</option>
+              <option value="Accuracy" th:selected="${options.sort == 'Accuracy'}">관련도</option>
+              <option value="Title" th:selected="${options.sort == 'Title'}">제목</option>
+              <option value="SalesPoint" th:selected="${options.sort == 'SalesPoint'}">판매량</option>
+              <option value="CustomerRating" th:selected="${options.sort == 'CustomerRating'}">고객평점</option>
+              <option value="MyReviewCount" th:selected="${options.sort == 'MyReviewCount'}">리뷰수</option>
+            </select>
+          </label>
+        </div>
+        <div class="bookshelf-mt-3 grid bookshelf-gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">출간 범위</span>
+            <select name="recentPublishFilter" class="bookshelf-select h-11 bookshelf-px-3 text-sm">
+              <option value="0" th:selected="${options.recentPublishFilter == 0}">전체</option>
+              <option value="1" th:selected="${options.recentPublishFilter == 1}">1개월</option>
+              <option value="3" th:selected="${options.recentPublishFilter == 3}">3개월</option>
+              <option value="6" th:selected="${options.recentPublishFilter == 6}">6개월</option>
+              <option value="12" th:selected="${options.recentPublishFilter == 12}">12개월</option>
+              <option value="24" th:selected="${options.recentPublishFilter == 24}">24개월</option>
+              <option value="60" th:selected="${options.recentPublishFilter == 60}">60개월</option>
+            </select>
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">결과 수</span>
+            <input type="number" name="maxResults" min="1" max="100" th:value="${options.maxResults}" class="bookshelf-input h-11 bookshelf-px-3 text-sm">
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">시작 페이지</span>
+            <input type="number" name="start" min="1" th:value="${options.start}" class="bookshelf-input h-11 bookshelf-px-3 text-sm">
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">카테고리 ID</span>
+            <input type="number" name="categoryId" min="1" th:value="${options.categoryId}" class="bookshelf-input h-11 bookshelf-px-3 text-sm">
+          </label>
+          <label class="flex min-w-0 flex-col">
+            <span class="bookshelf-mb-2 block bookshelf-form-label">표지</span>
+            <select name="cover" class="bookshelf-select h-11 bookshelf-px-3 text-sm">
+              <option value="Big" th:selected="${options.cover == 'Big'}">Big</option>
+              <option value="MidBig" th:selected="${options.cover == 'MidBig'}">MidBig</option>
+              <option value="Mid" th:selected="${options.cover == 'Mid'}">Mid</option>
+              <option value="Small" th:selected="${options.cover == 'Small'}">Small</option>
+              <option value="Mini" th:selected="${options.cover == 'Mini'}">Mini</option>
+              <option value="None" th:selected="${options.cover == 'None'}">None</option>
+            </select>
+          </label>
+        </div>
+        <div class="bookshelf-mt-4 flex flex-col bookshelf-gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label class="flex items-center bookshelf-gap-2 bookshelf-subtitle-sm">
+            <input type="checkbox" name="outOfStockFilter" value="true" th:checked="${options.outOfStockFilter}" class="h-4 w-4 rounded border-slate-300">
+            <span>품절 제외</span>
+          </label>
           <button class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">검색</button>
         </div>
       </form>
@@ -41,6 +118,7 @@
                   <p class="bookshelf-mt-1 bookshelf-subtitle-sm" th:text="${item.author}"></p>
                   <p class="bookshelf-mt-1 bookshelf-subtitle-xs" th:text="${item.pubDate != null ? '출간일 · ' + item.pubDate : '출간일 정보 없음'}"></p>
                   <div class="bookshelf-mt-3 flex flex-wrap bookshelf-p-2 text-xs">
+                    <span th:if="${item.exists}" class="bookshelf-chip bg-indigo-100 text-indigo-700 font-medium mr-2" th:text="'보유 중'"></span>
                     <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'ISBN13 · ' + (item.isbn13 != null ? item.isbn13 : '-')}"></span>
                     <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 · ' + (item.priceSales != null ? item.priceSales : '-')}"></span>
                     <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 · ' + (item.priceStandard != null ? item.priceStandard : '-')}"></span>
