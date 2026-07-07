@@ -99,7 +99,8 @@ public class ProductSearchService {
                         Texts.nullToEmpty(book.author()),
                         Texts.nullToEmpty(book.type()),
                         Texts.nullToEmpty(book.totalvolume()),
-                        Texts.nullToEmpty(book.createddate())
+                        Texts.nullToEmpty(book.createddate()),
+                        bookVolumeRepository.nextVolumeSeq(book.id())
                 ))
                 .toList();
     }
@@ -130,6 +131,6 @@ public class ProductSearchService {
     public record ProductSearchRequest(String ownedQ, String query, Integer ownedPage, Integer aladinPage, String ownedSort, String userAgent) {
     }
 
-    public record BookAutocompleteItem(int id, String name, String author, String type, String totalvolume, String createddate) {
+    public record BookAutocompleteItem(int id, String name, String author, String type, String totalvolume, String createddate, int nextVolume) {
     }
 }
