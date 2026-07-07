@@ -46,6 +46,17 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint("/user/login"))
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                            if (auth == null || !auth.isAuthenticated() || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+                                response.sendRedirect("/user/login");
+                            } else {
+                                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access Denied");
+                            }
+                        })
+                )
                 .formLogin(form -> form
                         .loginPage("/user/login")
                         .loginProcessingUrl("/user/login")
