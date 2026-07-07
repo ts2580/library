@@ -149,10 +149,6 @@
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         body.classList.remove('bookshelf-sidebar-open');
         body.classList.add('bookshelf-page-leaving');
-        if (document.startViewTransition) {
-          event.preventDefault();
-          document.startViewTransition(() => { window.location.href = href; });
-        }
       });
     });
 
