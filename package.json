@@ -1,6 +1,6 @@
 {
   "name": "bookshelf",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Spring Boot 프로젝트 초기 템플릿 (Java 21)",
   "main": "index.js",
   "scripts": {
