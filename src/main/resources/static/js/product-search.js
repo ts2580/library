@@ -62,6 +62,17 @@
       if (!item) return;
       hidden.value = item.id || '';
       input.value = item.name || item.label || '';
+      
+      const typeInput = form.querySelector('input[name="type"]');
+      if (typeInput) {
+        typeInput.value = item.type || '';
+      }
+      
+      const volumeInput = form.querySelector('input[name="volume"]');
+      if (volumeInput && item.nextVolume) {
+        volumeInput.value = item.nextVolume;
+      }
+      
       hide();
       input.focus();
     };

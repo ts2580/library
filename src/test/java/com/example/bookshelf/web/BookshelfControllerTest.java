@@ -20,12 +20,14 @@ class BookshelfControllerTest {
     @Mock private BookCatalogService bookCatalogService;
     @Mock private BookDataRepository bookDataRepository;
     @Mock private BookVolumeRepository bookVolumeRepository;
+    @Mock private com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService;
 
     @Test
     void createBook_insertsManualBookAndRedirectsToDetail() {
-        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository);
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
         when(bookDataRepository.insertBook("수동 책", "저자", "설명", "cover", "만화", "12")).thenReturn(42);
+        when(aladinSearchService.searchBookItems("수동 책", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(java.util.Collections.emptyList(), 0, 1, 20));
 
         String view = controller.createBook("수동 책", "저자", "설명", "cover", "만화", "12", redirectAttributes);
 
@@ -36,7 +38,7 @@ class BookshelfControllerTest {
 
     @Test
     void createBook_rejectsBlankTitle() {
-        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository);
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
 
         String view = controller.createBook(" ", null, null, null, null, null, redirectAttributes);

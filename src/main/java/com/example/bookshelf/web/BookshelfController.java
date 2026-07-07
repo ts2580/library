@@ -23,13 +23,16 @@ public class BookshelfController {
     private final BookCatalogService bookCatalogService;
     private final BookDataRepository bookDataRepository;
     private final BookVolumeRepository bookVolumeRepository;
+    private final com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService;
 
     public BookshelfController(BookCatalogService bookCatalogService,
                                BookDataRepository bookDataRepository,
-                               BookVolumeRepository bookVolumeRepository) {
+                               BookVolumeRepository bookVolumeRepository,
+                               com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService) {
         this.bookCatalogService = bookCatalogService;
         this.bookDataRepository = bookDataRepository;
         this.bookVolumeRepository = bookVolumeRepository;
+        this.aladinSearchService = aladinSearchService;
     }
 
     @RequestMapping("/books")
@@ -44,6 +47,7 @@ public class BookshelfController {
     }
 
     @PostMapping("/books")
+    @Transactional
     public String createBook(@RequestParam("name") String name,
                              @RequestParam(value = "author", required = false) String author,
                              @RequestParam(value = "description", required = false) String description,
@@ -56,7 +60,32 @@ public class BookshelfController {
             return "redirect:/books";
         }
 
+        com.example.bookshelf.integration.aladin.AladinSearchResult aladinResult = aladinSearchService.searchBookItems(name, 1);
+        List<com.example.bookshelf.integration.aladin.AladinItem> items = aladinResult.items();
+        
+        if (items != null && !items.isEmpty()) {
+            com.example.bookshelf.integration.aladin.AladinItem vol1 = items.stream()
+                    .filter(item -> item.title() != null && item.title().contains("1권"))
+                    .findFirst()
+                    .orElse(items.get(0));
+            if (cover == null || cover.isBlank()) cover = vol1.cover();
+            if (description == null || description.isBlank()) description = vol1.description();
+            if (author == null || author.isBlank()) author = vol1.author();
+        }
+
         int bookId = bookDataRepository.insertBook(name, author, description, cover, type, totalVolume);
+
+        if (items != null) {
+            int seq = 1;
+            for (com.example.bookshelf.integration.aladin.AladinItem item : items) {
+                String isbn13 = item.isbn13();
+                if (isbn13 == null || isbn13.isBlank()) isbn13 = item.isbn();
+                if (isbn13 != null && !isbn13.isBlank() && !bookVolumeRepository.existsVolumeByIsbn13(isbn13)) {
+                    bookVolumeRepository.insertVolume(bookId, seq++, isbn13, item.title(), item.cover(), item.priceSales());
+                }
+            }
+        }
+
         redirectAttributes.addFlashAttribute("success", "책을 추가했습니다.");
         return "redirect:/books/" + bookId;
     }

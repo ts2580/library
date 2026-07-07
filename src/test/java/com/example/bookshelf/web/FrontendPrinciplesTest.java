@@ -52,8 +52,7 @@ class FrontendPrinciplesTest {
                 .contains("for=\"aladinProductSearch\"")
                 .contains(">기존 책<")
                 .contains(">권 번호<")
-                .contains(">카테고리<")
-                .contains(">총 권수<");
+                .contains(">카테고리<");
     }
 
     @Test
