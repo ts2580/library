@@ -56,7 +56,7 @@ class StockRefreshServiceTest {
         when(aladinUsedStockService.isApiConfigured()).thenReturn(true);
         when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(1);
         when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
-                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, false, "1")
+                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, null, false, "1")
         ));
         when(bookVolumeRepository.findUnpurchasedVolumesAfterId(1, 100)).thenReturn(List.of());
         when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of(
@@ -76,7 +76,7 @@ class StockRefreshServiceTest {
         when(aladinUsedStockService.isApiConfigured()).thenReturn(true);
         when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(1);
         when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
-                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, false, "1")
+                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, null, false, "1")
         ));
         when(bookVolumeRepository.findUnpurchasedVolumesAfterId(1, 100)).thenReturn(List.of());
         when(aladinUsedStockService.findUsedStocksByIsbn13("9781234567890")).thenReturn(List.of());
