@@ -49,4 +49,29 @@ class AladinUrlBuilderTest {
                 .contains("RecentPublishFilter=12")
                 .contains("outofStockfilter=1");
     }
+
+    @Test
+    void dropshippingUsedBookUrlUsesBigCoverAndIsbn13() {
+        AladinUrlBuilder builder = new AladinUrlBuilder("test-key");
+
+        String url = builder.dropshippingUsedBookUrl("9781234567890");
+
+        assertThat(url)
+                .contains("ItemId=9781234567890")
+                .contains("itemIdType=ISBN13")
+                .contains("Cover=Big")
+                .contains("OptResult=usedList");
+    }
+
+    @Test
+    void usedBookInfoUrlUsesBigCoverAndIsbn13() {
+        AladinUrlBuilder builder = new AladinUrlBuilder("test-key");
+
+        String url = builder.usedBookInfoUrl("9781234567890");
+
+        assertThat(url)
+                .contains("ItemId=9781234567890")
+                .contains("itemIdType=ISBN13")
+                .contains("Cover=Big");
+    }
 }
