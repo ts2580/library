@@ -25,17 +25,17 @@
     <p class="bookshelf-mt-2 bookshelf-subtitle-sm">검색어를 입력하면 외부 결과를 카드형으로 표시합니다.</p>
   </div>
 
-  <div th:if="${not #lists.isEmpty(aladinResults)}" class="grid grid-cols-2 xl:grid-cols-3 bookshelf-gap-3">
-    <article th:each="item : ${aladinResults}" class="bookshelf-panel bookshelf-hover-lift bookshelf-pad-card">
-      <div class="flex bookshelf-gap-3 bookshelf-p-4">
-        <div class="bookshelf-cover-hover bookshelf-cover-center self-center h-20 w-12 min-h-[80px] min-w-[3rem] overflow-hidden rounded-[16px] bg-slate-100">
-          <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full bookshelf-cover-img" alt="cover" loading="lazy" decoding="async">
-          <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="flex h-full w-full items-center justify-center text-[10px] bookshelf-cover-placeholder">NO</div>
+  <div th:if="${not #lists.isEmpty(aladinResults)}" class="bookshelf-card-list grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <article th:each="item : ${aladinResults}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4 flex flex-col justify-between">
+      <div>
+        <div class="bookshelf-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100">
+          <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full object-cover" alt="cover" loading="lazy" decoding="async">
+          <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover text-xs">NO COVER</div>
         </div>
-        <div class="min-w-0 flex-1 text-sm" style="min-width:0; max-width:100%; overflow:hidden;">
-          <h3 class="bookshelf-title-base bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.title}"></h3>
-          <p class="bookshelf-subtitle bookshelf-text-ellipsis" style="display:block; width:100%; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" th:text="${item.author}"></p>
-          <div class="bookshelf-mt-2 flex flex-wrap bookshelf-p-2 text-xs">
+        <div class="bookshelf-mt-3 sm:bookshelf-mt-4 bookshelf-space-y-1-5">
+          <h2 class="line-clamp-2 bookshelf-title-base" th:text="${item.title}"></h2>
+          <p class="bookshelf-subtitle-sm line-clamp-1" th:text="${item.author}"></p>
+          <div class="flex flex-wrap items-center gap-1 mt-1 text-[10px] sm:text-xs">
             <span th:if="${item.exists}" class="bookshelf-chip bg-indigo-100 text-indigo-700 font-medium" th:text="'등록됨'"></span>
             <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 ' + (item.priceStandard ?: '-')} "></span>
             <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 ' + (item.priceSales ?: '-')} "></span>
@@ -44,14 +44,14 @@
         </div>
       </div>
 
-      <div th:if="${item.exists}" class="bookshelf-mt-3 flex bookshelf-p-2">
-        <button type="button" class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs sm:w-auto" disabled>등록됨</button>
+      <div th:if="${item.exists}" class="mt-3">
+        <button type="button" class="bookshelf-btn-ghost w-full bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs" disabled>등록됨</button>
       </div>
 
-      <details th:unless="${item.exists}" class="bookshelf-mt-3 rounded-[16px] border border-slate-200 bg-white/60 bookshelf-p-2">
-        <summary class="cursor-pointer bookshelf-title-sm">등록 옵션 열기</summary>
-        <div class="bookshelf-mt-2 flex flex-wrap items-end bookshelf-p-2">
-          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col gap-3 bookshelf-p-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <details th:unless="${item.exists}" class="bookshelf-mt-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 sm:p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-700">등록하기</summary>
+        <div class="bookshelf-mt-2">
+          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col gap-3">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="title" th:value="${item.title}">
             <input type="hidden" name="author" th:value="${item.author}">
@@ -67,21 +67,22 @@
             <input type="hidden" name="aladinPage" th:value="${aladinPage}">
             <input type="hidden" name="tab" th:value="${activeTab}">
             <input type="hidden" name="targetBookId" class="target-book-id">
-            <label class="relative flex w-full min-w-0 flex-col sm:min-w-[260px] sm:max-w-[360px] sm:flex-1">
-              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">기존 책</span>
-              <input type="text" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs target-book-search" placeholder="기존 책 검색, 비우면 새 책으로 등록" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
-              <div class="target-book-results absolute left-0 right-0 top-[calc(100%+4px)] z-10 hidden rounded-[16px] border border-slate-200 bg-white/95 bookshelf-p-2 shadow-lg backdrop-blur" role="listbox"></div>
+            <label class="relative flex w-full min-w-0 flex-col">
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">기존 책 연동</span>
+              <input type="text" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs target-book-search" placeholder="검색 (비우면 새 책 등록)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
+              <div class="target-book-results bookshelf-autocomplete-results absolute left-0 right-0 top-[calc(100%+4px)] hidden rounded-[16px] border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" role="listbox"></div>
             </label>
-            <label class="flex w-full flex-col sm:w-[120px]">
-              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">권 번호</span>
-              <input type="number" name="volume" min="1" placeholder="권 번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs">
-            </label>
-            <label class="flex w-full flex-col sm:w-[140px]">
-              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">카테고리</span>
-              <input type="text" name="type" list="product-book-type-options" placeholder="카테고리" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs" aria-label="카테고리">
-            </label>
-
-            <button type="submit" class="bookshelf-btn w-full bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">선택한 책에 담기</button>
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <label class="flex w-full flex-col sm:w-1/2">
+                <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">권 번호</span>
+                <input type="number" name="volume" min="1" placeholder="번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs">
+              </label>
+              <label class="flex w-full flex-col sm:w-1/2">
+                <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">카테고리</span>
+                <input type="text" name="type" list="product-book-type-options" placeholder="선택" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs" aria-label="카테고리">
+              </label>
+            </div>
+            <button type="submit" class="bookshelf-btn w-full bookshelf-px-4 bookshelf-py-2 text-xs font-semibold">저장</button>
           </form>
         </div>
       </details>

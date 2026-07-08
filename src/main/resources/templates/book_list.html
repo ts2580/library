@@ -9,7 +9,11 @@
       <div th:replace="~{fragments/layout :: appTopbar(null, '내 책장', null)}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
-      <div class="flex justify-end bookshelf-px-4">
+      <div class="flex justify-end bookshelf-px-4 gap-2">
+        <form action="/api/migration/covers" method="post" class="m-0">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <button type="submit" class="bookshelf-btn-ghost h-11 bookshelf-px-4 bookshelf-btn-size-sm sm:w-auto" onclick="return confirm('알라딘에서 불러온 기존의 책 표지들을 다운로드합니다. 계속하시겠습니까?');">기존 표지 다운로드</button>
+        </form>
         <button id="openBookCreateDialog" type="button" class="bookshelf-btn h-11 bookshelf-px-4 bookshelf-btn-size-sm sm:w-auto">책 수동 추가</button>
       </div>
 

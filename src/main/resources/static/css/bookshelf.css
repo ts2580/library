@@ -241,6 +241,16 @@ body.bookshelf-body.bookshelf-page-leaving { opacity: .78;  }
 .bookshelf-hover-lift { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .bookshelf-hover-lift:hover { transform: translateY(-2px); box-shadow: var(--bk-shadow-strong); border-color: var(--bk-line-accent); }
 .bookshelf-cover-hover img { transition: transform .24s ease; }
+.bookshelf-autocomplete-results {
+  z-index: 1200;
+  position: absolute;
+  width: 100%;
+  max-height: min(18rem, 55vh);
+  overflow-y: auto;
+  box-sizing: border-box;
+  transform: translateZ(0);
+  isolation: isolate;
+}
 
 
 .bookshelf-cover-center {
