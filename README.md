@@ -88,6 +88,6 @@ npm run verify:local
 - `./run.sh` 기본 동작은 vendor JS 복사와 Tailwind CSS 빌드를 먼저 수행합니다. `node_modules`가 없고 `package-lock.json`이 있으면 `npm ci --no-audit --no-fund`를 사용하고, lockfile이 없을 때만 `npm install --no-audit --no-fund`로 설치합니다. `--skip-css` 옵션 시 빌드를 완전히 건너뜁니다.
 - Docker 이미지는 빌드 단계에서 Tailwind CSS를 생성한 뒤 JAR을 빌드합니다.
   ```bash
-  docker build -t bookshelf:1.7.0 .
-  docker run --rm -p 25647:25647 -v "$PWD/data:/data" bookshelf:1.7.0
+  docker build -t bookshelf:2.0.0 .
+  docker run --rm -p 25647:25647 -v "$PWD/data:/data" bookshelf:2.0.0
   ```
