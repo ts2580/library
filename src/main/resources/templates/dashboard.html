@@ -5,10 +5,10 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('dashboard')}"></aside>
-    <main class="bookshelf-main">
+    <main class="bookshelf-main bookshelf-dashboard-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, 'Bookshelf 대시보드', null)}"></div>
 
-      <section class="grid bookshelf-gap-y-4 bookshelf-p-4 sm:grid-cols-3 sm:gap-5">
+      <section class="bookshelf-dashboard-section grid bookshelf-dashboard-kpi-grid bookshelf-p-5 sm:grid-cols-3">
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">Library Size</div>
           <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${bookCount}">0</div>
@@ -26,12 +26,12 @@
         </div>
       </section>
 
-      <section class="bookshelf-card bookshelf-pad-card-lg sm:bookshelf-p-6">
+      <section class="bookshelf-dashboard-section bookshelf-card bookshelf-p-5 sm:bookshelf-p-5">
         <div class="bookshelf-mb-3 sm:bookshelf-mb-4">
           <h2 class="bookshelf-title-lg">카테고리별 권수와 금액</h2>
         </div>
         <div th:if="${#lists.isEmpty(categorySummaries)}" class="bookshelf-empty bookshelf-p-6 text-center bookshelf-subtitle-sm">표시할 카테고리 데이터가 없습니다.</div>
-        <div th:unless="${#lists.isEmpty(categorySummaries)}" id="categoryChartWrap" class="bookshelf-mt-3 rounded-[20px] border border-slate-200 bookshelf-pad-card" style="height: 420px; min-height: 420px;">
+        <div th:unless="${#lists.isEmpty(categorySummaries)}" id="categoryChartWrap" class="bookshelf-mt-3 rounded-[20px] border border-slate-200 bookshelf-dashboard-chart-wrap" style="height: 420px; min-height: 420px;">
           <canvas id="categoryChart"></canvas>
         </div>
       </section>

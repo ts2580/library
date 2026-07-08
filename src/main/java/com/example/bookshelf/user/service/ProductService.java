@@ -63,7 +63,7 @@ public class ProductService {
                 if (volume.cover() != null && volume.cover().startsWith("http")) {
                     String vCover = downloadCoverImage(volume.cover(), volume.isbn13() != null ? volume.isbn13() : "vol_" + volume.id());
                     if (!vCover.equals(volume.cover())) {
-                        bookVolumeRepository.updateVolume(book.id(), volume.id(), volume.isbn13(), volume.name(), vCover, volume.price(), volume.description(), volume.purchased(), volume.seq());
+                        bookVolumeRepository.updateVolume(book.id(), volume.id(), volume.isbn13(), volume.name(), vCover, volume.price(), volume.description(), volume.purchased(), volume.noNeedToBuy(), volume.seq());
                         count++;
                     }
                 }

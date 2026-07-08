@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public class BookVolumeRepository {
 
-    private static final String BOOK_VOLUME_COLUMNS = "id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume";
+    private static final String BOOK_VOLUME_COLUMNS = "id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, COALESCE(noneedtobuy, FALSE) AS noneedtobuy, volume";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -78,15 +78,15 @@ public class BookVolumeRepository {
     }
 
     public int countUnpurchasedVolumes() {
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE ispurchased = FALSE", Integer.class);
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE ispurchased = FALSE AND COALESCE(noneedtobuy, FALSE) = FALSE", Integer.class);
         return count == null ? 0 : count;
     }
 
     public List<BookVolume> findUnpurchasedVolumesAfterId(int lastSeenId, int limit) {
         String sql = """
-                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume
+                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, COALESCE(noneedtobuy, FALSE) AS noneedtobuy, volume
                 FROM book_volumes
-                WHERE ispurchased = FALSE AND id > ?
+                WHERE ispurchased = FALSE AND COALESCE(noneedtobuy, FALSE) = FALSE AND id > ?
                 ORDER BY id ASC
                 LIMIT ?
                 """;
@@ -95,7 +95,7 @@ public class BookVolumeRepository {
 
     public List<BookVolume> findVolumesByBookId(int bookId) {
         String sql = """
-                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume
+                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, COALESCE(noneedtobuy, FALSE) AS noneedtobuy, volume
                 FROM book_volumes
                 WHERE book = ?
                 ORDER BY volume ASC, id ASC
@@ -121,13 +121,13 @@ public class BookVolumeRepository {
         jdbcTemplate.update(sql, bookId, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), false, seq);
     }
 
-    public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, String description, boolean purchased, Integer seq) {
+    public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, String description, boolean purchased, boolean noNeedToBuy, Integer seq) {
         String sql = """
                 UPDATE book_volumes
-                SET isbn13 = ?, name = ?, cover = ?, price = ?, description = ?, ispurchased = ?, volume = ?
+                SET isbn13 = ?, name = ?, cover = ?, price = ?, description = ?, ispurchased = ?, noneedtobuy = ?, volume = ?
                 WHERE id = ? AND book = ?
                 """;
-        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), purchased, seq, volumeId, bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), purchased, noNeedToBuy, seq, volumeId, bookId);
     }
 
     public void deleteVolumesByBookId(int bookId) {
@@ -163,9 +163,10 @@ public class BookVolumeRepository {
                     SELECT REPLACE(TRIM(COALESCE(price, '')), ',', '') AS normalized_price
                     FROM book_volumes
                     WHERE ispurchased = ?
+                      AND (? = TRUE OR COALESCE(noneedtobuy, FALSE) = FALSE)
                 )
                 """;
-        Long total = jdbcTemplate.queryForObject(sql, Long.class, purchased);
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, purchased, purchased);
         return total == null ? 0L : total;
     }
 

@@ -29,27 +29,27 @@
           </div>
           <p class="bookshelf-mt-4 rounded-[18px] border border-slate-200 bookshelf-p-4 bookshelf-subtitle-sm" th:text="${book.description ?: '설명이 없습니다.'}"></p>
           <div class="bookshelf-mt-3 bookshelf-subtitle-xs">카드를 누르면 책 정보를 수정할 수 있습니다.</div>
-          <div class="bookshelf-mt-4 flex flex-col bookshelf-p-2 sm:flex-row">
-            <a href="/books" class="bookshelf-btn-ghost bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">← 목록으로</a>
-            <form method="post" id="deleteBookForm" th:action="@{/books/{id}/delete(id=${book.id})}" class="sm:ml-1">
+          <div class="bookshelf-detail-actions">
+            <a href="/books" class="bookshelf-btn-ghost bookshelf-btn-size-sm bookshelf-detail-action-btn bookshelf-detail-back-btn">← 목록으로</a>
+            <form method="post" id="deleteBookForm" th:action="@{/books/{id}/delete(id=${book.id})}">
               <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-              <button id="deleteBookButton" type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">삭제</button>
+              <button id="deleteBookButton" type="submit" class="bookshelf-btn-danger bookshelf-btn-size-sm bookshelf-detail-action-btn">삭제</button>
             </form>
           </div>
         </aside>
 
         <main class="bookshelf-card bookshelf-pad-card-lg sm:bookshelf-p-6">
-          <div class="bookshelf-mb-4 flex items-center justify-between bookshelf-p-2">
+          <div class="bookshelf-mb-4 bookshelf-p-2">
             <div>
               <div class="inline-flex bookshelf-badge">Volumes</div>
               <h2 class="bookshelf-mt-3 bookshelf-title-xl">권별 목록</h2>
               <p class="bookshelf-mt-1 bookshelf-subtitle-sm">각 권 카드를 누르면 팝업으로 세부 정보를 수정할 수 있습니다.</p>
             </div>
-            <div class="flex items-center bookshelf-p-2">
-              <span class="bookshelf-chip bookshelf-chip-tag-lg" th:text="${#lists.size(volumes) + '권'}">0권</span>
+            <div class="bookshelf-volume-toolbar">
+              <span class="bookshelf-chip bookshelf-chip-tag-lg bookshelf-volume-count" th:text="${#lists.size(volumes) + '권'}">0권</span>
               <form method="post" id="deleteVolumesForm" th:action="@{/books/{id}/volumes/delete(id=${book.id})}" class="relative">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button id="deleteCheckedVolumes" type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto" disabled>삭제</button>
+                <button id="deleteCheckedVolumes" type="submit" class="bookshelf-btn-danger bookshelf-btn-size-sm bookshelf-volume-delete-btn" disabled>삭제</button>
               </form>
             </div>
           </div>
@@ -58,7 +58,7 @@
             <article th:each="v : ${volumes}"
                  class="bookshelf-panel bookshelf-hover-lift cursor-pointer bookshelf-pad-card-sm sm:bookshelf-p-4 relative"
                  tabindex="0"
-                 th:attr="data-volume-id=${v.id},data-volume-seq=${v.seq},data-volume-name=${v.name},data-volume-isbn13=${v.isbn13},data-volume-cover=${v.cover},data-volume-price=${v.price},data-volume-description=${v.description},data-volume-purchased=${v.purchased},data-volume-type=${book.type}"
+                 th:attr="data-volume-id=${v.id},data-volume-seq=${v.seq},data-volume-name=${v.name},data-volume-isbn13=${v.isbn13},data-volume-cover=${v.cover},data-volume-price=${v.price},data-volume-description=${v.description},data-volume-purchased=${v.purchased},data-volume-no-need-to-buy=${v.noNeedToBuy},data-volume-type=${book.type}"
                  data-volume-card>
               <label class="volume-select-label" style="position:absolute;left:10px;top:10px;z-index:2;background:rgba(255,255,255,.85);border:1px solid var(--bk-border);border-radius:9999px;padding:2px 4px;">
                 <input type="checkbox" class="volume-select" form="deleteVolumesForm" aria-label="권 선택"/>
@@ -73,7 +73,7 @@
               <div class="bookshelf-mt-2 bookshelf-space-y-1 bookshelf-subtitle-xs">
                 <p th:text="${'권: ' + v.seq}"></p>
                 <p th:text="${v.price != null ? '가격: ' + v.price : '가격: -'}"></p>
-                <p th:text="${v.purchased ? '구매완료' : '미구매'}"></p>
+                <p th:text="${v.noNeedToBuy ? '살 필요 없음' : (v.purchased ? '구매완료' : '미구매')}"></p>
               </div>
               <p class="bookshelf-mt-2 text-xs text-slate-500 line-clamp-2" th:if="${v.description != null and !#strings.isEmpty(v.description)}" th:text="${v.description}"></p>
             </article>
@@ -87,7 +87,7 @@
     </main>
   </div>
 </div>
-<script src="/js/book-detail.js?v=1.1" defer></script>
+<script src="/js/book-detail.js?v=1.8" defer></script>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>
 </html>

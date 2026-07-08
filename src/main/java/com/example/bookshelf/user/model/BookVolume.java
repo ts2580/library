@@ -10,6 +10,7 @@ public record BookVolume(
         String price,
         String description,
         boolean purchased,
+        boolean noNeedToBuy,
         String volume
 ) {
 }

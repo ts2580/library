@@ -77,6 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_book_volumes_book_volume ON book_volumes (book, v
 CREATE INDEX IF NOT EXISTS idx_book_volumes_isbn13 ON book_volumes (isbn13);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_book_volumes_isbn13_not_blank ON book_volumes (isbn13) WHERE isbn13 IS NOT NULL AND TRIM(isbn13) <> '';
 CREATE INDEX IF NOT EXISTS idx_book_volumes_ispurchased ON book_volumes (ispurchased);
+CREATE INDEX IF NOT EXISTS idx_book_volumes_stock_refresh_target ON book_volumes (ispurchased, noneedtobuy, id);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_createddate ON book_volumes (createddate);
 
 CREATE TABLE IF NOT EXISTS branchbook (
