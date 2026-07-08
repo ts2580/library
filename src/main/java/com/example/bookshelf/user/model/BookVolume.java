@@ -8,6 +8,7 @@ public record BookVolume(
         String name,
         String cover,
         String price,
+        String description,
         boolean purchased,
         String volume
 ) {

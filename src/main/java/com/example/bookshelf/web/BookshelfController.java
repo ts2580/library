@@ -1,8 +1,10 @@
 package com.example.bookshelf.web;
 
+import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.user.service.BookCatalogService;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
+import com.example.bookshelf.integration.aladin.AladinCoverUtils;
 import com.example.bookshelf.web.viewmodel.BookDetailViewModel;
 import com.example.bookshelf.web.viewmodel.BookListViewModel;
 import org.springframework.stereotype.Controller;
@@ -24,15 +26,18 @@ public class BookshelfController {
     private final BookDataRepository bookDataRepository;
     private final BookVolumeRepository bookVolumeRepository;
     private final com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService;
+    private final com.example.bookshelf.user.service.ProductService productService;
 
     public BookshelfController(BookCatalogService bookCatalogService,
                                BookDataRepository bookDataRepository,
                                BookVolumeRepository bookVolumeRepository,
-                               com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService) {
+                               com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService,
+                               com.example.bookshelf.user.service.ProductService productService) {
         this.bookCatalogService = bookCatalogService;
         this.bookDataRepository = bookDataRepository;
         this.bookVolumeRepository = bookVolumeRepository;
         this.aladinSearchService = aladinSearchService;
+        this.productService = productService;
     }
 
     @RequestMapping("/books")
@@ -44,6 +49,13 @@ public class BookshelfController {
                        Model model) {
         applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page));
         return "book_list";
+    }
+
+    @PostMapping("/api/migration/covers")
+    public String migrateCovers(RedirectAttributes redirectAttributes) {
+        int count = productService.migrateOldCovers();
+        redirectAttributes.addFlashAttribute("success", count + "개의 표지 이미지를 다운로드하여 업데이트했습니다.");
+        return "redirect:/books";
     }
 
     @PostMapping("/books")
@@ -62,18 +74,29 @@ public class BookshelfController {
 
         com.example.bookshelf.integration.aladin.AladinSearchResult aladinResult = aladinSearchService.searchBookItems(name, 1);
         List<com.example.bookshelf.integration.aladin.AladinItem> items = aladinResult.items();
-        
+        String primaryIsbn13 = resolvePrimaryIsbn13FromItems(items);
+
         if (items != null && !items.isEmpty()) {
             com.example.bookshelf.integration.aladin.AladinItem vol1 = items.stream()
                     .filter(item -> item.title() != null && item.title().contains("1권"))
                     .findFirst()
                     .orElse(items.get(0));
-            if (cover == null || cover.isBlank()) cover = vol1.cover();
+            if (cover == null || cover.isBlank()) {
+                cover = AladinCoverUtils.toCover500(vol1.cover());
+            } else {
+                cover = AladinCoverUtils.toCover500(cover);
+            }
             if (description == null || description.isBlank()) description = vol1.description();
             if (author == null || author.isBlank()) author = vol1.author();
         }
+        cover = AladinCoverUtils.toCover500(cover);
 
         int bookId = bookDataRepository.insertBook(name, author, description, cover, type, totalVolume);
+        String persistedBookCover = persistExternalCover(cover, resolveBookCoverCacheKey(bookId, primaryIsbn13));
+        if (persistedBookCover == null ? cover != null : !persistedBookCover.equals(cover)) {
+            bookDataRepository.updateBook(bookId, name, author, description, persistedBookCover, type, totalVolume);
+            cover = persistedBookCover;
+        }
 
         if (items != null) {
             int seq = 1;
@@ -81,7 +104,8 @@ public class BookshelfController {
                 String isbn13 = item.isbn13();
                 if (isbn13 == null || isbn13.isBlank()) isbn13 = item.isbn();
                 if (isbn13 != null && !isbn13.isBlank() && !bookVolumeRepository.existsVolumeByIsbn13(isbn13)) {
-                    bookVolumeRepository.insertVolume(bookId, seq++, isbn13, item.title(), item.cover(), item.priceSales());
+                    String itemCover = persistExternalCover(AladinCoverUtils.toCover500(item.cover()), isbn13);
+                    bookVolumeRepository.insertVolume(bookId, seq++, isbn13, item.title(), itemCover, item.priceSales(), item.description());
                 }
             }
         }
@@ -119,6 +143,8 @@ public class BookshelfController {
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
+        String bookCoverCacheKey = resolveBookCoverCacheKey(id, resolveBookPrimaryVolumeIsbn13(id));
+        cover = persistExternalCover(cover, bookCoverCacheKey);
         bookDataRepository.updateBook(id, name, author, description, cover, type, totalVolume);
         redirectAttributes.addFlashAttribute("success", "책 정보를 수정했습니다.");
         return "redirect:/books/" + id;
@@ -131,6 +157,7 @@ public class BookshelfController {
                                @RequestParam(value = "name", required = false) String name,
                                @RequestParam(value = "cover", required = false) String cover,
                                @RequestParam(value = "price", required = false) String price,
+                               @RequestParam(value = "description", required = false) String description,
                                @RequestParam(value = "purchased", defaultValue = "false") boolean purchased,
                                @RequestParam(value = "seq", required = false) Integer seq,
                                @RequestParam(value = "type", required = false) String type,
@@ -138,7 +165,8 @@ public class BookshelfController {
         var book = bookDataRepository.findBookById(id);
         if (book == null) return "redirect:/books";
 
-        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, purchased, seq);
+        cover = persistExternalCover(cover, normalizeVolumeCoverKey(volumeId, isbn13));
+        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, seq);
         if (type != null && !type.trim().isEmpty()) {
             bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, book.totalvolume());
         }
@@ -191,5 +219,45 @@ public class BookshelfController {
         model.addAttribute("to", vm.page().to());
         model.addAttribute("startPage", vm.page().startPage());
         model.addAttribute("endPage", vm.page().endPage());
+    }
+
+    private String persistExternalCover(String cover, String cacheKey) {
+        String normalizedCover = AladinCoverUtils.toCover500(cover);
+        if (normalizedCover == null || !normalizedCover.startsWith("http") || cacheKey == null || cacheKey.isBlank() || productService == null) {
+            return normalizedCover;
+        }
+        return productService.persistCoverImage(normalizedCover, cacheKey);
+    }
+
+    private String resolvePrimaryIsbn13FromItems(List<com.example.bookshelf.integration.aladin.AladinItem> items) {
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        for (com.example.bookshelf.integration.aladin.AladinItem item : items) {
+            String isbn13 = Texts.trimToNull(item.isbn13());
+            if (isbn13 != null) {
+                return isbn13;
+            }
+        }
+        return null;
+    }
+
+    private String resolveBookPrimaryVolumeIsbn13(int bookId) {
+        return bookVolumeRepository.findVolumesByBookId(bookId).stream()
+                .map(volume -> Texts.trimToNull(volume.isbn13()))
+                .filter(isbn13 -> isbn13 != null && !isbn13.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resolveBookCoverCacheKey(int bookId, String isbn13) {
+        return isbn13 != null && !isbn13.isBlank() ? isbn13 + "_book_" + bookId : "book_" + bookId;
+    }
+
+    private static String normalizeVolumeCoverKey(int volumeId, String isbn13) {
+        if (isbn13 != null && !isbn13.isBlank()) {
+            return isbn13;
+        }
+        return "volume_" + volumeId;
     }
 }

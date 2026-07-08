@@ -55,6 +55,7 @@ public class AladinUrlBuilder {
         Map<String, String> params = defaultParams();
         params.put("ItemId", isbn13);
         params.put("itemIdType", "ISBN13");
+        params.put("Cover", "Big");
         params.put("OptResult", "usedList");
         return queryUrl("ItemLookUp.aspx", params);
     }
@@ -63,6 +64,7 @@ public class AladinUrlBuilder {
         Map<String, String> params = defaultParams();
         params.put("ItemId", isbn13);
         params.put("itemIdType", "ISBN13");
+        params.put("Cover", "Big");
         return queryUrl("ItemOffStoreList.aspx", params);
     }
 

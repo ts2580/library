@@ -3,11 +3,15 @@ package com.example.bookshelf.web;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.service.BookCatalogService;
+import com.example.bookshelf.user.service.ProductService;
+import com.example.bookshelf.user.model.Book;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
+
+import com.example.bookshelf.integration.aladin.AladinItem;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
@@ -21,10 +25,11 @@ class BookshelfControllerTest {
     @Mock private BookDataRepository bookDataRepository;
     @Mock private BookVolumeRepository bookVolumeRepository;
     @Mock private com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService;
+    @Mock private ProductService productService;
 
     @Test
     void createBook_insertsManualBookAndRedirectsToDetail() {
-        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService);
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
         when(bookDataRepository.insertBook("수동 책", "저자", "설명", "cover", "만화", "12")).thenReturn(42);
         when(aladinSearchService.searchBookItems("수동 책", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(java.util.Collections.emptyList(), 0, 1, 20));
@@ -38,7 +43,7 @@ class BookshelfControllerTest {
 
     @Test
     void createBook_rejectsBlankTitle() {
-        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService);
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
 
         String view = controller.createBook(" ", null, null, null, null, null, redirectAttributes);
@@ -53,5 +58,90 @@ class BookshelfControllerTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
+    }
+
+    @Test
+    void createBook_convertsAladinCover200ToCover500BeforeInsert() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+
+        String cover200 = "https://image.aladin.co.kr/product/35919/20/cover200/k862037699_1.jpg";
+        String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
+
+        when(aladinSearchService.searchBookItems("테스트 책", 1))
+                .thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                        java.util.List.of(new AladinItem(
+                                "테스트 책 1권",
+                                "저자",
+                                cover200,
+                                "9781234567890",
+                                null,
+                                "10000",
+                                "12000",
+                                "2026-01-01",
+                                "설명",
+                                "item-1",
+                                ""
+                        )),
+                        1,
+                        1,
+                        20
+                ));
+        when(productService.persistCoverImage(cover500, "9781234567890_book_42")).thenReturn(cover500);
+        when(productService.persistCoverImage(cover500, "9781234567890")).thenReturn(cover500);
+        when(bookDataRepository.insertBook("테스트 책", "저자", "설명", cover500, null, null)).thenReturn(42);
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
+
+        String view = controller.createBook("테스트 책", null, null, null, null, null, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/42");
+        assertThat(redirectAttributes.getFlashAttributes().get("success")).isEqualTo("책을 추가했습니다.");
+        verify(bookDataRepository).insertBook("테스트 책", "저자", "설명", cover500, null, null);
+        verify(bookVolumeRepository).insertVolume(42, 1, "9781234567890", "테스트 책 1권", cover500, "10000", "설명");
+    }
+
+    @Test
+    void migrateCovers_updatesOldCoversAndRedirectsToBookList() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(productService.migrateOldCovers()).thenReturn(5);
+
+        String view = controller.migrateCovers(redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("success")).isEqualTo("5개의 표지 이미지를 다운로드하여 업데이트했습니다.");
+        verify(productService).migrateOldCovers();
+    }
+
+    @Test
+    void updateBook_convertsAladinCover200ToCover500BeforePersist() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(bookDataRepository.findBookById(3)).thenReturn(new Book(3, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
+
+        String cover200 = "https://image.aladin.co.kr/product/35919/20/cover200/k862037699_1.jpg";
+        String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
+        when(productService.persistCoverImage(cover500, "book_3")).thenReturn(cover500);
+
+        String view = controller.updateBook(3, "기존 책", "기존 저자", "기존 설명", cover200, "소설", "10", redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        verify(bookDataRepository).updateBook(3, "기존 책", "기존 저자", "기존 설명", cover500, "소설", "10");
+    }
+
+    @Test
+    void updateVolume_convertsAladinCover200ToCover500BeforePersist() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(bookDataRepository.findBookById(3)).thenReturn(new Book(3, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
+
+        String cover200 = "https://image.aladin.co.kr/product/35919/20/cover200/k862037699_1.jpg";
+        String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
+        when(productService.persistCoverImage(cover500, "9781234567890")).thenReturn(cover500);
+
+        String view = controller.updateVolume(3, 7, "9781234567890", "책1", cover200, "10000", "설명", false, 1, null, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "책1", cover500, "10000", "설명", false, 1);
     }
 }

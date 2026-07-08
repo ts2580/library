@@ -23,6 +23,7 @@ aladin:
   ttb-key: ${ALADIN_TTB_KEY:}
 
 server:
+  forward-headers-strategy: framework
   port: ${SERVER_PORT:25647}
   servlet:
     session:
