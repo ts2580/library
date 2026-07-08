@@ -9,20 +9,51 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BookVolumeRepositoryTest {
 
     @Test
-    void amountSummaries_splitPurchasedAndPlannedPrices() {
+    void amountSummaries_splitPurchasedAndPlannedPrices_excludingNoNeedToBuyFromPlanned() {
         SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-        jdbcTemplate.execute("CREATE TABLE book_volumes (price TEXT, ispurchased INTEGER)");
-        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased) VALUES (?, ?)", "10,000", true);
-        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased) VALUES (?, ?)", "2500", true);
-        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased) VALUES (?, ?)", "가격없음", true);
-        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased) VALUES (?, ?)", "4,000", false);
-        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased) VALUES (?, ?)", null, false);
+        jdbcTemplate.execute("CREATE TABLE book_volumes (price TEXT, ispurchased INTEGER, noneedtobuy INTEGER)");
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", "10,000", true, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", "2500", true, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", "가격없음", true, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", "4,000", false, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", "8,000", false, true);
+        jdbcTemplate.update("INSERT INTO book_volumes (price, ispurchased, noneedtobuy) VALUES (?, ?, ?)", null, false, false);
 
         BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
 
         assertThat(repository.sumPurchasedAmount()).isEqualTo(12_500L);
         assertThat(repository.sumPlannedPurchaseAmount()).isEqualTo(4_000L);
+    }
+
+    @Test
+    void stockRefreshTargets_excludePurchasedAndNoNeedToBuyVolumes() {
+        SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.execute("""
+                CREATE TABLE book_volumes (
+                    id INTEGER PRIMARY KEY,
+                    volume INTEGER,
+                    book INTEGER,
+                    isbn13 TEXT,
+                    name TEXT,
+                    cover TEXT,
+                    price TEXT,
+                    description TEXT,
+                    ispurchased INTEGER,
+                    noneedtobuy INTEGER
+                )
+                """);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?, ?)", 1, 1, 10, "9781111111111", "조회 대상", false, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?, ?)", 2, 2, 10, "9782222222222", "구매 완료", true, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?, ?)", 3, 3, 10, "9783333333333", "살 필요 없음", false, true);
+
+        BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
+
+        assertThat(repository.countUnpurchasedVolumes()).isEqualTo(1);
+        assertThat(repository.findUnpurchasedVolumesAfterId(0, 100))
+                .extracting(volume -> volume.isbn13())
+                .containsExactly("9781111111111");
     }
 
     @Test

@@ -139,9 +139,9 @@ class BookshelfControllerTest {
         String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
         when(productService.persistCoverImage(cover500, "9781234567890")).thenReturn(cover500);
 
-        String view = controller.updateVolume(3, 7, "9781234567890", "책1", cover200, "10000", "설명", false, 1, null, redirectAttributes);
+        String view = controller.updateVolume(3, 7, "9781234567890", "책1", cover200, "10000", "설명", false, true, 1, null, redirectAttributes);
 
         assertThat(view).isEqualTo("redirect:/books/3");
-        verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "책1", cover500, "10000", "설명", false, 1);
+        verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "책1", cover500, "10000", "설명", false, true, 1);
     }
 }

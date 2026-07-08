@@ -18,6 +18,30 @@
     if (dialog && dialog.open) dialog.close();
   }
 
+  function forceDialogTitleHorizontalLayout() {
+    const title = document.getElementById('bookEditTitle');
+    const volumeTitle = document.getElementById('volumeEditTitle');
+    const volumeSubtitle = document.getElementById('volumeEditSubtitle');
+    [title, volumeTitle, volumeSubtitle].forEach((el) => {
+      if (!el) return;
+      el.style.setProperty('writing-mode', 'horizontal-tb', 'important');
+      el.style.setProperty('-webkit-writing-mode', 'horizontal-tb', 'important');
+      el.style.setProperty('-ms-writing-mode', 'horizontal-tb', 'important');
+      el.style.setProperty('text-orientation', 'mixed', 'important');
+      el.style.setProperty('white-space', 'normal', 'important');
+      el.style.setProperty('word-break', 'keep-all', 'important');
+      el.style.setProperty('overflow-wrap', 'normal', 'important');
+      el.style.setProperty('text-wrap', 'pretty', 'important');
+      el.style.setProperty('transform', 'none', 'important');
+      el.style.setProperty('direction', 'ltr');
+      el.style.setProperty('unicode-bidi', 'normal');
+      el.style.setProperty('margin', '0');
+      el.style.setProperty('width', '100%');
+      el.style.setProperty('max-width', '100%');
+      el.style.setProperty('display', 'block');
+    });
+  }
+
   function showToast(message, kind = 'success') {
     const text = (message || '').trim();
     if (!text) return;
@@ -68,6 +92,7 @@
       document.getElementById('bookEditType').value = bookCard.dataset.bookType || '';
       document.getElementById('bookEditTotalVolume').value = bookCard.dataset.bookTotalvolume || '';
       bookDialog.showModal();
+      requestAnimationFrame(() => forceDialogTitleHorizontalLayout());
       document.getElementById('bookEditName')?.focus();
     };
     bookCard.addEventListener('click', (e) => {
@@ -81,6 +106,7 @@
   function bindVolumeDialog() {
     if (!volumeDialog || !volumeForm) return;
     const subtitle = document.getElementById('volumeEditSubtitle');
+    const volumeEditTitle = document.getElementById('volumeEditTitle');
     const preview = document.getElementById('volumeEditPreview');
     const seqInput = document.getElementById('volumeEditSeq');
     const typeInput = document.getElementById('volumeEditType');
@@ -90,6 +116,21 @@
     const coverInput = document.getElementById('volumeEditCover');
     const descriptionInput = document.getElementById('volumeEditDescription');
     const purchasedInput = document.getElementById('volumeEditPurchased');
+    const noNeedToBuyInput = document.getElementById('volumeEditNoNeedToBuy');
+    const mediaQueryMobile = window.matchMedia('(max-width: 640px)');
+
+    function applyMobileVolumeEditTitle(seq) {
+      const isMobile = mediaQueryMobile.matches;
+      if (volumeEditTitle) volumeEditTitle.textContent = isMobile ? '책 정보 수정' : '권 세부 내역 수정';
+      if (subtitle) {
+        subtitle.hidden = isMobile;
+        if (isMobile) {
+          subtitle.textContent = '';
+        } else {
+          subtitle.textContent = `${seq || ''}권 세부 내역을 수정합니다.`;
+        }
+      }
+    }
 
     document.querySelectorAll('[data-volume-card]').forEach((card) => {
       const checkbox = card.querySelector('.volume-select');
@@ -102,7 +143,7 @@
 
       const openDialog = () => {
         volumeForm.action = `/books/${bookId}/volumes/${card.dataset.volumeId}`;
-        subtitle.textContent = `${card.dataset.volumeSeq || ''}권 세부 내역을 수정합니다.`;
+        applyMobileVolumeEditTitle(card.dataset.volumeSeq || '');
         seqInput.value = card.dataset.volumeSeq || '';
         typeInput.value = card.dataset.volumeType || '';
         nameInput.value = card.dataset.volumeName || '';
@@ -111,8 +152,10 @@
         coverInput.value = card.dataset.volumeCover || '';
         descriptionInput.value = card.dataset.volumeDescription || '';
         purchasedInput.checked = card.dataset.volumePurchased === 'true';
+        noNeedToBuyInput.checked = card.dataset.volumeNoNeedToBuy === 'true';
         preview.src = card.dataset.volumeCover || fallbackCover;
         volumeDialog.showModal();
+        requestAnimationFrame(() => forceDialogTitleHorizontalLayout());
         seqInput.focus();
       };
 
@@ -125,10 +168,15 @@
       });
     });
 
-    coverInput?.addEventListener('input', () => { preview.src = coverInput.value || fallbackCover; });
+      coverInput?.addEventListener('input', () => { preview.src = coverInput.value || fallbackCover; });
     preview?.addEventListener('error', () => { preview.src = fallbackCover; });
     document.getElementById('volumeEditClose')?.addEventListener('click', () => closeDialog(volumeDialog));
     document.getElementById('volumeEditCancel')?.addEventListener('click', () => closeDialog(volumeDialog));
+    mediaQueryMobile.addEventListener('change', () => {
+      if (volumeDialog && volumeDialog.open) {
+        applyMobileVolumeEditTitle(seqInput.value || '');
+      }
+    });
     syncDeleteButton();
   }
 

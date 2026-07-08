@@ -159,6 +159,7 @@ public class BookshelfController {
                                @RequestParam(value = "price", required = false) String price,
                                @RequestParam(value = "description", required = false) String description,
                                @RequestParam(value = "purchased", defaultValue = "false") boolean purchased,
+                               @RequestParam(value = "noNeedToBuy", defaultValue = "false") boolean noNeedToBuy,
                                @RequestParam(value = "seq", required = false) Integer seq,
                                @RequestParam(value = "type", required = false) String type,
                                RedirectAttributes redirectAttributes) {
@@ -166,7 +167,7 @@ public class BookshelfController {
         if (book == null) return "redirect:/books";
 
         cover = persistExternalCover(cover, normalizeVolumeCoverKey(volumeId, isbn13));
-        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, seq);
+        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, noNeedToBuy, seq);
         if (type != null && !type.trim().isEmpty()) {
             bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, book.totalvolume());
         }

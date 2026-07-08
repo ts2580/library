@@ -25,3 +25,5 @@ node_modules/
 
 # Runtime image cache
 /data/covers/
+
+temp/

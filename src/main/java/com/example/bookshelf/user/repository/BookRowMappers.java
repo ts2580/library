@@ -31,6 +31,7 @@ final class BookRowMappers {
             rs.getString("price"),
             rs.getString("description"),
             rs.getBoolean("ispurchased"),
+            rs.getBoolean("noneedtobuy"),
             rs.getString("volume")
     );
 }
