@@ -3,7 +3,7 @@
 <body>
 <th:block th:fragment="bookEditDialog(book, bookTypes)">
   <dialog id="bookEditDialog" role="dialog" aria-modal="true" aria-labelledby="bookEditTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
-    <form id="bookEditForm" method="post" th:action="@{'/books/' + ${book.id}}" class="bookshelf-card overflow-hidden border-0 shadow-none">
+    <form id="bookEditForm" method="post" th:action="@{/books/{id}(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none">
       <div class="flex items-center justify-between border-b border-slate-200 bookshelf-px-5 bookshelf-py-4 sm:bookshelf-px-6">
         <div><h3 id="bookEditTitle" class="bookshelf-title-lg">책 정보 수정</h3></div>
         <button type="button" id="bookEditClose" class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">닫기</button>
@@ -52,6 +52,7 @@
             <div><label for="volumeEditPrice" class="bookshelf-mb-1 block bookshelf-detail-label">가격</label><input id="volumeEditPrice" name="price" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           </div>
           <div><label for="volumeEditCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="volumeEditCover" name="cover" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+          <div><label for="volumeEditDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="volumeEditDescription" name="description" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3" rows="3" placeholder="설명"></textarea></div>
           <label class="inline-flex items-center bookshelf-p-2 bookshelf-detail-label"><input id="volumeEditPurchased" name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료로 표시</label>
         </div>
       </div>

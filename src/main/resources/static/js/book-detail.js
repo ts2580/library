@@ -88,6 +88,7 @@
     const isbnInput = document.getElementById('volumeEditIsbn13');
     const priceInput = document.getElementById('volumeEditPrice');
     const coverInput = document.getElementById('volumeEditCover');
+    const descriptionInput = document.getElementById('volumeEditDescription');
     const purchasedInput = document.getElementById('volumeEditPurchased');
 
     document.querySelectorAll('[data-volume-card]').forEach((card) => {
@@ -108,6 +109,7 @@
         isbnInput.value = card.dataset.volumeIsbn13 || '';
         priceInput.value = card.dataset.volumePrice || '';
         coverInput.value = card.dataset.volumeCover || '';
+        descriptionInput.value = card.dataset.volumeDescription || '';
         purchasedInput.checked = card.dataset.volumePurchased === 'true';
         preview.src = card.dataset.volumeCover || fallbackCover;
         volumeDialog.showModal();

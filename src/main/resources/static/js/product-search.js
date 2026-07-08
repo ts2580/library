@@ -27,6 +27,13 @@
       input.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     };
 
+    const escapeAttr = (value) => String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+
     const clearHighlight = () => {
       highlightedIndex = -1;
       input.removeAttribute('aria-activedescendant');
@@ -87,7 +94,10 @@
       }
 
       results.innerHTML = items.map((item, index) => {
-        const label = `${item.name} / ${item.author || '-'}${item.type ? ' / ' + item.type : ''}`;
+        const cover = (item.cover || '').trim();
+        const coverImage = cover
+          ? `<div class="shrink-0 rounded-[10px] border border-slate-200 bookshelf-cover-hover h-12 w-9 min-w-[2.25rem] overflow-hidden bg-slate-100"><img src="${escapeAttr(cover)}" class="h-full w-full object-cover" alt="${escapeAttr(item.name)}" loading="lazy"></div>`
+          : `<div class="shrink-0 flex h-12 w-9 min-w-[2.25rem] items-center justify-center rounded-[10px] border border-slate-200 bg-slate-100 text-[10px] text-slate-400">NO</div>`;
         return `
           <button type="button"
             id="${listboxId}-option-${item.id}"
@@ -95,21 +105,15 @@
             role="option"
             aria-selected="false"
             data-id="${item.id}"
-            data-label="${escapeHtml(label)}"
+            data-label="${escapeHtml(item.name)}"
             data-index="${index}">
-            <div class="flex items-start justify-between bookshelf-gap-3">
+            <div class="flex items-center bookshelf-gap-3">
+              ${coverImage}
               <div class="min-w-0">
                 <div class="truncate text-sm font-semibold text-slate-900">${escapeHtml(item.name)}</div>
                 <div class="bookshelf-mt-1 truncate text-xs text-slate-500">${escapeHtml(item.author || '저자 미입력')}</div>
               </div>
-              <div class="shrink-0 rounded-full border border-slate-200 bookshelf-px-2 bookshelf-py-0-5 text-[11px] font-medium text-slate-500">${escapeHtml(item.type || '카테고리 없음')}</div>
             </div>
-            <div class="bookshelf-mt-2 flex flex-wrap bookshelf-gap-1-5 text-[11px] text-slate-500">
-              <span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">#${escapeHtml(item.id)}</span>
-              <span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">${escapeHtml(item.totalvolume ? `총 ${item.totalvolume}권` : '총권수 미입력')}</span>
-              ${item.createddate ? `<span class="rounded-full bg-slate-100 bookshelf-px-2 bookshelf-py-1">${escapeHtml(`최근 수정 ${item.createddate}`)}</span>` : ''}
-            </div>
-            <div class="bookshelf-mt-2 text-[11px] text-slate-400">Enter로 선택</div>
           </button>
         `;
       }).join('');
@@ -122,10 +126,6 @@
         button.addEventListener('mouseenter', () => {
           highlightedIndex = Number(button.dataset.index);
           applyHighlight();
-        });
-        button.addEventListener('pointerdown', (event) => {
-          event.preventDefault();
-          selectItem(items[Number(button.dataset.index)]);
         });
         button.addEventListener('click', () => {
           selectItem(items[Number(button.dataset.index)]);
@@ -182,6 +182,18 @@
     input.addEventListener('focus', () => {
       if (results.innerHTML.trim()) results.classList.remove('hidden');
       if (results.innerHTML.trim()) setExpanded(true);
+    });
+
+    form.addEventListener('submit', (e) => {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        if (submitBtn.disabled) {
+          e.preventDefault();
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '저장 중...';
+      }
     });
   });
 })();
