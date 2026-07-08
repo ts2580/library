@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public class BookVolumeRepository {
 
-    private static final String BOOK_VOLUME_COLUMNS = "id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume";
+    private static final String BOOK_VOLUME_COLUMNS = "id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -84,7 +84,7 @@ public class BookVolumeRepository {
 
     public List<BookVolume> findUnpurchasedVolumesAfterId(int lastSeenId, int limit) {
         String sql = """
-                SELECT id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume
+                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume
                 FROM book_volumes
                 WHERE ispurchased = FALSE AND id > ?
                 ORDER BY id ASC
@@ -95,7 +95,7 @@ public class BookVolumeRepository {
 
     public List<BookVolume> findVolumesByBookId(int bookId) {
         String sql = """
-                SELECT id, volume AS seq, book, isbn13, name, cover, price, ispurchased, volume
+                SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, volume
                 FROM book_volumes
                 WHERE book = ?
                 ORDER BY volume ASC, id ASC
@@ -113,21 +113,21 @@ public class BookVolumeRepository {
         return seq == null ? 1 : seq;
     }
 
-    public void insertVolume(int bookId, int seq, String isbn13, String name, String cover, String price) {
+    public void insertVolume(int bookId, int seq, String isbn13, String name, String cover, String price, String description) {
         String sql = """
-                INSERT INTO book_volumes (book, isbn13, name, cover, price, ispurchased, volume, createddate)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO book_volumes (book, isbn13, name, cover, price, description, ispurchased, volume, createddate)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
-        jdbcTemplate.update(sql, bookId, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), false, seq);
+        jdbcTemplate.update(sql, bookId, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), false, seq);
     }
 
-    public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, boolean purchased, Integer seq) {
+    public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, String description, boolean purchased, Integer seq) {
         String sql = """
                 UPDATE book_volumes
-                SET isbn13 = ?, name = ?, cover = ?, price = ?, ispurchased = ?, volume = ?
+                SET isbn13 = ?, name = ?, cover = ?, price = ?, description = ?, ispurchased = ?, volume = ?
                 WHERE id = ? AND book = ?
                 """;
-        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), purchased, seq, volumeId, bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), purchased, seq, volumeId, bookId);
     }
 
     public void deleteVolumesByBookId(int bookId) {

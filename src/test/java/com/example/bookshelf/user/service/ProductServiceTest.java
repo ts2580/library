@@ -67,7 +67,7 @@ class ProductServiceTest {
         var result = productService.importProduct(command);
 
         assertThat(result.success()).isTrue();
-        verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000");
+        verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000", "설명");
         verify(branchInventoryRepository).insertBranchBooks(anyInt(), anyString(), anyInt(), anyList());
         verify(branchInventoryRepository).rebuildBranchInventorySummary();
     }
@@ -83,7 +83,7 @@ class ProductServiceTest {
 
         assertThat(result.success()).isTrue();
         assertThat(result.message()).contains("재고 조회 실패");
-        verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000");
+        verify(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000", "설명");
         verify(branchInventoryRepository, never()).insertBranchBooks(anyInt(), anyString(), anyInt(), anyList());
         verify(branchInventoryRepository, never()).rebuildBranchInventorySummary();
     }
@@ -93,7 +93,7 @@ class ProductServiceTest {
         when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
         when(bookDataRepository.findBookIdByNameAndAuthor("테스트 책", "테스터")).thenReturn(null);
         when(bookDataRepository.insertBook("테스트 책", "테스터", "설명", "cover-url", null, null)).thenReturn(10);
-        doThrow(new DuplicateKeyException("dup")).when(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000");
+        doThrow(new DuplicateKeyException("dup")).when(bookVolumeRepository).insertVolume(10, 1, "9781234567890", "테스트 책", "cover-url", "10000", "설명");
 
         var result = productService.importProduct(command);
 
@@ -115,7 +115,8 @@ class ProductServiceTest {
 
         assertThat(result.success()).isTrue();
         verify(bookDataRepository).updateBook(7, "기존 책", "기존 저자", "기존 설명", "old-cover", "만화", "12");
-        verify(bookVolumeRepository).insertVolume(7, 3, "9781234567890", "테스트 책", "cover-url", "10000");
+        verify(bookVolumeRepository).insertVolume(7, 3, "9781234567890", "테스트 책", "cover-url", "10000", "설명");
+        assertThat(result.success()).isTrue();
     }
 
 }

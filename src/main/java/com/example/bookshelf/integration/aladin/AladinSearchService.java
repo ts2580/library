@@ -36,7 +36,10 @@ public class AladinSearchService {
         }
 
         int totalResults = response.totalResults() != null ? response.totalResults() : 0;
-        java.util.List<AladinItem> items = response.item() != null ? response.item() : Collections.emptyList();
+        java.util.List<AladinItem> items = response.item() != null ? new java.util.ArrayList<>(response.item()) : Collections.emptyList();
+        if (!items.isEmpty()) {
+            Collections.reverse(items);
+        }
 
         log.info("[aladin] parsed query='{}' totalResults={}, items.size={}", normalizedQuery, totalResults, items.size());
         return new AladinSearchResult(items, totalResults, currentPage, PAGE_SIZE);
@@ -57,22 +60,31 @@ public class AladinSearchService {
         }
 
         int totalResults = response.totalResults() != null ? response.totalResults() : 0;
-        java.util.List<AladinItem> items = response.item() != null ? response.item() : Collections.emptyList();
+        java.util.List<AladinItem> items = response.item() != null ? new java.util.ArrayList<>(response.item()) : Collections.emptyList();
+        if (!items.isEmpty()) {
+            Collections.reverse(items);
+        }
         
-        java.util.List<AladinSearchViewItem> viewItems = items.stream().map(item -> new AladinSearchViewItem(
+        java.util.List<AladinSearchViewItem> viewItems = items.stream().map(item -> {
+            String highResCover = item.cover();
+            if (highResCover != null && highResCover.contains("aladin.co.kr")) {
+                highResCover = AladinCoverUtils.toCover500(highResCover);
+            }
+            return new AladinSearchViewItem(
                 item.title(),
                 item.author(),
-                item.cover(),
+                highResCover,
                 item.isbn13(),
                 item.isbn(),
-                item.priceSales(),
-                item.priceStandard(),
+                formatPrice(item.priceSales()),
+                formatPrice(item.priceStandard()),
                 item.pubDate(),
                 item.description(),
                 item.itemId(),
                 item.stockStatus(),
                 item.isbn13() != null && bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
-        )).toList();
+            );
+        }).toList();
 
         String message = viewItems.isEmpty() ? "검색 결과가 없습니다." : null;
         return new AladinSearchView(normalizedQuery, totalResults, viewItems, json, false, message);
@@ -85,6 +97,16 @@ public class AladinSearchService {
         } catch (JsonProcessingException e) {
             log.warn("Failed to serialize DTO to JSON", e);
             return "{\"error\": \"serialization_failed\"}";
+        }
+    }
+
+    private String formatPrice(String price) {
+        if (price == null || price.trim().isEmpty()) return "-";
+        try {
+            long parsed = Long.parseLong(price.trim());
+            return String.format("%,d", parsed);
+        } catch (NumberFormatException e) {
+            return price;
         }
     }
 }

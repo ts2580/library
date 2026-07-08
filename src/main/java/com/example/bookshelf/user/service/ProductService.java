@@ -2,7 +2,9 @@ package com.example.bookshelf.user.service;
 
 import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.integration.aladin.AladinUsedStockService;
+import com.example.bookshelf.integration.aladin.AladinCoverUtils;
 import com.example.bookshelf.user.model.Book;
+import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
@@ -13,6 +15,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.NoTransactionException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
+
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
 
 @Service
 public class ProductService {
@@ -35,6 +45,34 @@ public class ProductService {
     }
 
     @Transactional
+    public int migrateOldCovers() {
+        int count = 0;
+        List<Book> books = bookDataRepository.findAllBooks();
+        for (Book book : books) {
+            List<BookVolume> volumes = bookVolumeRepository.findVolumesByBookId(book.id());
+            String bookCoverCacheKey = resolveBookCoverCacheKey(book.id(), volumes);
+            if (book.cover() != null && book.cover().startsWith("http")) {
+                String newCover = downloadCoverImage(book.cover(), bookCoverCacheKey);
+                if (!newCover.equals(book.cover())) {
+                    bookDataRepository.updateBook(book.id(), book.name(), book.author(), book.description(), newCover, book.type(), book.totalvolume());
+                    count++;
+                }
+            }
+
+            for (BookVolume volume : volumes) {
+                if (volume.cover() != null && volume.cover().startsWith("http")) {
+                    String vCover = downloadCoverImage(volume.cover(), volume.isbn13() != null ? volume.isbn13() : "vol_" + volume.id());
+                    if (!vCover.equals(volume.cover())) {
+                        bookVolumeRepository.updateVolume(book.id(), volume.id(), volume.isbn13(), volume.name(), vCover, volume.price(), volume.description(), volume.purchased(), volume.seq());
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    @Transactional
     public ProductImportResult importProduct(ProductImportCommand command) {
         String normalizedTitle = Texts.trimToNull(command.title());
         String normalizedAuthor = Texts.trimToNull(command.author());
@@ -50,13 +88,15 @@ public class ProductService {
             return ProductImportResult.error("이미 같은 ISBN으로 등록된 권이 있습니다: " + keyIsbn);
         }
 
-        BookTarget target = resolveBookTarget(command, normalizedTitle, normalizedAuthor, normalizedType, normalizedTotalVolume, requestedVolume);
+        String localCoverUrl = downloadCoverImage(command.cover(), keyIsbn);
+
+        BookTarget target = resolveBookTarget(command, normalizedTitle, normalizedAuthor, normalizedType, normalizedTotalVolume, requestedVolume, localCoverUrl);
         if (!target.success()) {
             return ProductImportResult.error(target.message());
         }
 
         try {
-            saveVolume(target.bookId(), target.seq(), keyIsbn, normalizedTitle, command.cover(), command.price());
+            saveVolume(target.bookId(), target.seq(), keyIsbn, normalizedTitle, localCoverUrl, command.price(), command.description());
             int stockCount = refreshImportedVolumeStocks(target.bookId(), target.seq(), normalizedTitle, keyIsbn);
             String stockMessage = stockCount < 0 ? " (재고 조회 실패)" : stockCount == 0 ? " (재고 정보 없음)" : " (중고 후보: " + stockCount + "개)";
             return ProductImportResult.success("등록 완료: " + normalizedTitle + stockMessage);
@@ -71,7 +111,8 @@ public class ProductService {
                                          String normalizedAuthor,
                                          String normalizedType,
                                          String normalizedTotalVolume,
-                                         Integer requestedVolume) {
+                                         Integer requestedVolume,
+                                         String localCoverUrl) {
         if (command.targetBookId() != null && command.targetBookId() > 0) {
             Book book = bookDataRepository.findBookById(command.targetBookId());
             if (book == null) {
@@ -101,7 +142,7 @@ public class ProductService {
                 normalizedTitle,
                 normalizedAuthor,
                 Texts.trimToNull(command.description()),
-                command.cover(),
+                localCoverUrl,
                 normalizedType,
                 normalizedTotalVolume
         );
@@ -109,8 +150,8 @@ public class ProductService {
         return BookTarget.success(bookId, seq);
     }
 
-    private void saveVolume(int bookId, int seq, String keyIsbn, String normalizedTitle, String cover, String price) {
-        bookVolumeRepository.insertVolume(bookId, seq, keyIsbn, normalizedTitle, cover, Texts.trimToNull(price));
+    private void saveVolume(int bookId, int seq, String keyIsbn, String normalizedTitle, String cover, String price, String description) {
+        bookVolumeRepository.insertVolume(bookId, seq, keyIsbn, normalizedTitle, cover, Texts.trimToNull(price), Texts.trimToNull(description));
     }
 
     private int refreshImportedVolumeStocks(int bookId, int seq, String title, String keyIsbn) {
@@ -132,8 +173,69 @@ public class ProductService {
         return normalizedIsbn13 != null ? normalizedIsbn13 : Texts.trimToNull(isbn);
     }
 
+    private String resolveBookCoverCacheKey(int bookId, List<BookVolume> volumes) {
+        if (volumes != null) {
+            for (BookVolume volume : volumes) {
+                if (volume == null) continue;
+                String isbn13 = Texts.trimToNull(volume.isbn13());
+                if (isbn13 != null) {
+                    return isbn13 + "_book_" + bookId;
+                }
+            }
+        }
+        return "book_" + bookId;
+    }
+
+    private String downloadCoverImage(String coverUrl, String isbn) {
+        if (coverUrl == null || coverUrl.isEmpty() || coverUrl.startsWith("/covers/")) {
+            return coverUrl;
+        }
+        String highResUrl = AladinCoverUtils.toCover500(coverUrl);
+        try {
+            Path uploadDir = Paths.get("./data/covers");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+            
+            String extension = ".jpg";
+            if (coverUrl.contains(".")) {
+                String ext = coverUrl.substring(coverUrl.lastIndexOf("."));
+                if (ext.length() <= 5 && !ext.contains("/") && !ext.contains("?")) {
+                    extension = ext;
+                }
+            }
+            
+            String filename = (isbn != null && !isbn.isEmpty() ? isbn : System.currentTimeMillis()) + extension;
+            Path filePath = uploadDir.resolve(filename);
+            
+            boolean downloaded = false;
+            if (!highResUrl.equals(coverUrl)) {
+                try (InputStream in = new URL(highResUrl).openStream()) {
+                    Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);
+                    downloaded = true;
+                } catch (Exception ignored) {
+                    // Fallback to original url if high-res download fails
+                }
+            }
+            
+            if (!downloaded) {
+                try (InputStream in = new URL(coverUrl).openStream()) {
+                    Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            return "/covers/" + filename;
+        } catch (Exception e) {
+            log.warn("Failed to download cover image from URL: {}", coverUrl, e);
+            return highResUrl;
+        }
+    }
+
     private Integer normalizeRequestedVolume(Integer volume) {
         return volume != null && volume > 0 ? volume : null;
+    }
+
+    public String persistCoverImage(String coverUrl, String fileKey) {
+        return downloadCoverImage(coverUrl, fileKey);
     }
 
     private void markRollbackOnlyIfTransactional() {
