@@ -5,10 +5,11 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('branch-detail')}"></aside>
+    <nav th:replace="~{fragments/layout :: appMobileNav('branch-detail')}"></nav>
     <main class="bookshelf-main">
-      <div th:replace="~{fragments/layout :: appTopbar('Branch Detail', branchName, '지점 재고 카드를 한 장씩 편하게 살펴봐요.')}"></div>
+      <div th:replace="~{fragments/layout :: appTopbar(null, ${branchName}, null)}"></div>
 
-      <section class="grid bookshelf-p-4 sm:grid-cols-3">
+      <section class="grid bookshelf-p-4 sm:grid-cols-3 bookshelf-dashboard-kpi-grid">
         <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">전체 재고</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${totalCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">이 지점에 등록된 전체 재고 수입니다.</div></div>
         <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">가격 입력</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${pricedCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격 정보가 채워진 재고만 따로 표시합니다.</div></div>
         <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">재고 합계</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">입력된 가격 기준으로 계산한 합계입니다.</div></div>
@@ -18,7 +19,6 @@
         <div class="bookshelf-mb-4 flex flex-col bookshelf-p-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="bookshelf-title-xl">재고 카드</h2>
-            <p class="bookshelf-mt-1 bookshelf-subtitle-sm">권별 상태와 가격을 카드 형태로 정리했습니다.</p>
           </div>
           <a href="/dashboard/branches" class="bookshelf-btn-ghost bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">목록으로 돌아가기</a>
         </div>
@@ -34,14 +34,13 @@
               <img th:unless="${s.bookId() > 0 and s.cover() != null and !#strings.isEmpty(s.cover())}" th:if="${s.cover() != null and !#strings.isEmpty(s.cover())}" th:src="${s.cover()}" alt="cover" class="h-full w-full object-cover" loading="lazy"/>
               <div th:if="${s.cover() == null or #strings.isEmpty(s.cover())}" class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover">NO COVER</div>
             </div>
-            <div class="bookshelf-mt-4 text-sm flex-1">
+            <div class="bookshelf-mt-4 text-sm flex flex-1 flex-col">
               <p class="bookshelf-title-base" th:text="${s.volumeTitle() != null ? s.volumeTitle() : s.bookTitle()}"></p>
               <p class="bookshelf-mt-1 bookshelf-subtitle" th:text="${s.bookTitle()}"></p>
               <p class="bookshelf-mt-1 bookshelf-subtitle-xs" th:text="${s.isbn13()}"></p>
-              <div class="bookshelf-mt-3 flex flex-wrap items-center bookshelf-p-2 text-xs mt-auto">
+              <div class="bookshelf-branch-stock-card-actions bookshelf-mt-3 flex items-center justify-between bookshelf-gap-3 bookshelf-p-2 text-xs mt-auto">
                 <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'가격 ' + (s.price() != null ? s.price() + '원' : '-')} "></span>
-                <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'등급 ' + (s.grade() != null ? s.grade() : '-')} "></span>
-                <a th:if="${s.purchaseLink() != null and !#strings.isEmpty(s.purchaseLink())}" th:href="${s.purchaseLink()}" target="_blank" class="bookshelf-btn-soft bookshelf-px-2-5 bookshelf-py-1 bookshelf-btn-size-xs sm:w-auto">바로 구매</a>
+                <a th:if="${s.purchaseLink() != null and !#strings.isEmpty(s.purchaseLink())}" th:href="${s.purchaseLink()}" target="_blank" class="bookshelf-branch-stock-buy-btn bookshelf-btn-soft bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs sm:w-auto">바로 구매</a>
               </div>
             </div>
           </article>

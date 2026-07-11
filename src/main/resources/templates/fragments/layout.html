@@ -28,10 +28,16 @@
         <div><span>상품 검색</span></div>
       </div>
     </a>
-    <a href="/dashboard/branches" class="bookshelf-sidebar__link" th:classappend="${activeKey == 'branches' or activeKey == 'branch-detail'} ? ' is-active' : ''">
+    <a th:if="${member != null and #strings.equalsIgnoreCase(member.username(), 'trstyq')}" href="/dashboard/branches" class="bookshelf-sidebar__link" th:classappend="${activeKey == 'branches' or activeKey == 'branch-detail'} ? ' is-active' : ''">
       <div class="bookshelf-sidebar__link-main">
         <span class="bookshelf-sidebar__icon" th:replace="~{fragments/layout :: iconBranches()}"></span>
         <div><span>지점 재고</span></div>
+      </div>
+    </a>
+    <a href="/user/profile" class="bookshelf-sidebar__link" th:classappend="${activeKey == 'profile'} ? ' is-active' : ''">
+      <div class="bookshelf-sidebar__link-main">
+        <span class="bookshelf-sidebar__icon" th:replace="~{fragments/layout :: iconProfile()}"></span>
+        <div><span>프로필</span></div>
       </div>
     </a>
   </nav>
@@ -43,7 +49,9 @@
     </form>
   </div>
 
-  <div class="bookshelf-mobile-nav">
+ </aside>
+
+<nav th:fragment="appMobileNav(activeKey)" class="bookshelf-mobile-nav" aria-label="모바일 주요 메뉴">
     <a href="/dashboard" class="bookshelf-mobile-nav__item" th:classappend="${activeKey == 'dashboard'} ? ' is-active' : ''">
       <span th:replace="~{fragments/layout :: iconDashboard()}"></span><small>대시보드</small>
     </a>
@@ -53,14 +61,16 @@
     <a href="/products" class="bookshelf-mobile-nav__item" th:classappend="${activeKey == 'products'} ? ' is-active' : ''">
       <span th:replace="~{fragments/layout :: iconProducts()}"></span><small>검색</small>
     </a>
-    <a href="/dashboard/branches" class="bookshelf-mobile-nav__item" th:classappend="${activeKey == 'branches' or activeKey == 'branch-detail'} ? ' is-active' : ''">
+    <a th:if="${member != null and #strings.equalsIgnoreCase(member.username(), 'trstyq')}" href="/dashboard/branches" class="bookshelf-mobile-nav__item" th:classappend="${activeKey == 'branches' or activeKey == 'branch-detail'} ? ' is-active' : ''">
       <span th:replace="~{fragments/layout :: iconBranches()}"></span><small>재고</small>
+    </a>
+    <a href="/user/profile" class="bookshelf-mobile-nav__item" th:classappend="${activeKey == 'profile'} ? ' is-active' : ''">
+      <span th:replace="~{fragments/layout :: iconProfile()}"></span><small>프로필</small>
     </a>
     <button type="button" class="bookshelf-mobile-nav__item bookshelf-mobile-nav__menu" aria-label="메뉴 열기" data-bookshelf-sidebar-open>
       <span th:replace="~{fragments/layout :: iconMenu()}"></span><small>메뉴</small>
     </button>
-  </div>
-</aside>
+  </nav>
 
 <header th:fragment="appTopbar(badge, title, subtitle)" class="bookshelf-topbar bookshelf-panel bookshelf-px-4 bookshelf-py-3 sm:bookshelf-p-6">
   <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between">
@@ -95,6 +105,7 @@
 <span th:fragment="iconBooks()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17.5A1.5 1.5 0 0 1 18.5 22H6.5A2.5 2.5 0 0 1 4 19.5z"></path><path d="M8 7h8"></path><path d="M8 11h8"></path><path d="M8 15h5"></path></svg></span>
 <span th:fragment="iconProducts()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path><path d="M5 3h14l2 18H3L5 3z"></path></svg></span>
 <span th:fragment="iconBranches()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V8l8-4 8 4v12"></path><path d="M9 20v-5h6v5"></path><path d="M9 10h.01"></path><path d="M15 10h.01"></path></svg></span>
+<span th:fragment="iconProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"></path><path d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path></svg></span>
 <span th:fragment="iconMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path></svg></span>
 
 <script th:fragment="toastScript()">

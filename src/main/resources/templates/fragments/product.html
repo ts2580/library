@@ -28,7 +28,7 @@
   <div th:if="${not #lists.isEmpty(aladinResults)}" class="bookshelf-card-list grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
     <article th:each="item : ${aladinResults}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4 flex flex-col justify-between">
       <div>
-        <div class="bookshelf-cover-hover relative mx-auto aspect-[2/3] w-full max-w-[180px] overflow-hidden rounded-[18px] bg-slate-100">
+        <div class="bookshelf-cover-hover bookshelf-card-cover-wide relative w-full overflow-hidden rounded-[18px] bg-slate-100">
           <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full object-cover" alt="cover" loading="lazy" decoding="async">
           <div th:unless="${item.cover != null and !#strings.isEmpty(item.cover)}" class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover text-xs">NO COVER</div>
         </div>
@@ -68,7 +68,7 @@
             <input type="hidden" name="tab" th:value="${activeTab}">
             <input type="hidden" name="targetBookId" class="target-book-id">
             <label class="relative flex w-full min-w-0 flex-col">
-              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">기존 책 연동</span>
+              <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">기존 책</span>
               <input type="text" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs target-book-search" placeholder="검색 (비우면 새 책 등록)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
               <div class="target-book-results bookshelf-autocomplete-results absolute left-0 right-0 top-[calc(100%+4px)] hidden rounded-[16px] border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur" role="listbox"></div>
             </label>

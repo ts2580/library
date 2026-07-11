@@ -5,6 +5,7 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('dashboard')}"></aside>
+    <nav th:replace="~{fragments/layout :: appMobileNav('dashboard')}"></nav>
     <main class="bookshelf-main bookshelf-dashboard-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, 'Bookshelf 대시보드', null)}"></div>
 

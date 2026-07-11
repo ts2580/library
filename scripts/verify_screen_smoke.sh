@@ -37,6 +37,13 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if command -v sqlite3 >/dev/null 2>&1 && [[ -f "$DB_PATH" ]]; then
+  owner_column_count="$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'owner_id';")"
+  inventory_reference_count="$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('branchbook') WHERE name = 'book_volume_id';")"
+  if [[ "$owner_column_count" != "1" || "$inventory_reference_count" != "1" ]]; then
+    echo "Screen smoke requires a migrated DB. Run scripts/migrate_book_ownership.sh first." >&2
+    exit 1
+  fi
+
   sqlite3 "$DB_PATH" <<SQL
 PRAGMA foreign_keys = ON;
 
@@ -59,8 +66,17 @@ DELETE FROM branchbook WHERE uuid = '$SMOKE_MARKER';
 DELETE FROM book_volumes WHERE book IN (SELECT id FROM books WHERE description = '$SMOKE_MARKER');
 DELETE FROM books WHERE description = '$SMOKE_MARKER';
 
-INSERT INTO books (name, author, description, totalvolume, type, cover, createddate)
-VALUES ('SQLite Smoke Book', 'SQLite Smoke Author', '$SMOKE_MARKER', '1', 'Smoke', '', CURRENT_TIMESTAMP);
+INSERT INTO books (name, author, description, totalvolume, type, cover, createddate, owner_id)
+VALUES (
+  'SQLite Smoke Book',
+  'SQLite Smoke Author',
+  '$SMOKE_MARKER',
+  '1',
+  'Smoke',
+  '',
+  CURRENT_TIMESTAMP,
+  (SELECT id FROM member WHERE username = '$USERNAME')
+);
 SQL
 
   BOOK_ID="$(sqlite3 "$DB_PATH" "SELECT id FROM books WHERE description = '$SMOKE_MARKER' ORDER BY id DESC LIMIT 1;")"
@@ -75,8 +91,20 @@ PRAGMA foreign_keys = ON;
 INSERT INTO book_volumes (book, isbn13, name, cover, price, ispurchased, volume, createddate)
 VALUES ($BOOK_ID, '9780000000001', 'SQLite Smoke Book 1', '', '12,000', 0, 1, CURRENT_TIMESTAMP);
 
-INSERT INTO branchbook (booklink, purchaseurl, branch, uuid, volume, name, price, branchname, grade, book)
-VALUES ('https://example.invalid/book', 'https://example.invalid/buy', '$BRANCH_CODE', '$SMOKE_MARKER', 1, 'SQLite Smoke Book 1', '9,000', 'SQLite Smoke Branch', 'A', $BOOK_ID)
+INSERT INTO branchbook (booklink, purchaseurl, branch, uuid, volume, name, price, branchname, grade, book, book_volume_id)
+VALUES (
+  'https://example.invalid/book',
+  'https://example.invalid/buy',
+  '$BRANCH_CODE',
+  '$SMOKE_MARKER',
+  1,
+  'SQLite Smoke Book 1',
+  '9,000',
+  'SQLite Smoke Branch',
+  'A',
+  $BOOK_ID,
+  (SELECT id FROM book_volumes WHERE book = $BOOK_ID ORDER BY id DESC LIMIT 1)
+)
 ON CONFLICT(uuid) DO UPDATE SET
   price = excluded.price,
   purchaseurl = excluded.purchaseurl,
@@ -84,7 +112,8 @@ ON CONFLICT(uuid) DO UPDATE SET
   branchname = excluded.branchname,
   grade = excluded.grade,
   volume = excluded.volume,
-  book = excluded.book;
+  book = excluded.book,
+  book_volume_id = excluded.book_volume_id;
 
 DELETE FROM branch_inventory_summary WHERE branch = '$BRANCH_CODE';
 INSERT INTO branch_inventory_summary (branch, branch_name, stock_count, priced_count, total_amount, updated_at)
@@ -166,12 +195,24 @@ check_page() {
   echo "screen ok: $path"
 }
 
+check_forbidden() {
+  local path="$1"
+  local code
+
+  code="$(curl -sS -b "$COOKIE_JAR" -o "$BODY" -w '%{http_code}' "$BASE_URL$path")"
+  if [[ "$code" != "403" ]]; then
+    echo "GET $path should be admin-only, but returned HTTP $code" >&2
+    exit 1
+  fi
+  echo "admin boundary ok: $path"
+}
+
 check_page "/dashboard" "Bookshelf 대시보드"
 check_page "/books" "내 책장"
 check_page "/books?search=SQLite" "SQLite Smoke Book"
 check_page "/books/$BOOK_ID" "SQLite Smoke Book"
 check_page "/products" "상품 검색"
-check_page "/dashboard/branches" "SQLite Smoke Branch"
-check_page "/dashboard/branches/$BRANCH_CODE" "SQLite Smoke Book"
+check_forbidden "/dashboard/branches"
+check_forbidden "/dashboard/branches/$BRANCH_CODE"
 
 echo "screen smoke verification passed: $BASE_URL"

@@ -5,6 +5,7 @@
     const hidden = form.querySelector('.target-book-id');
     const results = form.querySelector('.target-book-results');
     if (!input || !hidden || !results) return;
+    const cardRoot = form.closest('.bookshelf-card');
 
     let timer = null;
     let items = [];
@@ -39,11 +40,18 @@
       input.removeAttribute('aria-activedescendant');
     };
 
+    const setOpenState = (open) => {
+      if (cardRoot) {
+        cardRoot.classList.toggle('bookshelf-autocomplete-open', open);
+      }
+    };
+
     const hide = () => {
       results.classList.add('hidden');
       results.innerHTML = '';
       items = [];
       clearHighlight();
+      setOpenState(false);
       setExpanded(false);
     };
 
@@ -89,6 +97,7 @@
         results.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-slate-500">일치하는 책이 없습니다.</div>';
         results.classList.remove('hidden');
         clearHighlight();
+        setOpenState(true);
         setExpanded(true);
         return;
       }
@@ -118,6 +127,7 @@
         `;
       }).join('');
       results.classList.remove('hidden');
+      setOpenState(true);
       setExpanded(true);
       highlightedIndex = 0;
       applyHighlight();
@@ -182,6 +192,9 @@
     input.addEventListener('focus', () => {
       if (results.innerHTML.trim()) results.classList.remove('hidden');
       if (results.innerHTML.trim()) setExpanded(true);
+      if (results.innerHTML.trim()) {
+        setOpenState(true);
+      }
     });
 
     form.addEventListener('submit', (e) => {

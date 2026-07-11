@@ -165,9 +165,9 @@
 
   function resolveChartOptions(rawLabels, data, chartWrap) {
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
-    const rowHeight = isMobile ? 34 : 54;
-    const baseHeight = isMobile ? 360 : 640;
-    const chartHeight = Math.max(baseHeight, (rawLabels.length * rowHeight) + 120);
+    const rowHeight = isMobile ? 46 : 54;
+    const baseHeight = isMobile ? 640 : 640;
+    const chartHeight = Math.max(baseHeight, (rawLabels.length * rowHeight) + (isMobile ? 150 : 120));
     chartWrap.style.height = `${chartHeight}px`;
     chartWrap.style.minHeight = `${chartHeight}px`;
 
@@ -198,10 +198,10 @@
       borderColor: chartOptions.colors,
       borderWidth: 1,
       borderRadius: 10,
-      barThickness: isMobile ? 14 : 18,
-      maxBarThickness: isMobile ? 18 : 22,
-      categoryPercentage: isMobile ? 0.88 : 0.72,
-      barPercentage: isMobile ? 0.95 : 0.84
+      barThickness: isMobile ? 18 : 18,
+      maxBarThickness: isMobile ? 22 : 22,
+      categoryPercentage: isMobile ? 0.76 : 0.72,
+      barPercentage: isMobile ? 0.86 : 0.84
     };
   }
 
@@ -222,15 +222,16 @@
       },
       onClick: (event, elements) => handleChartNavigation(event.native || event, elements),
       layout: {
-        padding: { left: isMobile ? 10 : 12, right: isMobile ? 70 : 90, top: 12, bottom: 12 }
+        padding: { left: isMobile ? 6 : 12, right: isMobile ? 88 : 90, top: isMobile ? 18 : 12, bottom: isMobile ? 18 : 12 }
       },
       scales: {
         x: {
           beginAtZero: true,
           ticks: {
             color: chartOptions.tick,
+            stepSize: 250000,
             callback: (value) => Number(value).toLocaleString() + '원',
-            font: { size: isMobile ? 10 : 12 }
+            font: { size: isMobile ? 11 : 12 }
           },
           grid: { color: chartOptions.grid }
         },
@@ -239,8 +240,8 @@
             color: chartOptions.tick,
             autoSkip: false,
             crossAlign: 'far',
-            padding: isMobile ? 10 : 14,
-            font: { size: isMobile ? 10 : 12, weight: '600' }
+            padding: isMobile ? 12 : 14,
+            font: { size: isMobile ? 11 : 12, weight: '600' }
           },
           grid: { display: false }
         }
@@ -257,7 +258,7 @@
           const meta = chart.getDatasetMeta(0);
           ctx.save();
           ctx.fillStyle = tick;
-          ctx.font = isMobile ? '600 10px sans-serif' : '600 12px sans-serif';
+          ctx.font = isMobile ? '600 11px sans-serif' : '600 12px sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';
           meta.data.forEach((bar, index) => {
@@ -265,7 +266,7 @@
             const label = `${Number(value).toLocaleString()}원`;
             const x = typeof bar.x === 'number' ? bar.x : 0;
             const y = typeof bar.y === 'number' ? bar.y : 0;
-            const offset = isMobile ? 6 : 10;
+            const offset = isMobile ? 8 : 10;
             ctx.fillText(label, x + offset, y);
           });
           ctx.restore();
@@ -304,7 +305,7 @@
 
     if (view.button) {
       view.button.disabled = !!progress.running;
-      view.button.textContent = progress.running ? '갱신 진행 중...' : '일괄 갱신 시작';
+      view.button.textContent = progress.running ? '갱신 진행 중...' : '중고 일괄 갱신 시작';
     }
   }
 
