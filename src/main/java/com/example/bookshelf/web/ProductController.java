@@ -44,7 +44,7 @@ public class ProductController {
                            Model model) {
         ProductSearchViewModel vm = productSearchService.search(new ProductSearchService.ProductSearchRequest(
                 ownedQ, q, ownedPage, aladinPage, ownedSort, userAgent
-        ));
+        ), authSessionHelper.getMemberId(null));
         if (vm.ownedPage() != clampPage(ownedPage) || vm.aladinPage() != clampPage(aladinPage)) {
             return buildRedirect(vm.ownedQ(), vm.query(), vm.ownedPage(), vm.aladinPage(), vm.ownedSort(), normalizeTab(tab));
         }
@@ -61,7 +61,7 @@ public class ProductController {
         if (!authSessionHelper.isLoggedIn(session)) {
             return ResponseEntity.status(401).build();
         }
-        return ResponseEntity.ok(productSearchService.autocompleteBooks(q));
+        return ResponseEntity.ok(productSearchService.autocompleteBooks(q, authSessionHelper.getMemberId(session)));
     }
 
     @PostMapping("/products/import")
@@ -84,7 +84,8 @@ public class ProductController {
                                 @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
                                 RedirectAttributes redirectAttributes) {
         var result = productService.importProduct(new ProductService.ProductImportCommand(
-                title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume
+                title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume,
+                authSessionHelper.getMemberId(null)
         ));
         redirectAttributes.addFlashAttribute(result.success() ? "success" : "error", result.message());
         return buildRedirect(ownedQ, q, ownedPage, aladinPage, ownedSort, normalizeTab(tab));

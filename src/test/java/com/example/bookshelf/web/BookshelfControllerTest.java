@@ -5,6 +5,7 @@ import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.service.BookCatalogService;
 import com.example.bookshelf.user.service.ProductService;
 import com.example.bookshelf.user.model.Book;
+import com.example.bookshelf.user.model.BookVolume;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,6 +17,7 @@ import com.example.bookshelf.integration.aladin.AladinItem;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -121,12 +123,16 @@ class BookshelfControllerTest {
 
         String cover200 = "https://image.aladin.co.kr/product/35919/20/cover200/k862037699_1.jpg";
         String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
-        when(productService.persistCoverImage(cover500, "book_3")).thenReturn(cover500);
+        when(productService.persistCoverImage(cover500, "9781111111111_book_3")).thenReturn(cover500);
+        when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.List.of(
+                new BookVolume(10, 1, 3, "9781111111111", "기존 책 1권", "cover-1", "10000", "설명", false, false, "1"),
+                new BookVolume(11, 2, 3, "9782222222222", "기존 책 2권", "cover-2", "11000", "설명", false, false, "2")
+        ));
 
         String view = controller.updateBook(3, "기존 책", "기존 저자", "기존 설명", cover200, "소설", "10", redirectAttributes);
 
         assertThat(view).isEqualTo("redirect:/books/3");
-        verify(bookDataRepository).updateBook(3, "기존 책", "기존 저자", "기존 설명", cover500, "소설", "10");
+        verify(bookDataRepository).updateBook(3, "기존 책", "기존 저자", "기존 설명", cover500, "소설", "2");
     }
 
     @Test
@@ -143,5 +149,52 @@ class BookshelfControllerTest {
 
         assertThat(view).isEqualTo("redirect:/books/3");
         verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "책1", cover500, "10000", "설명", false, true, 1);
+    }
+
+    @Test
+    void enrichBookInfo_fillsMissingBookInfoFromFirstVolumeAndMissingVolumeDescriptions() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        Book book = new Book(3, "시리즈", null, null, "2", "만화", "cover", null, null);
+        BookVolume firstVolume = new BookVolume(10, 1, 3, "9781111111111", "시리즈 1권", "cover-1", "10000", null, false, false, "1");
+        BookVolume secondVolume = new BookVolume(11, 2, 3, "9782222222222", "시리즈 2권", "cover-2", "11000", null, true, false, "2");
+        when(bookDataRepository.findBookById(3)).thenReturn(book);
+        when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.List.of(firstVolume, secondVolume));
+        when(aladinSearchService.searchBookItems("시리즈 1권", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(new AladinItem("시리즈 1권", "대표 저자", "cover", "9781111111111", null, "10000", "12000", "2026-01-01", "1권 설명", "item-1", "")),
+                1,
+                1,
+                20
+        ));
+        when(aladinSearchService.searchBookItems("시리즈 2권", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(new AladinItem("시리즈 2권", "대표 저자", "cover", "9782222222222", null, "11000", "13000", "2026-01-02", "2권 설명", "item-2", "")),
+                1,
+                1,
+                20
+        ));
+
+        String view = controller.enrichBookInfo(3, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        assertThat(redirectAttributes.getFlashAttributes().get("success")).isEqualTo("정보 보강 완료: 책 1건, 권 2건");
+        verify(bookVolumeRepository).updateVolume(3, 10, "9781111111111", "시리즈 1권", "cover-1", "10000", "1권 설명", false, false, 1);
+        verify(bookVolumeRepository).updateVolume(3, 11, "9782222222222", "시리즈 2권", "cover-2", "11000", "2권 설명", true, false, 2);
+        verify(bookDataRepository).updateBook(3, "시리즈", "대표 저자", "1권 설명", "cover", "만화", "2");
+    }
+
+    @Test
+    void enrichBookInfo_skipsAladinLookupWhenNoAuthorOrDescriptionIsMissing() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(bookDataRepository.findBookById(3)).thenReturn(new Book(3, "완성 책", "저자", "설명", "1", "소설", "cover", null, null));
+        when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.List.of(
+                new BookVolume(10, 1, 3, "9781111111111", "완성 책 1권", "cover-1", "10000", "권 설명", false, false, "1")
+        ));
+
+        String view = controller.enrichBookInfo(3, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        assertThat(redirectAttributes.getFlashAttributes().get("success")).isEqualTo("채울 저자/설명이 없습니다.");
+        verifyNoInteractions(aladinSearchService);
     }
 }

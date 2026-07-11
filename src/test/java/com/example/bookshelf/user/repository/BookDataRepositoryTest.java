@@ -32,6 +32,22 @@ class BookDataRepositoryTest {
         assertThat(repository.findAllBookTypes()).contains("만화", "소설");
     }
 
+    @Test
+    void bookListUsesActualVolumeCountInsteadOfStoredTotalVolume() {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(new SingleConnectionDataSource("jdbc:sqlite::memory:", true));
+        createSchema(jdbcTemplate);
+        BookDataRepository repository = new BookDataRepository(jdbcTemplate);
+
+        int bookId = repository.insertBook("시리즈", "저자", "설명", "cover", "만화", "99");
+        jdbcTemplate.update("INSERT INTO book_volumes (book, name, volume) VALUES (?, ?, ?)", bookId, "시리즈 1권", 1);
+        jdbcTemplate.update("INSERT INTO book_volumes (book, name, volume) VALUES (?, ?, ?)", bookId, "시리즈 2권", 2);
+
+        assertThat(repository.findAllBooksOrderByCreatedDesc(10, 0))
+                .singleElement()
+                .extracting(book -> book.totalvolume())
+                .isEqualTo("2");
+    }
+
     private void createSchema(JdbcTemplate jdbcTemplate) {
         jdbcTemplate.execute("""
                 CREATE TABLE books (
@@ -42,6 +58,15 @@ class BookDataRepositoryTest {
                     totalvolume TEXT,
                     type TEXT,
                     cover TEXT,
+                    createddate TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+        jdbcTemplate.execute("""
+                CREATE TABLE book_volumes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book INTEGER,
+                    name TEXT,
+                    volume INTEGER,
                     createddate TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """);

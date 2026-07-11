@@ -53,20 +53,25 @@ public class AladinUsedStockService {
     }
 
     public List<AladinBranchStock> findUsedStocksByIsbn13(String isbn13) {
+        StockLookupResult result = lookupUsedStocksByIsbn13(isbn13);
+        return result.successful() ? result.stocks() : Collections.emptyList();
+    }
+
+    public StockLookupResult lookupUsedStocksByIsbn13(String isbn13) {
         String normalizedIsbn13 = Texts.trimToNull(isbn13);
         if (normalizedIsbn13 == null) {
-            return Collections.emptyList();
+            return StockLookupResult.failure("ISBN13이 없습니다.");
         }
 
         AladinDropshippingResponse dropshippingResponse = aladinClient.getDropshippingUsedBook(normalizedIsbn13);
         if (dropshippingResponse == null) {
-            return Collections.emptyList();
+            return StockLookupResult.failure("알라딘 중고 응답을 가져오지 못했습니다.");
         }
 
         try {
             AladinDropshippingItem item = readFirstDropshippingItem(dropshippingResponse);
             if (item == null) {
-                return Collections.emptyList();
+                return StockLookupResult.success(Collections.emptyList());
             }
 
             AladinUsedList usedList = item.getSubInfo() == null ? null : item.getSubInfo().getUsedList();
@@ -76,7 +81,7 @@ public class AladinUsedStockService {
             boolean hasAladin = itemCount(aladinUsed) > 0;
             boolean hasSpace = itemCount(spaceUsed) > 0;
             if (!hasAladin && !hasSpace) {
-                return Collections.emptyList();
+                return StockLookupResult.success(Collections.emptyList());
             }
 
             List<AladinBranchStock> stocks = new ArrayList<>();
@@ -86,10 +91,10 @@ public class AladinUsedStockService {
             if (hasSpace) {
                 stocks.addAll(findSpaceUsedStocks(normalizedIsbn13, item, spaceUsed));
             }
-            return stocks;
+            return StockLookupResult.success(stocks);
         } catch (Exception e) {
             log.warn("Failed to fetch used stocks for isbn13={}", normalizedIsbn13, e);
-            return Collections.emptyList();
+            return StockLookupResult.failure("알라딘 중고 재고 조회에 실패했습니다.");
         }
     }
 
@@ -106,7 +111,10 @@ public class AladinUsedStockService {
             AladinUsedSummary spaceUsed
     ) {
         AladinUsedInfoResponse usedInfo = aladinClient.getUsedBookInfo(isbn13);
-        if (usedInfo == null || usedInfo.getItemOffStoreList() == null) {
+        if (usedInfo == null) {
+            throw new IllegalStateException("알라딘 지점 재고 응답을 가져오지 못했습니다.");
+        }
+        if (usedInfo.getItemOffStoreList() == null) {
             return Collections.emptyList();
         }
 
@@ -277,5 +285,19 @@ public class AladinUsedStockService {
 
     private int itemCount(AladinUsedSummary summary) {
         return summary == null || summary.getItemCount() == null ? 0 : summary.getItemCount();
+    }
+
+    public record StockLookupResult(boolean successful, List<AladinBranchStock> stocks, String errorMessage) {
+        public StockLookupResult {
+            stocks = stocks == null ? List.of() : List.copyOf(stocks);
+        }
+
+        public static StockLookupResult success(List<AladinBranchStock> stocks) {
+            return new StockLookupResult(true, stocks, null);
+        }
+
+        public static StockLookupResult failure(String errorMessage) {
+            return new StockLookupResult(false, List.of(), errorMessage);
+        }
     }
 }

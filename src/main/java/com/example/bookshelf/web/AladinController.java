@@ -4,6 +4,7 @@ import com.example.bookshelf.integration.aladin.AladinSearchOptions;
 import com.example.bookshelf.integration.aladin.AladinSearchService;
 import com.example.bookshelf.integration.aladin.AladinUsedStockService;
 import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,11 +14,20 @@ public class AladinController {
 
     private final AladinSearchService aladinSearchService;
     private final AladinUsedStockService aladinUsedStockService;
+    private final AuthSessionHelper authSessionHelper;
+
+    @Autowired
+    public AladinController(AladinSearchService aladinSearchService,
+                            AladinUsedStockService aladinUsedStockService,
+                            AuthSessionHelper authSessionHelper) {
+        this.aladinSearchService = aladinSearchService;
+        this.aladinUsedStockService = aladinUsedStockService;
+        this.authSessionHelper = authSessionHelper;
+    }
 
     public AladinController(AladinSearchService aladinSearchService,
                             AladinUsedStockService aladinUsedStockService) {
-        this.aladinSearchService = aladinSearchService;
-        this.aladinUsedStockService = aladinUsedStockService;
+        this(aladinSearchService, aladinUsedStockService, null);
     }
 
     @GetMapping("/aladin/search")
@@ -48,7 +58,8 @@ public class AladinController {
         model.addAttribute("query", options.query());
 
         if (!options.query().isBlank()) {
-            model.addAttribute("searchView", aladinSearchService.searchBookView(options));
+            Integer ownerId = authSessionHelper == null ? null : authSessionHelper.getMemberId(null);
+            model.addAttribute("searchView", aladinSearchService.searchBookView(options, ownerId));
         }
         return "aladin_search";
     }

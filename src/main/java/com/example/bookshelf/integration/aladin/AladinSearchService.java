@@ -50,6 +50,10 @@ public class AladinSearchService {
     }
 
     public AladinSearchView searchBookView(AladinSearchOptions options) {
+        return searchBookView(options, null);
+    }
+
+    public AladinSearchView searchBookView(AladinSearchOptions options, Integer ownerId) {
         String normalizedQuery = Texts.trimToEmpty(options.query());
         AladinSearchResponse response = aladinClient.getBookInfo(options);
 
@@ -82,7 +86,9 @@ public class AladinSearchService {
                 item.description(),
                 item.itemId(),
                 item.stockStatus(),
-                item.isbn13() != null && bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+                item.isbn13() != null && (ownerId == null
+                        ? bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+                        : bookVolumeRepository.existsVolumeByIsbn13ForOwner(ownerId, item.isbn13()))
             );
         }).toList();
 
