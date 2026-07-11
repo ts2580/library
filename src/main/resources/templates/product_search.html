@@ -5,6 +5,7 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('products')}"></aside>
+    <nav th:replace="~{fragments/layout :: appMobileNav('products')}"></nav>
     <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, '상품 검색', null)}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>

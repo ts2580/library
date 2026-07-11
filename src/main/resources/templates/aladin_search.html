@@ -5,6 +5,7 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('aladin-search')}"></aside>
+    <nav th:replace="~{fragments/layout :: appMobileNav('aladin-search')}"></nav>
     <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar('Aladin Search', '알라딘 검색', '검색 결과를 카드형으로 읽고, 필요하면 원본 JSON도 함께 확인합니다.')}"></div>
 

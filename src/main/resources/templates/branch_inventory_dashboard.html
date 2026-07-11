@@ -5,11 +5,12 @@
 <div class="bookshelf-shell bookshelf-shell-wide bookshelf-py-8">
   <div class="bookshelf-app-frame">
     <aside th:replace="~{fragments/layout :: appSidebar('branches')}"></aside>
+    <nav th:replace="~{fragments/layout :: appMobileNav('branches')}"></nav>
     <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, '지점 재고 대시보드', null)}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
-      <section class="hidden bookshelf-p-4 sm:grid sm:grid-cols-3">
+      <section class="hidden bookshelf-p-4 sm:grid sm:grid-cols-3 bookshelf-dashboard-kpi-grid">
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">지점 수</div>
           <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${branchCount}">0</div>
@@ -28,18 +29,15 @@
       </section>
 
       <section class="bookshelf-card bookshelf-branch-mobile-compact bookshelf-pad-card-lg sm:bookshelf-p-6">
-        <div class="bookshelf-mb-4 flex flex-col bookshelf-p-2 sm:bookshelf-p-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 class="bookshelf-title-lg">미구매권 중고 재고 일괄 갱신</h2>
-          </div>
-          <div class="flex flex-col bookshelf-gap-3 bookshelf-p-1 sm:flex-row sm:bookshelf-p-2">
-            <form id="refreshStocksForm" action="/dashboard/branches/refresh-stocks" method="post">
+        <div class="bookshelf-mb-4 flex justify-end bookshelf-p-2 sm:bookshelf-p-3">
+          <div class="bookshelf-branch-action-row flex flex-row justify-end bookshelf-gap-3 bookshelf-p-1 sm:bookshelf-p-2">
+            <form id="refreshStocksForm" action="/dashboard/branches/refresh-stocks" method="post" class="bookshelf-branch-action-form">
               <input type="hidden" name="_csrf" th:value="${_csrf.token}">
-              <button id="refreshStocksButton" type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">일괄 갱신 시작</button>
+              <button id="refreshStocksButton" type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm whitespace-nowrap">일괄 갱신 시작</button>
             </form>
-            <form action="/dashboard/branches/delete-all" method="post" onsubmit="return confirm('지점 재고를 전부 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+            <form action="/dashboard/branches/delete-all" method="post" class="bookshelf-branch-action-form bookshelf-branch-action-form--danger" onsubmit="return confirm('지점 재고를 전부 삭제하시겠습니까? 되돌릴 수 없습니다.');">
               <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-              <button type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">전체 삭제</button>
+              <button type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm whitespace-nowrap">전체 삭제</button>
             </form>
           </div>
         </div>
@@ -60,11 +58,11 @@
             <div id="refreshProgressBar" class="h-full rounded-full bg-violet-500 transition-all duration-300" th:style="|width:${refreshProgress.percent}%|"></div>
           </div>
 
-          <div class="bookshelf-mt-3 grid bookshelf-p-2 sm:bookshelf-p-3 sm:grid-cols-4 text-sm">
-            <div class="bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">처리</div><div id="refreshProcessed" class="bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.processed}">0</div></div>
-            <div class="bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">성공</div><div id="refreshSuccess" class="bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.success}">0</div></div>
-            <div class="bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">재고 없음</div><div id="refreshEmpty" class="bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.empty}">0</div></div>
-            <div class="bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">실패</div><div id="refreshFail" class="bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.fail}">0</div></div>
+          <div class="bookshelf-refresh-stat-grid bookshelf-mt-3 grid bookshelf-p-2 sm:bookshelf-p-3 sm:grid-cols-4 text-sm">
+            <div class="bookshelf-refresh-stat-card bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">처리</div><div id="refreshProcessed" class="bookshelf-refresh-stat-value bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.processed}">0</div></div>
+            <div class="bookshelf-refresh-stat-card bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">성공</div><div id="refreshSuccess" class="bookshelf-refresh-stat-value bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.success}">0</div></div>
+            <div class="bookshelf-refresh-stat-card bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">재고 없음</div><div id="refreshEmpty" class="bookshelf-refresh-stat-value bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.empty}">0</div></div>
+            <div class="bookshelf-refresh-stat-card bookshelf-kpi bookshelf-pad-card"><div class="bookshelf-subtitle">실패</div><div id="refreshFail" class="bookshelf-refresh-stat-value bookshelf-mt-1 bookshelf-title-lg" th:text="${refreshProgress.fail}">0</div></div>
           </div>
         </div>
       </section>
@@ -114,7 +112,7 @@
               </div>
               <div class="bookshelf-chip bookshelf-px-3 bookshelf-py-1 text-xs" th:text="${b.stockCount + '건'}"></div>
             </div>
-            <div class="bookshelf-mt-3 grid grid-cols-2 bookshelf-gap-2 bookshelf-p-2 text-xs">
+            <div class="bookshelf-mt-3 grid grid-cols-2 bookshelf-gap-3 bookshelf-p-2 text-xs">
               <div class="bookshelf-kpi bookshelf-pad-card-sm"><div class="bookshelf-subtitle">재고</div><div class="bookshelf-mt-1 bookshelf-title-base" th:text="${b.pricedCount + '건'}"></div></div>
               <div class="bookshelf-kpi bookshelf-pad-card-sm"><div class="bookshelf-subtitle">재고 합계</div><div class="bookshelf-mt-1 bookshelf-title-base" th:text="${#numbers.formatInteger(b.totalAmount, 0, 'COMMA') + '원'}"></div></div>
             </div>
