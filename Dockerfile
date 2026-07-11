@@ -19,10 +19,16 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 COPY --from=builder /app/build/libs/bookshelf-*.jar /app/app.jar
-RUN mkdir -p /data
+RUN addgroup -S bookshelf \
+    && adduser -S -G bookshelf bookshelf \
+    && mkdir -p /data \
+    && chown -R bookshelf:bookshelf /app /data
 ENV SPRING_DATASOURCE_URL="jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
+ENV BOOKSHELF_COVER_DIR="/data/covers"
 
 EXPOSE 25647
 VOLUME ["/data"]
+
+USER bookshelf
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

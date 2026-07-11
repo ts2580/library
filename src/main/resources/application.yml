@@ -14,6 +14,8 @@ spring:
     cache: false
 
 app:
+  covers:
+    storage-dir: ${BOOKSHELF_COVER_DIR:./data/covers}
   registration:
     enabled: ${REGISTRATION:${APP_REGISTRATION_ENABLED:false}}
   security:
