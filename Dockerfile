@@ -19,16 +19,19 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 COPY --from=builder /app/build/libs/bookshelf-*.jar /app/app.jar
-RUN addgroup -S bookshelf \
+RUN apk add --no-cache su-exec \
+    && addgroup -S bookshelf \
     && adduser -S -G bookshelf bookshelf \
     && mkdir -p /data \
     && chown -R bookshelf:bookshelf /app /data
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV SPRING_DATASOURCE_URL="jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
 ENV BOOKSHELF_COVER_DIR="/data/covers"
 
 EXPOSE 25647
 VOLUME ["/data"]
 
-USER bookshelf
+USER root
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
