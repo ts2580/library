@@ -12,7 +12,6 @@
 
 ```bash
 npm run db:verify:sqlite
-npm run db:verify:migrated -- ./data/bookshelf.sqlite
 npm run screen:smoke
 npm run verify:local
 ```
@@ -20,7 +19,6 @@ npm run verify:local
 각 스크립트의 역할은 다음과 같다.
 
 - `db:verify:sqlite`: 임시 SQLite DB에 스키마와 샘플 데이터를 넣고 핵심 테이블, upsert, FK를 확인한다.
-- `db:verify:migrated`: 이미 존재하는 SQLite DB 파일의 필수 테이블과 FK를 확인한다.
 - `screen:smoke`: 실행 중인 애플리케이션에 로그인한 뒤 주요 화면 응답과 fixture 정리를 확인한다.
 - `verify:local`: shell 문법, SQLite 저장소 smoke test, Java 직접 컴파일 검증, CSS 빌드를 순서대로 실행한다.
 

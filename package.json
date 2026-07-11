@@ -6,9 +6,8 @@
   "scripts": {
     "test": "./gradlew test",
     "db:verify:sqlite": "bash scripts/verify_sqlite_storage.sh",
-    "db:verify:migrated": "bash scripts/verify_migrated_sqlite.sh",
     "screen:smoke": "bash scripts/verify_screen_smoke.sh",
-    "verify:local": "bash -n run.sh && bash -n scripts/verify_sqlite_storage.sh && bash -n scripts/verify_java_repositories.sh && bash -n scripts/verify_java_compile.sh && bash -n scripts/verify_migrated_sqlite.sh && bash -n scripts/verify_screen_smoke.sh && npm run db:verify:sqlite && bash scripts/verify_java_repositories.sh && bash scripts/verify_java_compile.sh && npm run css:build",
+    "verify:local": "bash -n run.sh && bash -n scripts/verify_sqlite_storage.sh && bash -n scripts/verify_java_repositories.sh && bash -n scripts/verify_java_compile.sh && bash -n scripts/verify_screen_smoke.sh && npm run db:verify:sqlite && bash scripts/verify_java_repositories.sh && bash scripts/verify_java_compile.sh && npm run css:build",
     "assets:vendor": "mkdir -p src/main/resources/static/js/vendor && cp node_modules/chart.js/dist/chart.umd.min.js src/main/resources/static/js/vendor/chart.umd.min.js",
     "css:build": "npm run assets:vendor && tailwindcss -i src/main/resources/static/css/bookshelf-tailwind-input.css -o src/main/resources/static/css/bookshelf-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\"",
     "css:watch": "npm run assets:vendor && tailwindcss -i src/main/resources/static/css/bookshelf-tailwind-input.css -o src/main/resources/static/css/bookshelf-tailwind.css --content \"./src/main/resources/templates/**/*.html\" \"./src/main/resources/static/js/**/*.js\" --watch"

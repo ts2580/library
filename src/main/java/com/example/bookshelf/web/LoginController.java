@@ -3,7 +3,6 @@ package com.example.bookshelf.web;
 import com.example.bookshelf.common.Texts;
 import com.example.bookshelf.user.model.Member;
 import com.example.bookshelf.user.repository.MemberRepository;
-import com.example.bookshelf.user.service.BookOwnershipMigrationService;
 import com.example.bookshelf.web.dto.ProfilePasswordForm;
 import com.example.bookshelf.web.dto.ProfileForm;
 import jakarta.servlet.http.HttpSession;
@@ -24,19 +23,16 @@ public class LoginController {
     private final AuthSessionHelper authSessionHelper;
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
-    private final BookOwnershipMigrationService bookOwnershipMigrationService;
 
     @Value("${app.registration.enabled:false}")
     private boolean registrationEnabled;
 
     public LoginController(AuthSessionHelper authSessionHelper,
                            MemberRepository memberRepository,
-                           PasswordEncoder passwordEncoder,
-                           BookOwnershipMigrationService bookOwnershipMigrationService) {
+                           PasswordEncoder passwordEncoder) {
         this.authSessionHelper = authSessionHelper;
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
-        this.bookOwnershipMigrationService = bookOwnershipMigrationService;
     }
 
     @GetMapping("/login")
@@ -60,29 +56,7 @@ public class LoginController {
     @GetMapping("/profile")
     public String profile(Model model, HttpSession session) {
         applyProfileFormFromCurrentMember(model, session);
-        Member member = authSessionHelper.getCurrentMember(session);
-        if (isAdmin(member)) {
-            model.addAttribute("ownershipMigrationStatus", bookOwnershipMigrationService.status());
-        }
         return "user_profile";
-    }
-
-    @PostMapping("/profile/migrations/book-ownership")
-    public String migrateBookOwnership(HttpSession session, RedirectAttributes redirectAttributes) {
-        Member member = authSessionHelper.getCurrentMember(session);
-        if (!isAdmin(member)) {
-            redirectAttributes.addFlashAttribute("error", "관리자만 소유권 마이그레이션을 실행할 수 있습니다.");
-            return "redirect:/user/profile";
-        }
-        try {
-            var result = bookOwnershipMigrationService.migrateExistingBooksToAdmin();
-            redirectAttributes.addFlashAttribute("success",
-                    "마이그레이션 완료: " + result.updatedBooks() + "권을 " + result.ownerUsername()
-                            + " 사용자에게 할당하고 지점 재고 " + result.updatedInventoryRows() + "건을 권차 ID에 연결했습니다.");
-        } catch (RuntimeException e) {
-            redirectAttributes.addFlashAttribute("error", e.getMessage());
-        }
-        return "redirect:/user/profile";
     }
 
     @PostMapping("/profile")
@@ -180,7 +154,4 @@ public class LoginController {
         model.addAttribute("profileForm", profileForm);
     }
 
-    private boolean isAdmin(Member member) {
-        return member != null && BookOwnershipMigrationService.ADMIN_USERNAME.equalsIgnoreCase(member.username());
-    }
 }

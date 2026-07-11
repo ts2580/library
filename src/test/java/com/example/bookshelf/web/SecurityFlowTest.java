@@ -4,7 +4,6 @@ import com.example.bookshelf.config.SecurityConfig;
 import com.example.bookshelf.user.model.Member;
 import com.example.bookshelf.user.repository.MemberRepository;
 import com.example.bookshelf.user.service.MemberRegistrationService;
-import com.example.bookshelf.user.service.BookOwnershipMigrationService;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -51,9 +50,6 @@ class SecurityFlowTest {
 
     @MockBean
     private AuthSessionHelper authSessionHelper;
-
-    @MockBean
-    private BookOwnershipMigrationService bookOwnershipMigrationService;
 
     @Test
     void loginPage_isPublic() throws Exception {

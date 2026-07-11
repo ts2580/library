@@ -119,24 +119,6 @@
           </section>
         </div>
 
-        <section th:if="${ownershipMigrationStatus != null}" class="bookshelf-card bookshelf-profile-settings-card bookshelf-p-4 sm:bookshelf-p-6" aria-labelledby="ownershipMigrationTitle">
-          <header class="bookshelf-profile-section-header bookshelf-mb-5">
-            <h2 id="ownershipMigrationTitle" class="bookshelf-title-lg">임시 도서 소유권 마이그레이션</h2>
-            <p class="bookshelf-subtitle-sm">현재 DB의 기존 책을 관리자 계정 trstyq 소유로 할당합니다. 로컬과 배포 서버에서 각각 한 번 실행하세요.</p>
-          </header>
-          <div class="bookshelf-profile-meta bookshelf-mb-5">
-            <span class="bookshelf-profile-meta__item"><span class="bookshelf-profile-meta__label">전체</span><strong th:text="${ownershipMigrationStatus.totalBooks()}">0</strong></span>
-            <span class="bookshelf-profile-meta__item"><span class="bookshelf-profile-meta__label">할당 완료</span><strong th:text="${ownershipMigrationStatus.assignedToAdmin()}">0</strong></span>
-            <span class="bookshelf-profile-meta__item"><span class="bookshelf-profile-meta__label">미할당</span><strong th:text="${ownershipMigrationStatus.unassignedBooks()}">0</strong></span>
-            <span class="bookshelf-profile-meta__item"><span class="bookshelf-profile-meta__label">미연결 재고</span><strong th:text="${ownershipMigrationStatus.unresolvedInventoryRows()}">0</strong></span>
-          </div>
-          <p th:if="${ownershipMigrationStatus.completed()}" class="bookshelf-alert-success">이 DB의 소유권 마이그레이션이 완료되었습니다.</p>
-          <form th:unless="${ownershipMigrationStatus.completed()}" method="post" action="/user/profile/migrations/book-ownership" class="bookshelf-profile-form-actions">
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-            <p class="bookshelf-subtitle-xs">실행 전 DB 백업을 확인하세요. 다른 사용자에게 이미 할당된 책이 있으면 작업이 중단됩니다.</p>
-            <button type="submit" class="bookshelf-btn-danger bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">소유권 마이그레이션 실행</button>
-          </form>
-        </section>
       </div>
 
       <section th:if="${member == null}" class="bookshelf-card bookshelf-profile-signed-out text-center">
