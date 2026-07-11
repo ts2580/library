@@ -2,7 +2,6 @@ package com.example.bookshelf.web;
 
 import com.example.bookshelf.user.model.Member;
 import com.example.bookshelf.user.repository.MemberRepository;
-import com.example.bookshelf.user.service.BookOwnershipMigrationService;
 import com.example.bookshelf.web.dto.ProfilePasswordForm;
 import com.example.bookshelf.web.dto.ProfileForm;
 import jakarta.servlet.http.HttpSession;
@@ -31,12 +30,9 @@ class LoginControllerTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @Mock
-    private BookOwnershipMigrationService bookOwnershipMigrationService;
-
     @Test
     void profileReturnsUserProfileView() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         when(authSessionHelper.getCurrentMember(null)).thenReturn(
                 new Member(1, "tester", "pw", "tester@example.com", "테스터", null)
         );
@@ -48,7 +44,7 @@ class LoginControllerTest {
 
     @Test
     void updateProfileRedirectsToLoginWithoutSessionMember() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         ProfileForm profileForm = new ProfileForm();
         profileForm.setName("new");
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
@@ -60,7 +56,7 @@ class LoginControllerTest {
 
     @Test
     void updateProfileUpdatesMemberProfile() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         HttpSession session = org.mockito.Mockito.mock(HttpSession.class);
         when(authSessionHelper.getCurrentMember(session)).thenReturn(
                 new Member(11, "tester", "pw", "old@example.com", "Old", "old")
@@ -79,7 +75,7 @@ class LoginControllerTest {
 
     @Test
     void updatePasswordRedirectsToLoginWithoutSessionMember() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         ProfilePasswordForm form = new ProfilePasswordForm();
         form.setCurrentPassword("old");
         form.setNewPassword("newpassword1");
@@ -93,7 +89,7 @@ class LoginControllerTest {
 
     @Test
     void updatePasswordRejectsWhenCurrentPasswordIsWrong() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         HttpSession session = org.mockito.Mockito.mock(HttpSession.class);
         when(authSessionHelper.getCurrentMember(session)).thenReturn(
                 new Member(11, "tester", "old-hashed", "old@example.com", "Old", "old")
@@ -114,7 +110,7 @@ class LoginControllerTest {
 
     @Test
     void updatePasswordRejectsWhenConfirmMismatches() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         HttpSession session = org.mockito.Mockito.mock(HttpSession.class);
         when(authSessionHelper.getCurrentMember(session)).thenReturn(
                 new Member(11, "tester", "old-hashed", "old@example.com", "Old", "old")
@@ -134,7 +130,7 @@ class LoginControllerTest {
 
     @Test
     void updatePasswordUpdatesHash() {
-        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder, bookOwnershipMigrationService);
+        LoginController controller = new LoginController(authSessionHelper, memberRepository, passwordEncoder);
         HttpSession session = org.mockito.Mockito.mock(HttpSession.class);
         when(authSessionHelper.getCurrentMember(session)).thenReturn(
                 new Member(11, "tester", "old-hashed", "old@example.com", "Old", "old")

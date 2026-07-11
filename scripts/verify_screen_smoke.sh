@@ -37,13 +37,6 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if command -v sqlite3 >/dev/null 2>&1 && [[ -f "$DB_PATH" ]]; then
-  owner_column_count="$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'owner_id';")"
-  inventory_reference_count="$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('branchbook') WHERE name = 'book_volume_id';")"
-  if [[ "$owner_column_count" != "1" || "$inventory_reference_count" != "1" ]]; then
-    echo "Screen smoke requires a migrated DB. Run scripts/migrate_book_ownership.sh first." >&2
-    exit 1
-  fi
-
   sqlite3 "$DB_PATH" <<SQL
 PRAGMA foreign_keys = ON;
 

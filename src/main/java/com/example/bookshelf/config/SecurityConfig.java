@@ -52,7 +52,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,
                                 "/api/migration/**",
-                                "/user/profile/migrations/**",
                                 "/dashboard/branches/delete-all",
                                 "/dashboard/branches/refresh-stocks"
                         ).hasRole("ADMIN")
