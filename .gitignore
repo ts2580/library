@@ -12,6 +12,12 @@ node_modules/
 !.env.example
 *.sqlite
 *.sqlite3
+*.sqlite.bak
+*.sqlite.*.bak
+*.sqlite.backup-*
+*.sqlite3.bak
+*.sqlite3.*.bak
+*.sqlite3.backup-*
 
 # Container artifacts
 # Dockerfile
@@ -27,3 +33,8 @@ node_modules/
 /data/covers/
 
 temp/
+
+# Local background runner state
+.bookshelf.pid
+.bookshelf.log
+.logs/

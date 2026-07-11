@@ -9,9 +9,10 @@ services:
       SERVER_PORT: "25647"
       REGISTRATION: "false"
       ALADIN_TTB_KEY: ""
-      # Remember-me cookie signing key. Replace in production with a stable random value,
-      # for example: openssl rand -hex 32
-      APP_REMEMBER_ME_KEY: "change-this-long-random-value"
+      # Required stable random key. Generate one before `docker compose up`,
+      # for example: export APP_REMEMBER_ME_KEY="$(openssl rand -hex 32)"
+      APP_REMEMBER_ME_KEY: "${APP_REMEMBER_ME_KEY:?APP_REMEMBER_ME_KEY must be set}"
+      BOOKSHELF_COVER_DIR: "/data/covers"
       # Set true only when serving through HTTPS. Keep false for direct HTTP/local access.
       SESSION_COOKIE_SECURE: "false"
     volumes:
