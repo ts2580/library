@@ -4,6 +4,7 @@ import com.example.bookshelf.config.SecurityConfig;
 import com.example.bookshelf.user.model.Member;
 import com.example.bookshelf.user.repository.MemberRepository;
 import com.example.bookshelf.user.service.MemberRegistrationService;
+import com.example.bookshelf.user.service.BookOwnershipMigrationService;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -50,6 +52,9 @@ class SecurityFlowTest {
     @MockBean
     private AuthSessionHelper authSessionHelper;
 
+    @MockBean
+    private BookOwnershipMigrationService bookOwnershipMigrationService;
+
     @Test
     void loginPage_isPublic() throws Exception {
         mockMvc.perform(get("/user/login"))
@@ -66,6 +71,22 @@ class SecurityFlowTest {
     void protectedPage_redirectsToLogin_whenAnonymous() throws Exception {
         mockMvc.perform(get("/dashboard"))
                 .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void branchInventoryAdministration_isForbiddenForRegularUsers() throws Exception {
+        mockMvc.perform(post("/dashboard/branches/refresh-stocks")
+                        .with(user("regular").roles("USER"))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void branchInventoryAdministration_passesSecurityForAdmin() throws Exception {
+        mockMvc.perform(post("/dashboard/branches/refresh-stocks")
+                        .with(user("trstyq").roles("USER", "ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test

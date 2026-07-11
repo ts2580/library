@@ -17,6 +17,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -28,19 +29,34 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.core.env.Environment;
+
+import java.util.Arrays;
 
 @Configuration
 public class SecurityConfig {
+
+    private static final String DEV_REMEMBER_ME_KEY = "bookshelf-dev-remember-me-change-me";
+    private static final String COMPOSE_PLACEHOLDER_REMEMBER_ME_KEY = "change-this-long-random-value";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticationSuccessHandler authenticationSuccessHandler,
                                                    UserDetailsService userDetailsService,
                                                    PersistentTokenRepository persistentTokenRepository,
-                                                   @Value("${app.security.remember-me-key:bookshelf-dev-remember-me-change-me}")
+                                                   Environment environment,
+                                                   @Value("${app.security.remember-me-key:" + DEV_REMEMBER_ME_KEY + "}")
                                                    String rememberMeKey) throws Exception {
+        validateRememberMeKey(environment, rememberMeKey);
         http
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/migration/**",
+                                "/user/profile/migrations/**",
+                                "/dashboard/branches/delete-all",
+                                "/dashboard/branches/refresh-stocks"
+                        ).hasRole("ADMIN")
+                        .requestMatchers("/dashboard/branches/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/user/login", "/user/signup", "/error", "/css/**", "/js/**", "/images/**"
                         ).permitAll()
@@ -82,6 +98,21 @@ public class SecurityConfig {
         return http.build();
     }
 
+    static void validateRememberMeKey(Environment environment, String rememberMeKey) {
+        if (!Arrays.asList(environment.getActiveProfiles()).contains("prod")) {
+            return;
+        }
+        if (rememberMeKey == null
+                || rememberMeKey.isBlank()
+                || rememberMeKey.length() < 32
+                || DEV_REMEMBER_ME_KEY.equals(rememberMeKey)
+                || COMPOSE_PLACEHOLDER_REMEMBER_ME_KEY.equals(rememberMeKey)) {
+            throw new IllegalStateException(
+                    "APP_REMEMBER_ME_KEY must be a non-default value of at least 32 characters when the prod profile is active."
+            );
+        }
+    }
+
     @Bean
     public UserDetailsService userDetailsService(MemberRepository memberRepository) {
         return username -> {
@@ -90,10 +121,11 @@ public class SecurityConfig {
                 throw new UsernameNotFoundException("User not found: " + username);
             }
 
-            UserDetails user = User.withUsername(member.username())
-                    .password(member.passwordHash())
-                    .roles("USER")
-                    .build();
+            User.UserBuilder builder = User.withUsername(member.username())
+                    .password(member.passwordHash());
+            UserDetails user = "trstyq".equalsIgnoreCase(member.username())
+                    ? builder.roles("USER", "ADMIN").build()
+                    : builder.roles("USER").build();
             return user;
         };
     }

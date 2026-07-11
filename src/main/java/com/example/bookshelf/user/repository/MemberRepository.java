@@ -68,4 +68,14 @@ public class MemberRepository {
                 member.name(),
                 member.description());
     }
+
+    public void updateProfile(int memberId, String email, String name, String description) {
+        String sql = "UPDATE member SET email = ?, name = ?, description = ? WHERE id = ?";
+        jdbcTemplate.update(sql, email, name, description, memberId);
+    }
+
+    public void updatePasswordHash(int memberId, String passwordHash) {
+        String sql = "UPDATE member SET password_hash = ? WHERE id = ?";
+        jdbcTemplate.update(sql, passwordHash, memberId);
+    }
 }

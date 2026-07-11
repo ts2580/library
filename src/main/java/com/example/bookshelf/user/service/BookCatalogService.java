@@ -22,6 +22,10 @@ public class BookCatalogService {
     }
 
     public BookListViewModel findBookList(String search, String type, String title, String author, Integer page) {
+        return findBookList(search, type, title, author, page, null);
+    }
+
+    public BookListViewModel findBookList(String search, String type, String title, String author, Integer page, Integer ownerId) {
         String keyword = Texts.trimToEmpty(search);
         String selectedType = Texts.trimToEmpty(type);
         String titleKeyword = Texts.trimToEmpty(title);
@@ -33,9 +37,14 @@ public class BookCatalogService {
         boolean hasAuthor = !authorKeyword.isEmpty();
         boolean hasAdvancedFilters = hasTitle || hasAuthor;
 
-        int totalCount = countBooks(keyword, selectedType, titleKeyword, authorKeyword, hasSearch, hasType, hasAdvancedFilters);
+        int totalCount = ownerId == null
+                ? countBooks(keyword, selectedType, titleKeyword, authorKeyword, hasSearch, hasType, hasAdvancedFilters)
+                : bookDataRepository.countBooksForOwner(ownerId, keyword, titleKeyword, authorKeyword, selectedType);
         PageWindow pageWindow = PageWindow.of(page == null ? 1 : page, totalCount, BOOK_PAGE_SIZE, PAGE_LINK_WINDOW);
-        List<Book> books = findBooks(keyword, selectedType, titleKeyword, authorKeyword, hasSearch, hasType, hasAdvancedFilters, pageWindow);
+        List<Book> books = ownerId == null
+                ? findBooks(keyword, selectedType, titleKeyword, authorKeyword, hasSearch, hasType, hasAdvancedFilters, pageWindow)
+                : bookDataRepository.findBooksForOwner(ownerId, keyword, titleKeyword, authorKeyword, selectedType,
+                        hasSearch && !hasAdvancedFilters, pageWindow.pageSize(), pageWindow.offset());
 
         return new BookListViewModel(
                 keyword,
@@ -43,7 +52,7 @@ public class BookCatalogService {
                 titleKeyword,
                 authorKeyword,
                 hasAdvancedFilters,
-                bookDataRepository.findAllBookTypes(),
+                ownerId == null ? bookDataRepository.findAllBookTypes() : bookDataRepository.findBookTypesForOwner(ownerId),
                 books,
                 pageWindow
         );

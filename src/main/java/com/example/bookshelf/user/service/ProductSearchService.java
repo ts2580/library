@@ -34,6 +34,10 @@ public class ProductSearchService {
     }
 
     public ProductSearchViewModel search(ProductSearchRequest request) {
+        return search(request, null);
+    }
+
+    public ProductSearchViewModel search(ProductSearchRequest request, Integer ownerId) {
         String ownedQuery = Texts.trimToEmpty(request.ownedQ());
         String aladinQuery = Texts.trimToEmpty(request.query());
         String ownedSort = normalizeOwnedSort(request.ownedSort());
@@ -41,13 +45,13 @@ public class ProductSearchService {
         int requestedOwnedPage = clampPage(request.ownedPage());
         int requestedAladinPage = clampPage(request.aladinPage());
 
-        int totalOwned = ownedQuery.isEmpty()
-                ? bookVolumeRepository.countAllBookVolumes()
-                : bookVolumeRepository.countVolumeSearchByKeyword(ownedQuery);
+        int totalOwned = ownerId == null
+                ? (ownedQuery.isEmpty() ? bookVolumeRepository.countAllBookVolumes() : bookVolumeRepository.countVolumeSearchByKeyword(ownedQuery))
+                : (ownedQuery.isEmpty() ? bookVolumeRepository.countAllBookVolumesForOwner(ownerId) : bookVolumeRepository.countVolumeSearchByKeywordForOwner(ownerId, ownedQuery));
         int ownedOffset = (requestedOwnedPage - 1) * pageSize;
-        List<BookVolume> ownedVolumes = ownedQuery.isEmpty()
-                ? bookVolumeRepository.findAllVolumes(ownedSort, pageSize, ownedOffset)
-                : bookVolumeRepository.searchVolumesByKeyword(ownedQuery, ownedSort, pageSize, ownedOffset);
+        List<BookVolume> ownedVolumes = ownerId == null
+                ? (ownedQuery.isEmpty() ? bookVolumeRepository.findAllVolumes(ownedSort, pageSize, ownedOffset) : bookVolumeRepository.searchVolumesByKeyword(ownedQuery, ownedSort, pageSize, ownedOffset))
+                : (ownedQuery.isEmpty() ? bookVolumeRepository.findAllVolumesForOwner(ownerId, ownedSort, pageSize, ownedOffset) : bookVolumeRepository.searchVolumesByKeywordForOwner(ownerId, ownedQuery, ownedSort, pageSize, ownedOffset));
 
         AladinSearchResult aladinResult = aladinQuery.isEmpty()
                 ? new AladinSearchResult(List.of(), 0, requestedAladinPage, pageSize)
@@ -58,7 +62,7 @@ public class ProductSearchService {
                 aladinQuery,
                 ownedSort,
                 pageSize,
-                bookDataRepository.findAllBookTypes(),
+                ownerId == null ? bookDataRepository.findAllBookTypes() : bookDataRepository.findBookTypesForOwner(ownerId),
                 ownedVolumes,
                 requestedOwnedPage,
                 totalOwned,
@@ -76,7 +80,9 @@ public class ProductSearchService {
                                 item.description(),
                                 item.itemId(),
                                 item.stockStatus(),
-                                item.isbn13() != null && bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+                                item.isbn13() != null && (ownerId == null
+                                        ? bookVolumeRepository.existsVolumeByIsbn13(item.isbn13())
+                                        : bookVolumeRepository.existsVolumeByIsbn13ForOwner(ownerId, item.isbn13()))
                         ))
                         .toList(),
                 aladinResult.totalResults()
@@ -84,13 +90,19 @@ public class ProductSearchService {
     }
 
     public List<BookAutocompleteItem> autocompleteBooks(String query) {
+        return autocompleteBooks(query, null);
+    }
+
+    public List<BookAutocompleteItem> autocompleteBooks(String query, Integer ownerId) {
         String keyword = Texts.trimToEmpty(query);
         if (keyword.isEmpty()) {
             return List.of();
         }
 
-        List<Book> books = bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, AUTOCOMPLETE_LIMIT, 0);
-        if (books.isEmpty()) {
+        List<Book> books = ownerId == null
+                ? bookDataRepository.searchBooksByKeywordOrderByVolumeDesc(keyword, AUTOCOMPLETE_LIMIT, 0)
+                : bookDataRepository.searchBooksForOwner(ownerId, keyword, AUTOCOMPLETE_LIMIT);
+        if (books.isEmpty() && ownerId == null) {
             books = bookDataRepository.searchBooksByKeywordFallback(keyword, AUTOCOMPLETE_LIMIT, 0);
         }
         return books.stream()
