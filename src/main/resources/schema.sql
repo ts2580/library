@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS books (
     encrypt TEXT,
     sfid TEXT,
     hc_lastop TEXT,
-    hc_err TEXT
+    hc_err TEXT,
+    owner_id INTEGER,
+    FOREIGN KEY (owner_id) REFERENCES member (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_books_name ON books (name);
@@ -56,6 +58,7 @@ CREATE TABLE IF NOT EXISTS book_volumes (
     seq INTEGER,
     book INTEGER NOT NULL,
     cover TEXT,
+    originalUrl TEXT,
     isbn13 TEXT,
     price TEXT,
     ispurchased INTEGER NOT NULL DEFAULT 0,
@@ -75,7 +78,6 @@ CREATE TABLE IF NOT EXISTS book_volumes (
 CREATE INDEX IF NOT EXISTS idx_book_volumes_book ON book_volumes (book);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_book_volume ON book_volumes (book, volume);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_isbn13 ON book_volumes (isbn13);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_book_volumes_isbn13_not_blank ON book_volumes (isbn13) WHERE isbn13 IS NOT NULL AND TRIM(isbn13) <> '';
 CREATE INDEX IF NOT EXISTS idx_book_volumes_ispurchased ON book_volumes (ispurchased);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_stock_refresh_target ON book_volumes (ispurchased, noneedtobuy, id);
 CREATE INDEX IF NOT EXISTS idx_book_volumes_createddate ON book_volumes (createddate);
@@ -93,8 +95,10 @@ CREATE TABLE IF NOT EXISTS branchbook (
     grade TEXT,
     createddate TEXT DEFAULT CURRENT_TIMESTAMP,
     book INTEGER,
+    book_volume_id INTEGER,
     systemmodstamp TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (book) REFERENCES books (id) ON DELETE CASCADE
+    FOREIGN KEY (book) REFERENCES books (id) ON DELETE CASCADE,
+    FOREIGN KEY (book_volume_id) REFERENCES book_volumes (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_branchbook_book ON branchbook (book);
@@ -112,3 +116,18 @@ CREATE TABLE IF NOT EXISTS branch_inventory_summary (
 
 CREATE INDEX IF NOT EXISTS idx_branch_inventory_summary_total_amount ON branch_inventory_summary (total_amount);
 CREATE INDEX IF NOT EXISTS idx_branch_inventory_summary_updated_at ON branch_inventory_summary (updated_at);
+
+CREATE TABLE IF NOT EXISTS stock_refresh_job (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    running INTEGER NOT NULL DEFAULT 0,
+    completed INTEGER NOT NULL DEFAULT 0,
+    failed INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0,
+    processed INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 0,
+    empty INTEGER NOT NULL DEFAULT 0,
+    fail INTEGER NOT NULL DEFAULT 0,
+    percent INTEGER NOT NULL DEFAULT 0,
+    message TEXT,
+    updated_at TEXT
+);

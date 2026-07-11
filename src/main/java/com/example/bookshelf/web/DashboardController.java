@@ -2,7 +2,9 @@ package com.example.bookshelf.web;
 
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
+import com.example.bookshelf.user.model.BranchStockItem;
 import com.example.bookshelf.user.service.StockRefreshService;
+import com.example.bookshelf.common.Texts;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Controller
@@ -37,10 +40,11 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
-        var categorySummaries = bookVolumeRepository.findCategorySummaries();
-        model.addAttribute("bookCount", bookVolumeRepository.countAllBookVolumes());
-        model.addAttribute("purchasedAmount", bookVolumeRepository.sumPurchasedAmount());
-        model.addAttribute("plannedPurchaseAmount", bookVolumeRepository.sumPlannedPurchaseAmount());
+        Integer ownerId = authSessionHelper.getMemberId(null);
+        var categorySummaries = ownerId == null ? List.<BookVolumeRepository.CategorySummary>of() : bookVolumeRepository.findCategorySummariesForOwner(ownerId);
+        model.addAttribute("bookCount", ownerId == null ? 0 : bookVolumeRepository.countAllBookVolumesForOwner(ownerId));
+        model.addAttribute("purchasedAmount", ownerId == null ? 0L : bookVolumeRepository.sumPurchasedAmountForOwner(ownerId));
+        model.addAttribute("plannedPurchaseAmount", ownerId == null ? 0L : bookVolumeRepository.sumPlannedPurchaseAmountForOwner(ownerId));
         model.addAttribute("categorySummaries", categorySummaries);
         model.addAttribute("categoryLabels", categorySummaries.stream().map(BookVolumeRepository.CategorySummary::category).toList());
         model.addAttribute("categoryCounts", categorySummaries.stream().map(BookVolumeRepository.CategorySummary::volumeCount).toList());
@@ -101,7 +105,8 @@ public class DashboardController {
     @GetMapping("/dashboard/branches/{branch}")
     public String branchDetail(@PathVariable("branch") String branch, Model model) {
         var stocks = branchInventoryRepository.findStocksByBranch(branch);
-        String branchName = stocks.isEmpty() ? branch : stocks.get(0).branchName();
+        String branchSummaryName = branchInventoryRepository.findBranchDisplayName(branch);
+        String branchName = resolveBranchDisplayName(stocks, branch, branchSummaryName);
         int totalCount = stocks.size();
         long pricedCount = stocks.stream().filter(s -> s.price() != null && !s.price().isBlank()).count();
         long totalAmount = stocks.stream().mapToLong(s -> parsePriceSafe(s.price())).sum();
@@ -127,5 +132,28 @@ public class DashboardController {
         } catch (NumberFormatException e) {
             return 0L;
         }
+    }
+
+    private String resolveBranchDisplayName(List<BranchStockItem> stocks, String branch, String summaryName) {
+        String fromSummary = Texts.trimToNull(summaryName);
+        if (isDisplayableBranchName(fromSummary)) {
+            return fromSummary;
+        }
+        if (stocks != null && !stocks.isEmpty()) {
+            String fromStock = Texts.trimToNull(stocks.get(0).branchName());
+            if (isDisplayableBranchName(fromStock)) {
+                return fromStock;
+            }
+        }
+        String fromBranch = Texts.trimToNull(branch);
+        if (isDisplayableBranchName(fromBranch)) {
+            return fromBranch;
+        }
+        return "지점";
+    }
+
+    private boolean isDisplayableBranchName(String value) {
+        if (value == null || value.isBlank()) return false;
+        return !"branchname".equalsIgnoreCase(value);
     }
 }

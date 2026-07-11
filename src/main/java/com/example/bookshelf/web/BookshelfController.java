@@ -1,13 +1,17 @@
 package com.example.bookshelf.web;
 
 import com.example.bookshelf.common.Texts;
+import com.example.bookshelf.integration.aladin.AladinItem;
 import com.example.bookshelf.user.service.BookCatalogService;
+import com.example.bookshelf.user.model.Book;
+import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.integration.aladin.AladinCoverUtils;
 import com.example.bookshelf.web.viewmodel.BookDetailViewModel;
 import com.example.bookshelf.web.viewmodel.BookListViewModel;
 import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +21,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Controller
 public class BookshelfController {
@@ -27,17 +38,29 @@ public class BookshelfController {
     private final BookVolumeRepository bookVolumeRepository;
     private final com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService;
     private final com.example.bookshelf.user.service.ProductService productService;
+    private final AuthSessionHelper authSessionHelper;
+
+    @Autowired
+    public BookshelfController(BookCatalogService bookCatalogService,
+                               BookDataRepository bookDataRepository,
+                               BookVolumeRepository bookVolumeRepository,
+                               com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService,
+                               com.example.bookshelf.user.service.ProductService productService,
+                               AuthSessionHelper authSessionHelper) {
+        this.bookCatalogService = bookCatalogService;
+        this.bookDataRepository = bookDataRepository;
+        this.bookVolumeRepository = bookVolumeRepository;
+        this.aladinSearchService = aladinSearchService;
+        this.productService = productService;
+        this.authSessionHelper = authSessionHelper;
+    }
 
     public BookshelfController(BookCatalogService bookCatalogService,
                                BookDataRepository bookDataRepository,
                                BookVolumeRepository bookVolumeRepository,
                                com.example.bookshelf.integration.aladin.AladinSearchService aladinSearchService,
                                com.example.bookshelf.user.service.ProductService productService) {
-        this.bookCatalogService = bookCatalogService;
-        this.bookDataRepository = bookDataRepository;
-        this.bookVolumeRepository = bookVolumeRepository;
-        this.aladinSearchService = aladinSearchService;
-        this.productService = productService;
+        this(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService, null);
     }
 
     @RequestMapping("/books")
@@ -47,7 +70,7 @@ public class BookshelfController {
                        @RequestParam(value = "title", required = false) String title,
                        @RequestParam(value = "author", required = false) String author,
                        Model model) {
-        applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page));
+        applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page, currentOwnerId()));
         return "book_list";
     }
 
@@ -59,7 +82,6 @@ public class BookshelfController {
     }
 
     @PostMapping("/books")
-    @Transactional
     public String createBook(@RequestParam("name") String name,
                              @RequestParam(value = "author", required = false) String author,
                              @RequestParam(value = "description", required = false) String description,
@@ -91,7 +113,10 @@ public class BookshelfController {
         }
         cover = AladinCoverUtils.toCover500(cover);
 
-        int bookId = bookDataRepository.insertBook(name, author, description, cover, type, totalVolume);
+        Integer ownerId = currentOwnerId();
+        int bookId = ownerId == null
+                ? bookDataRepository.insertBook(name, author, description, cover, type, totalVolume)
+                : bookDataRepository.insertBookForOwner(ownerId, name, author, description, cover, type, totalVolume);
         String persistedBookCover = persistExternalCover(cover, resolveBookCoverCacheKey(bookId, primaryIsbn13));
         if (persistedBookCover == null ? cover != null : !persistedBookCover.equals(cover)) {
             bookDataRepository.updateBook(bookId, name, author, description, persistedBookCover, type, totalVolume);
@@ -103,7 +128,10 @@ public class BookshelfController {
             for (com.example.bookshelf.integration.aladin.AladinItem item : items) {
                 String isbn13 = item.isbn13();
                 if (isbn13 == null || isbn13.isBlank()) isbn13 = item.isbn();
-                if (isbn13 != null && !isbn13.isBlank() && !bookVolumeRepository.existsVolumeByIsbn13(isbn13)) {
+                boolean alreadyOwned = ownerId == null
+                        ? bookVolumeRepository.existsVolumeByIsbn13(isbn13)
+                        : bookVolumeRepository.existsVolumeByIsbn13ForOwner(ownerId, isbn13);
+                if (isbn13 != null && !isbn13.isBlank() && !alreadyOwned) {
                     String itemCover = persistExternalCover(AladinCoverUtils.toCover500(item.cover()), isbn13);
                     bookVolumeRepository.insertVolume(bookId, seq++, isbn13, item.title(), itemCover, item.priceSales(), item.description());
                 }
@@ -116,10 +144,10 @@ public class BookshelfController {
 
     @GetMapping("/books/{id}")
     public String detail(@PathVariable int id, Model model) {
-        var book = bookDataRepository.findBookById(id);
+        var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
 
-        BookDetailViewModel vm = new BookDetailViewModel(
+        BookDetailViewModel vm = BookDetailViewModel.forDisplay(
                 book,
                 bookVolumeRepository.findVolumesByBookId(id),
                 bookDataRepository.findAllBookTypes()
@@ -138,14 +166,15 @@ public class BookshelfController {
                              @RequestParam(value = "description", required = false) String description,
                              @RequestParam(value = "cover", required = false) String cover,
                              @RequestParam(value = "type", required = false) String type,
-                             @RequestParam(value = "totalvolume", required = false) String totalVolume,
+                             @RequestParam(value = "totalvolume", required = false) String ignoredTotalVolume,
                              RedirectAttributes redirectAttributes) {
-        var book = bookDataRepository.findBookById(id);
+        var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
 
         String bookCoverCacheKey = resolveBookCoverCacheKey(id, resolveBookPrimaryVolumeIsbn13(id));
         cover = persistExternalCover(cover, bookCoverCacheKey);
-        bookDataRepository.updateBook(id, name, author, description, cover, type, totalVolume);
+        String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(id).size());
+        bookDataRepository.updateBook(id, name, author, description, cover, type, calculatedTotalVolume);
         redirectAttributes.addFlashAttribute("success", "책 정보를 수정했습니다.");
         return "redirect:/books/" + id;
     }
@@ -163,26 +192,57 @@ public class BookshelfController {
                                @RequestParam(value = "seq", required = false) Integer seq,
                                @RequestParam(value = "type", required = false) String type,
                                RedirectAttributes redirectAttributes) {
-        var book = bookDataRepository.findBookById(id);
+        var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
 
         cover = persistExternalCover(cover, normalizeVolumeCoverKey(volumeId, isbn13));
         bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, noNeedToBuy, seq);
         if (type != null && !type.trim().isEmpty()) {
-            bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, book.totalvolume());
+            String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(id).size());
+            bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, calculatedTotalVolume);
         }
         redirectAttributes.addFlashAttribute("success", "권 정보를 수정했습니다.");
+        return "redirect:/books/" + id;
+    }
+
+    @PostMapping("/books/{id}/enrich-info")
+    public String enrichBookInfo(@PathVariable int id, RedirectAttributes redirectAttributes) {
+        Book book = findAccessibleBook(id);
+        if (book == null) return "redirect:/books";
+
+        List<BookVolume> volumes = bookVolumeRepository.findVolumesByBookId(id);
+        if (!isBlank(book.author()) && !isBlank(book.description()) && volumes.stream().noneMatch(this::needsVolumeInfo)) {
+            redirectAttributes.addFlashAttribute("success", "채울 저자/설명이 없습니다.");
+            return "redirect:/books/" + id;
+        }
+
+        Map<String, List<AladinItem>> searchCache = new HashMap<>();
+        int updatedVolumeCount = enrichMissingVolumeDescriptions(id, volumes, searchCache);
+        BookInfoPatch bookPatch = resolveBookInfoPatch(book, volumes, searchCache);
+        int updatedBookCount = applyBookInfoPatch(book, bookPatch);
+
+        if (updatedBookCount == 0 && updatedVolumeCount == 0) {
+            redirectAttributes.addFlashAttribute("error", "채울 수 있는 Aladin 정보가 없습니다.");
+        } else {
+            redirectAttributes.addFlashAttribute("success", "정보 보강 완료: 책 " + updatedBookCount + "건, 권 " + updatedVolumeCount + "건");
+        }
         return "redirect:/books/" + id;
     }
 
     @PostMapping("/books/{id}/delete")
     @Transactional
     public String deleteBook(@PathVariable int id, RedirectAttributes redirectAttributes) {
-        var book = bookDataRepository.findBookById(id);
+        var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
+        List<String> deletedCoverUrls = new ArrayList<>();
+        deletedCoverUrls.add(book.cover());
+        bookVolumeRepository.findVolumesByBookId(id).stream()
+                .map(com.example.bookshelf.user.model.BookVolume::cover)
+                .forEach(deletedCoverUrls::add);
 
         bookVolumeRepository.deleteVolumesByBookId(id);
         bookDataRepository.deleteBookById(id);
+        productService.deleteLocalCoverFilesIfUnused(deletedCoverUrls);
         redirectAttributes.addFlashAttribute("success", "도서를 삭제했습니다. (" + book.name() + ")");
         return "redirect:/books";
     }
@@ -192,14 +252,20 @@ public class BookshelfController {
     public String deleteVolumes(@PathVariable int id,
                                 @RequestParam(value = "volumeIds", required = false) List<Integer> volumeIds,
                                 RedirectAttributes redirectAttributes) {
-        var book = bookDataRepository.findBookById(id);
+        var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
         if (volumeIds == null || volumeIds.isEmpty()) {
             redirectAttributes.addFlashAttribute("error", "삭제할 권을 선택해 주세요.");
             return "redirect:/books/" + id;
         }
+        Set<Integer> selectedVolumeIds = volumeIds.stream().collect(Collectors.toSet());
+        List<String> deletedCoverUrls = bookVolumeRepository.findVolumesByBookId(id).stream()
+                .filter(volume -> selectedVolumeIds.contains(volume.id()))
+                .map(com.example.bookshelf.user.model.BookVolume::cover)
+                .toList();
 
         bookVolumeRepository.deleteVolumesByBookAndIds(id, volumeIds);
+        productService.deleteLocalCoverFilesIfUnused(deletedCoverUrls);
         redirectAttributes.addFlashAttribute("success", volumeIds.size() + "개 권을 삭제했습니다.");
         return "redirect:/books/" + id;
     }
@@ -220,6 +286,17 @@ public class BookshelfController {
         model.addAttribute("to", vm.page().to());
         model.addAttribute("startPage", vm.page().startPage());
         model.addAttribute("endPage", vm.page().endPage());
+    }
+
+    private Integer currentOwnerId() {
+        return authSessionHelper == null ? null : authSessionHelper.getMemberId(null);
+    }
+
+    private Book findAccessibleBook(int bookId) {
+        Integer ownerId = currentOwnerId();
+        return ownerId == null
+                ? bookDataRepository.findBookById(bookId)
+                : bookDataRepository.findBookByIdForOwner(bookId, ownerId);
     }
 
     private String persistExternalCover(String cover, String cacheKey) {
@@ -260,5 +337,152 @@ public class BookshelfController {
             return isbn13;
         }
         return "volume_" + volumeId;
+    }
+
+    private int enrichMissingVolumeDescriptions(int bookId, List<BookVolume> volumes, Map<String, List<AladinItem>> searchCache) {
+        int updated = 0;
+        for (BookVolume volume : volumes) {
+            if (!needsVolumeInfo(volume)) {
+                continue;
+            }
+            AladinItem item = findBestAladinItem(volume, searchCache);
+            String description = firstNonBlank(volume.description(), item == null ? null : item.description());
+            if (Objects.equals(Texts.trimToNull(description), Texts.trimToNull(volume.description()))) {
+                continue;
+            }
+            bookVolumeRepository.updateVolume(
+                    bookId,
+                    volume.id(),
+                    volume.isbn13(),
+                    volume.name(),
+                    volume.cover(),
+                    volume.price(),
+                    description,
+                    volume.purchased(),
+                    volume.noNeedToBuy(),
+                    volume.seq()
+            );
+            updated++;
+        }
+        return updated;
+    }
+
+    private BookInfoPatch resolveBookInfoPatch(Book book, List<BookVolume> volumes, Map<String, List<AladinItem>> searchCache) {
+        if (!isBlank(book.author()) && !isBlank(book.description())) {
+            return BookInfoPatch.empty();
+        }
+
+        AladinItem source = findFirstVolumeItem(volumes, searchCache);
+        if (source == null) {
+            source = findFirstUsefulItem(searchByQuery(book.name(), searchCache));
+        }
+        if (source == null) {
+            return BookInfoPatch.empty();
+        }
+        return new BookInfoPatch(
+                isBlank(book.author()) ? Texts.trimToNull(source.author()) : null,
+                isBlank(book.description()) ? Texts.trimToNull(source.description()) : null
+        );
+    }
+
+    private int applyBookInfoPatch(Book book, BookInfoPatch patch) {
+        if (!patch.hasChanges()) {
+            return 0;
+        }
+        bookDataRepository.updateBook(
+                book.id(),
+                book.name(),
+                firstNonBlank(book.author(), patch.author()),
+                firstNonBlank(book.description(), patch.description()),
+                book.cover(),
+                book.type(),
+                book.totalvolume()
+        );
+        return 1;
+    }
+
+    private AladinItem findFirstVolumeItem(List<BookVolume> volumes, Map<String, List<AladinItem>> searchCache) {
+        return volumes.stream()
+                .filter(volume -> volume.seq() == 1 || "1".equals(Texts.trimToNull(volume.volume())))
+                .sorted(Comparator.comparingInt(BookVolume::seq))
+                .map(volume -> findBestAladinItem(volume, searchCache))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseGet(() -> volumes.stream()
+                        .sorted(Comparator.comparingInt(BookVolume::seq))
+                        .map(volume -> findBestAladinItem(volume, searchCache))
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private AladinItem findBestAladinItem(BookVolume volume, Map<String, List<AladinItem>> searchCache) {
+        List<AladinItem> byName = searchByQuery(volume.name(), searchCache);
+        AladinItem isbnMatch = findByIsbn(byName, volume.isbn13());
+        if (isbnMatch != null) {
+            return isbnMatch;
+        }
+        AladinItem usefulNameMatch = findFirstUsefulItem(byName);
+        if (usefulNameMatch != null || isBlank(volume.isbn13())) {
+            return usefulNameMatch;
+        }
+        List<AladinItem> byIsbn = searchByQuery(volume.isbn13(), searchCache);
+        return firstNonNull(findByIsbn(byIsbn, volume.isbn13()), findFirstUsefulItem(byIsbn));
+    }
+
+    private List<AladinItem> searchByQuery(String query, Map<String, List<AladinItem>> searchCache) {
+        String normalizedQuery = Texts.trimToNull(query);
+        if (normalizedQuery == null) {
+            return List.of();
+        }
+        return searchCache.computeIfAbsent(normalizedQuery, key -> {
+            var result = aladinSearchService.searchBookItems(key, 1);
+            return result == null || result.items() == null ? List.of() : result.items();
+        });
+    }
+
+    private AladinItem findByIsbn(List<AladinItem> items, String isbn13) {
+        String normalizedIsbn = Texts.trimToNull(isbn13);
+        if (normalizedIsbn == null) {
+            return null;
+        }
+        return items.stream()
+                .filter(item -> normalizedIsbn.equals(Texts.trimToNull(item.isbn13())) || normalizedIsbn.equals(Texts.trimToNull(item.isbn())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private AladinItem findFirstUsefulItem(List<AladinItem> items) {
+        return items.stream()
+                .filter(item -> !isBlank(item.author()) || !isBlank(item.description()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean needsVolumeInfo(BookVolume volume) {
+        return volume != null && isBlank(volume.description());
+    }
+
+    private static String firstNonBlank(String current, String candidate) {
+        String normalizedCurrent = Texts.trimToNull(current);
+        return normalizedCurrent != null ? normalizedCurrent : Texts.trimToNull(candidate);
+    }
+
+    private static <T> T firstNonNull(T first, T second) {
+        return first != null ? first : second;
+    }
+
+    private static boolean isBlank(String value) {
+        return Texts.trimToNull(value) == null;
+    }
+
+    private record BookInfoPatch(String author, String description) {
+        static BookInfoPatch empty() {
+            return new BookInfoPatch(null, null);
+        }
+
+        boolean hasChanges() {
+            return author != null || description != null;
+        }
     }
 }
