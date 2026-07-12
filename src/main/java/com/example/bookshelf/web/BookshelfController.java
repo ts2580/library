@@ -14,11 +14,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
@@ -81,6 +83,25 @@ public class BookshelfController {
         return "redirect:/books";
     }
 
+    @GetMapping("/books/aladin-preview")
+    @ResponseBody
+    public ResponseEntity<BookCreatePreviewResponse> previewBookCreate(@RequestParam("name") String name) {
+        String normalizedName = Texts.trimToNull(name);
+        if (normalizedName == null) {
+            return ResponseEntity.badRequest().body(new BookCreatePreviewResponse(List.of(), 0, "책 제목을 입력해 주세요."));
+        }
+
+        var result = aladinSearchService.searchBookItems(normalizedName, 1);
+        List<AladinItem> items = result == null || result.items() == null ? List.of() : result.items();
+        Integer ownerId = currentOwnerId();
+        List<BookCreatePreviewItem> previewItems = items.stream()
+                .map(item -> toBookCreatePreviewItem(item, ownerId))
+                .toList();
+        int totalResults = result == null ? 0 : result.totalResults();
+        String message = previewItems.isEmpty() ? "알라딘 검색 결과가 없습니다. 책 정보만 추가할 수 있습니다." : null;
+        return ResponseEntity.ok(new BookCreatePreviewResponse(previewItems, totalResults, message));
+    }
+
     @PostMapping("/books")
     public String createBook(@RequestParam("name") String name,
                              @RequestParam(value = "author", required = false) String author,
@@ -88,57 +109,117 @@ public class BookshelfController {
                              @RequestParam(value = "cover", required = false) String cover,
                              @RequestParam(value = "type", required = false) String type,
                              @RequestParam(value = "totalvolume", required = false) String totalVolume,
+                             @RequestParam(value = "targetBookId", required = false) Integer targetBookId,
+                             @RequestParam(value = "selectedIsbn", required = false) List<String> selectedIsbns,
+                             @RequestParam(value = "sideStoryIsbn", required = false) List<String> sideStoryIsbns,
+                             @RequestParam(value = "selectionConfirmed", defaultValue = "false") boolean selectionConfirmed,
                              RedirectAttributes redirectAttributes) {
         if (name == null || name.isBlank()) {
             redirectAttributes.addFlashAttribute("error", "책 제목을 입력해 주세요.");
             return "redirect:/books";
         }
 
-        com.example.bookshelf.integration.aladin.AladinSearchResult aladinResult = aladinSearchService.searchBookItems(name, 1);
-        List<com.example.bookshelf.integration.aladin.AladinItem> items = aladinResult.items();
-        String primaryIsbn13 = resolvePrimaryIsbn13FromItems(items);
-
-        if (items != null && !items.isEmpty()) {
-            com.example.bookshelf.integration.aladin.AladinItem vol1 = items.stream()
-                    .filter(item -> item.title() != null && item.title().contains("1권"))
-                    .findFirst()
-                    .orElse(items.get(0));
-            if (cover == null || cover.isBlank()) {
-                cover = AladinCoverUtils.toCover500(vol1.cover());
-            } else {
-                cover = AladinCoverUtils.toCover500(cover);
-            }
-            if (description == null || description.isBlank()) description = vol1.description();
-            if (author == null || author.isBlank()) author = vol1.author();
+        Book targetBook = targetBookId == null ? null : findAccessibleBook(targetBookId);
+        if (targetBookId != null && targetBook == null) {
+            redirectAttributes.addFlashAttribute("error", "선택한 기존 책을 찾을 수 없습니다.");
+            return "redirect:/books";
         }
-        cover = AladinCoverUtils.toCover500(cover);
+
+        var aladinResult = aladinSearchService.searchBookItems(name, 1);
+        List<AladinItem> searchItems = aladinResult == null || aladinResult.items() == null ? List.of() : aladinResult.items();
+        Set<String> selectedKeys = selectedIsbns == null ? Set.of() : selectedIsbns.stream()
+                .map(Texts::trimToNull)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> sideStoryKeys = sideStoryIsbns == null ? Set.of() : sideStoryIsbns.stream()
+                .map(Texts::trimToNull)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<AladinItem> selectedItems = selectionConfirmed
+                ? searchItems.stream().filter(item -> selectedKeys.contains(resolveAladinItemKey(item))).toList()
+                : searchItems;
+
+        if (selectionConfirmed && !searchItems.isEmpty() && selectedItems.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "추가할 알라딘 항목을 하나 이상 선택해 주세요.");
+            return "redirect:/books";
+        }
 
         Integer ownerId = currentOwnerId();
-        int bookId = ownerId == null
-                ? bookDataRepository.insertBook(name, author, description, cover, type, totalVolume)
-                : bookDataRepository.insertBookForOwner(ownerId, name, author, description, cover, type, totalVolume);
-        String persistedBookCover = persistExternalCover(cover, resolveBookCoverCacheKey(bookId, primaryIsbn13));
-        if (persistedBookCover == null ? cover != null : !persistedBookCover.equals(cover)) {
-            bookDataRepository.updateBook(bookId, name, author, description, persistedBookCover, type, totalVolume);
-            cover = persistedBookCover;
+        List<AladinItem> items = selectedItems.stream()
+                .filter(item -> {
+                    String isbn = resolveAladinItemKey(item);
+                    return isbn != null && !isVolumeAlreadyOwned(ownerId, isbn);
+                })
+                .toList();
+        if (selectionConfirmed && !selectedItems.isEmpty() && items.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "선택한 알라딘 항목은 이미 등록되어 있습니다.");
+            return "redirect:/books";
         }
 
-        if (items != null) {
-            int seq = 1;
-            for (com.example.bookshelf.integration.aladin.AladinItem item : items) {
-                String isbn13 = item.isbn13();
-                if (isbn13 == null || isbn13.isBlank()) isbn13 = item.isbn();
-                boolean alreadyOwned = ownerId == null
-                        ? bookVolumeRepository.existsVolumeByIsbn13(isbn13)
-                        : bookVolumeRepository.existsVolumeByIsbn13ForOwner(ownerId, isbn13);
-                if (isbn13 != null && !isbn13.isBlank() && !alreadyOwned) {
-                    String itemCover = persistExternalCover(AladinCoverUtils.toCover500(item.cover()), isbn13);
-                    bookVolumeRepository.insertVolume(bookId, seq++, isbn13, item.title(), itemCover, item.priceSales(), item.description());
+        if (targetBook != null && items.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "기존 책에 추가할 알라딘 항목이 없습니다.");
+            return "redirect:/books/" + targetBook.id();
+        }
+        boolean hasNumberedItems = items.stream()
+                .map(BookshelfController::resolveAladinItemKey)
+                .anyMatch(isbn -> !sideStoryKeys.contains(isbn));
+
+        int bookId;
+        int seq;
+        if (targetBook == null) {
+            List<AladinItem> metadataItems = items.isEmpty() ? selectedItems : items;
+            String primaryIsbn13 = resolvePrimaryIsbn13FromItems(metadataItems);
+
+            if (!metadataItems.isEmpty()) {
+                AladinItem vol1 = metadataItems.stream()
+                        .filter(item -> item.title() != null && item.title().contains("1권"))
+                        .findFirst()
+                        .orElse(metadataItems.get(0));
+                if (cover == null || cover.isBlank()) {
+                    cover = AladinCoverUtils.toCover500(vol1.cover());
+                } else {
+                    cover = AladinCoverUtils.toCover500(cover);
                 }
+                if (description == null || description.isBlank()) description = vol1.description();
+                if (author == null || author.isBlank()) author = vol1.author();
             }
+            cover = AladinCoverUtils.toCover500(cover);
+
+            bookId = ownerId == null
+                    ? bookDataRepository.insertBook(name, author, description, cover, type, totalVolume)
+                    : bookDataRepository.insertBookForOwner(ownerId, name, author, description, cover, type, totalVolume);
+            String persistedBookCover = persistExternalCover(cover, resolveBookCoverCacheKey(bookId, primaryIsbn13));
+            if (persistedBookCover == null ? cover != null : !persistedBookCover.equals(cover)) {
+                bookDataRepository.updateBook(bookId, name, author, description, persistedBookCover, type, totalVolume);
+            }
+            seq = 1;
+        } else {
+            bookId = targetBook.id();
+            seq = hasNumberedItems ? bookVolumeRepository.nextVolumeSeq(bookId) : 0;
         }
 
-        redirectAttributes.addFlashAttribute("success", "책을 추가했습니다.");
+        for (AladinItem item : items) {
+            String isbn = resolveAladinItemKey(item);
+            String itemCover = persistExternalCover(AladinCoverUtils.toCover500(item.cover()), isbn);
+            boolean sideStory = sideStoryKeys.contains(isbn);
+            Integer volumeSeq = sideStory ? null : seq++;
+            bookVolumeRepository.insertVolume(bookId, volumeSeq, isbn, item.title(), itemCover, item.priceSales(), item.description());
+        }
+
+        if (targetBook != null) {
+            String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(bookId).size());
+            bookDataRepository.updateBook(
+                    bookId,
+                    targetBook.name(),
+                    targetBook.author(),
+                    targetBook.description(),
+                    targetBook.cover(),
+                    targetBook.type(),
+                    calculatedTotalVolume
+            );
+        }
+
+        redirectAttributes.addFlashAttribute("success", targetBook == null ? "책을 추가했습니다." : "기존 책에 선택한 항목을 추가했습니다.");
         return "redirect:/books/" + bookId;
     }
 
@@ -296,6 +377,37 @@ public class BookshelfController {
 
     private Integer currentOwnerId() {
         return authSessionHelper == null ? null : authSessionHelper.getMemberId(null);
+    }
+
+    private BookCreatePreviewItem toBookCreatePreviewItem(AladinItem item, Integer ownerId) {
+        String selectionKey = resolveAladinItemKey(item);
+        boolean exists = selectionKey != null && isVolumeAlreadyOwned(ownerId, selectionKey);
+        return new BookCreatePreviewItem(
+                item.title(),
+                item.author(),
+                AladinCoverUtils.toCover500(item.cover()),
+                item.isbn13(),
+                item.isbn(),
+                item.priceSales(),
+                item.priceStandard(),
+                selectionKey,
+                exists,
+                selectionKey != null && !exists
+        );
+    }
+
+    private boolean isVolumeAlreadyOwned(Integer ownerId, String isbn) {
+        return ownerId == null
+                ? bookVolumeRepository.existsVolumeByIsbn13(isbn)
+                : bookVolumeRepository.existsVolumeByIsbn13ForOwner(ownerId, isbn);
+    }
+
+    private static String resolveAladinItemKey(AladinItem item) {
+        if (item == null) {
+            return null;
+        }
+        String isbn13 = Texts.trimToNull(item.isbn13());
+        return isbn13 != null ? isbn13 : Texts.trimToNull(item.isbn());
     }
 
     private Book findAccessibleBook(int bookId) {
@@ -490,5 +602,26 @@ public class BookshelfController {
         boolean hasChanges() {
             return author != null || description != null;
         }
+    }
+
+    public record BookCreatePreviewResponse(
+            List<BookCreatePreviewItem> items,
+            int totalResults,
+            String message
+    ) {
+    }
+
+    public record BookCreatePreviewItem(
+            String title,
+            String author,
+            String cover,
+            String isbn13,
+            String isbn,
+            String priceSales,
+            String priceStandard,
+            String selectionKey,
+            boolean exists,
+            boolean selectable
+    ) {
     }
 }
