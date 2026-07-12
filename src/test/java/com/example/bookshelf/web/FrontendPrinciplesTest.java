@@ -56,6 +56,54 @@ class FrontendPrinciplesTest {
     }
 
     @Test
+    void manualBookCreatePreviewsAladinCardsAndSubmitsOnlySelections() throws IOException {
+        String bookList = read("src/main/resources/templates/book_list.html");
+        String script = read("src/main/resources/static/js/book-list.js");
+        String css = read("src/main/resources/static/css/bookshelf.css");
+        String controller = read("src/main/java/com/example/bookshelf/web/BookshelfController.java");
+
+        assertThat(bookList)
+                .contains("id=\"bookCreatePreview\"")
+                .contains("id=\"bookCreatePreviewCards\"")
+                .contains("id=\"bookCreateSelectAll\"")
+                .contains("id=\"bookCreateExcludeAll\"")
+                .contains("name=\"selectionConfirmed\"")
+                .contains("id=\"bookCreateTargetSearch\"")
+                .contains("name=\"targetBookId\"")
+                .contains(">전체 선택<")
+                .contains("추가 예정 확인")
+                .doesNotContain("id=\"bookCreateSideStory\"");
+        assertThat(script)
+                .contains("/books/aladin-preview?name=")
+                .contains("name=\"selectedIsbn\"")
+                .contains("name=\"sideStoryIsbn\"")
+                .contains("data-book-create-preview-card")
+                .contains("data-book-create-exclude")
+                .contains("data-book-create-side-story")
+                .contains("bookshelf-book-create-preview-options")
+                .contains("추가 예정")
+                .contains("제외됨")
+                .contains("/products/books/autocomplete?q=")
+                .contains("typeInput.readOnly = true;")
+                .contains("selectedTargetBook.nextVolume")
+                .contains("sideStoryCheckbox?.checked === true")
+                .contains("selectionInput.disabled = !included");
+        assertThat(css)
+                .contains(".bookshelf-book-create-preview-grid")
+                .contains(".bookshelf-book-create-preview-card.is-excluded")
+                .contains(".bookshelf-book-create-preview-options");
+        assertThat(controller)
+                .contains("@GetMapping(\"/books/aladin-preview\")")
+                .contains("@RequestParam(value = \"targetBookId\", required = false)")
+                .contains("@RequestParam(value = \"selectedIsbn\", required = false)")
+                .contains("@RequestParam(value = \"sideStoryIsbn\", required = false)")
+                .contains("selectedKeys.contains(resolveAladinItemKey(item))")
+                .contains("boolean sideStory = sideStoryKeys.contains(isbn);")
+                .contains("bookVolumeRepository.nextVolumeSeq(bookId)")
+                .contains("Integer volumeSeq = sideStory ? null : seq++;");
+    }
+
+    @Test
     void profilePageSeparatesIdentityAndSettingsAndSupportsInputAssistance() throws IOException {
         String profile = read("src/main/resources/templates/user_profile.html");
         String script = read("src/main/resources/static/js/user-profile.js");
