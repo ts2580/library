@@ -106,7 +106,7 @@ public class ProductService {
         String keyIsbn = resolveKeyIsbn(command.isbn13(), command.isbn());
         String normalizedType = Texts.trimToNull(command.type());
         String normalizedTotalVolume = Texts.trimToNull(command.totalVolume());
-        Integer requestedVolume = normalizeRequestedVolume(command.volume());
+        Integer requestedVolume = command.sideStory() ? null : normalizeRequestedVolume(command.volume());
 
         if (keyIsbn == null || keyIsbn.isEmpty()) {
             return ProductImportResult.error("ISBN13이 없는 항목은 중복 체크가 어려워 임시 등록이 제한됩니다.");
@@ -124,7 +124,8 @@ public class ProductService {
                 }
                 BookTarget target = resolveBookTarget(command, normalizedTitle, normalizedAuthor, normalizedType, normalizedTotalVolume, requestedVolume, localCoverUrl);
                 if (!target.success()) return PersistedImport.failure(target.message());
-                int bookVolumeId = saveVolume(target.bookId(), target.seq(), keyIsbn, normalizedTitle, localCoverUrl, command.price(), command.description());
+                Integer storedSeq = command.sideStory() ? null : target.seq();
+                int bookVolumeId = saveVolume(target.bookId(), storedSeq, keyIsbn, normalizedTitle, localCoverUrl, command.price(), command.description());
                 return PersistedImport.success(bookVolumeId, target.bookId(), target.seq());
             });
             if (!persisted.success()) return ProductImportResult.error(persisted.message());
@@ -161,7 +162,7 @@ public class ProductService {
             if (book == null) {
                 return BookTarget.failure("선택한 Book를 찾을 수 없습니다. 새 Book로 등록해 주세요.");
             }
-            int seq = requestedVolume != null ? requestedVolume : bookVolumeRepository.nextVolumeSeq(book.id());
+            int seq = command.sideStory() ? 0 : (requestedVolume != null ? requestedVolume : bookVolumeRepository.nextVolumeSeq(book.id()));
             if (normalizedType != null || normalizedTotalVolume != null) {
                 bookDataRepository.updateBook(
                         book.id(),
@@ -186,11 +187,11 @@ public class ProductService {
         int bookId = command.ownerMemberId() == null
                 ? bookDataRepository.insertBook(normalizedTitle, normalizedAuthor, Texts.trimToNull(command.description()), localCoverUrl, normalizedType, normalizedTotalVolume)
                 : bookDataRepository.insertBookForOwner(command.ownerMemberId(), normalizedTitle, normalizedAuthor, Texts.trimToNull(command.description()), localCoverUrl, normalizedType, normalizedTotalVolume);
-        int seq = requestedVolume != null ? requestedVolume : 1;
+        int seq = command.sideStory() ? 0 : (requestedVolume != null ? requestedVolume : 1);
         return BookTarget.success(bookId, seq);
     }
 
-    private int saveVolume(int bookId, int seq, String keyIsbn, String normalizedTitle, String cover, String price, String description) {
+    private int saveVolume(int bookId, Integer seq, String keyIsbn, String normalizedTitle, String cover, String price, String description) {
         return bookVolumeRepository.insertVolume(bookId, seq, keyIsbn, normalizedTitle, cover, Texts.trimToNull(price), Texts.trimToNull(description));
     }
 
@@ -472,6 +473,7 @@ public class ProductService {
             String description,
             Integer targetBookId,
             Integer volume,
+            boolean sideStory,
             String type,
             String totalVolume,
             Integer ownerMemberId
@@ -487,7 +489,7 @@ public class ProductService {
                                     Integer volume,
                                     String type,
                                     String totalVolume) {
-            this(title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume, null);
+            this(title, author, cover, isbn13, isbn, price, description, targetBookId, volume, false, type, totalVolume, null);
         }
     }
 

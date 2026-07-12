@@ -1,4 +1,50 @@
 (() => {
+  const showToast = (message, kind = 'success') => {
+    if (!message) return;
+    let host = document.getElementById('bookshelf-toast-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'bookshelf-toast-host';
+      host.className = 'bookshelf-toast-host';
+      document.body.appendChild(host);
+    }
+    const toast = document.createElement('div');
+    toast.className = `bookshelf-toast ${kind === 'error' ? 'bookshelf-toast-error' : 'bookshelf-toast-success'}`;
+    toast.textContent = message;
+    host.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 240);
+    }, 2600);
+  };
+
+  const markProductAsOwned = (cardRoot) => {
+    if (!cardRoot) return;
+    const chips = cardRoot.querySelector('[data-product-status-chips]');
+    if (chips && !chips.querySelector('[data-product-owned-chip]')) {
+      const chip = document.createElement('span');
+      chip.className = 'bookshelf-chip bg-indigo-100 text-indigo-700 font-medium';
+      chip.dataset.productOwnedChip = '';
+      chip.textContent = '등록됨';
+      chips.prepend(chip);
+    }
+
+    const importPanel = cardRoot.querySelector('[data-product-import-panel]');
+    if (importPanel) {
+      const ownedState = document.createElement('div');
+      ownedState.className = 'mt-3';
+      ownedState.dataset.productOwnedState = '';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'bookshelf-btn-ghost w-full bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs';
+      button.disabled = true;
+      button.textContent = '등록됨';
+      ownedState.appendChild(button);
+      importPanel.replaceWith(ownedState);
+    }
+  };
+
   const forms = document.querySelectorAll('.product-import-form');
   forms.forEach((form) => {
     const input = form.querySelector('.target-book-search');
@@ -6,10 +52,13 @@
     const results = form.querySelector('.target-book-results');
     if (!input || !hidden || !results) return;
     const cardRoot = form.closest('.bookshelf-card');
+    const volumeInput = form.querySelector('[data-product-volume]');
+    const sideStoryInput = form.querySelector('[data-product-side-story]');
 
     let timer = null;
     let items = [];
     let highlightedIndex = -1;
+    let previousVolume = volumeInput?.value || '';
     let listboxId = results.id;
     if (!listboxId) {
       listboxId = `target-book-results-${Math.random().toString(36).slice(2, 10)}`;
@@ -83,9 +132,11 @@
         typeInput.value = item.type || '';
       }
       
-      const volumeInput = form.querySelector('input[name="volume"]');
-      if (volumeInput && item.nextVolume) {
-        volumeInput.value = item.nextVolume;
+      if (volumeInput) {
+        previousVolume = item.nextVolume ? String(item.nextVolume) : '';
+        if (sideStoryInput?.checked !== true) {
+          volumeInput.value = previousVolume;
+        }
       }
       
       hide();
@@ -197,15 +248,66 @@
       }
     });
 
-    form.addEventListener('submit', (e) => {
+    const syncSideStoryState = () => {
+      if (!volumeInput) return;
+      const sideStory = sideStoryInput?.checked === true;
+      if (sideStory && volumeInput.value) {
+        previousVolume = volumeInput.value;
+      }
+      volumeInput.disabled = sideStory;
+      volumeInput.placeholder = sideStory ? '외전은 권 번호 없음' : '번호';
+      if (sideStory) {
+        volumeInput.value = '';
+      } else if (!volumeInput.value && previousVolume) {
+        volumeInput.value = previousVolume;
+      }
+    };
+
+    volumeInput?.addEventListener('input', () => {
+      if (sideStoryInput?.checked !== true) previousVolume = volumeInput.value;
+    });
+    sideStoryInput?.addEventListener('change', syncSideStoryState);
+    syncSideStoryState();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
       const submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) {
-        if (submitBtn.disabled) {
-          e.preventDefault();
-          return;
+      if (!submitBtn || submitBtn.disabled) return;
+
+      const originalLabel = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = '저장 중...';
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error(response.redirected ? '로그인 상태를 확인해 주세요.' : '상품 등록 응답을 확인할 수 없습니다.');
         }
-        submitBtn.disabled = true;
-        submitBtn.textContent = '저장 중...';
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || '상품 등록에 실패했습니다.');
+        }
+        showToast(result.message, result.success ? 'success' : 'error');
+        if (result.success) {
+          markProductAsOwned(cardRoot);
+        }
+      } catch (error) {
+        showToast(error.message || '상품 등록 중 오류가 발생했습니다.', 'error');
+      } finally {
+        window.__sparkProgress?.hide?.(80);
+        if (submitBtn.isConnected) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalLabel;
+        }
       }
     });
   });

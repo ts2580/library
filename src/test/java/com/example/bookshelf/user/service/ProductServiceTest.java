@@ -81,6 +81,42 @@ class ProductServiceTest {
     }
 
     @Test
+    void importProduct_sideStoryStoresNullInsteadOfSubmittedVolume() {
+        var sideStoryCommand = new ProductService.ProductImportCommand(
+                "테스트 책 외전", "테스터", "cover-url", "9781234567891", null,
+                "10000", "외전 설명", null, 99, true, null, null, null
+        );
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781234567891")).thenReturn(false);
+        when(bookDataRepository.findBookIdByNameAndAuthor("테스트 책 외전", "테스터")).thenReturn(null);
+        when(bookDataRepository.insertBook("테스트 책 외전", "테스터", "외전 설명", "cover-url", null, null)).thenReturn(11);
+        when(aladinUsedStockService.lookupUsedStocksByIsbn13("9781234567891")).thenReturn(
+                AladinUsedStockService.StockLookupResult.success(List.of()));
+
+        var result = productService.importProduct(sideStoryCommand);
+
+        assertThat(result.success()).isTrue();
+        verify(bookVolumeRepository).insertVolume(11, null, "9781234567891", "테스트 책 외전", "cover-url", "10000", "외전 설명");
+    }
+
+    @Test
+    void importProduct_sideStoryForExistingBookDoesNotAllocateNextVolume() {
+        var sideStoryCommand = new ProductService.ProductImportCommand(
+                "기존 책 외전", "테스터", "cover-url", "9781234567892", null,
+                "10000", "외전 설명", 7, null, true, null, null, null
+        );
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781234567892")).thenReturn(false);
+        when(bookDataRepository.findBookById(7)).thenReturn(new Book(7, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
+        when(aladinUsedStockService.lookupUsedStocksByIsbn13("9781234567892")).thenReturn(
+                AladinUsedStockService.StockLookupResult.success(List.of()));
+
+        var result = productService.importProduct(sideStoryCommand);
+
+        assertThat(result.success()).isTrue();
+        verify(bookVolumeRepository, never()).nextVolumeSeq(7);
+        verify(bookVolumeRepository).insertVolume(7, null, "9781234567892", "기존 책 외전", "cover-url", "10000", "외전 설명");
+    }
+
+    @Test
     void importProduct_stillSucceeds_whenImportedStockLookupFails() {
         when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
         when(bookDataRepository.findBookIdByNameAndAuthor("테스트 책", "테스터")).thenReturn(null);

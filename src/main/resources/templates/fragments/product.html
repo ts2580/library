@@ -26,7 +26,7 @@
   </div>
 
   <div th:if="${not #lists.isEmpty(aladinResults)}" class="bookshelf-card-list grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-    <article th:each="item : ${aladinResults}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4 flex flex-col justify-between">
+    <article th:each="item : ${aladinResults}" class="bookshelf-card bookshelf-hover-lift group bookshelf-pad-card-sm sm:bookshelf-p-4 flex flex-col justify-between" data-product-card>
       <div>
         <div class="bookshelf-cover-hover bookshelf-card-cover-wide relative w-full overflow-hidden rounded-[18px] bg-slate-100">
           <img th:if="${item.cover != null and !#strings.isEmpty(item.cover)}" th:src="${item.cover}" class="h-full w-full object-cover" alt="cover" loading="lazy" decoding="async">
@@ -35,8 +35,8 @@
         <div class="bookshelf-mt-3 sm:bookshelf-mt-4 bookshelf-space-y-1-5">
           <h2 class="line-clamp-2 bookshelf-title-base" th:text="${item.title}"></h2>
           <p class="bookshelf-subtitle-sm line-clamp-1" th:text="${item.author}"></p>
-          <div class="flex flex-wrap items-center gap-1 mt-1 text-[10px] sm:text-xs">
-            <span th:if="${item.exists}" class="bookshelf-chip bg-indigo-100 text-indigo-700 font-medium" th:text="'등록됨'"></span>
+          <div class="flex flex-wrap items-center gap-1 mt-1 text-[10px] sm:text-xs" data-product-status-chips>
+            <span th:if="${item.exists}" class="bookshelf-chip bg-indigo-100 text-indigo-700 font-medium" data-product-owned-chip th:text="'등록됨'"></span>
             <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'정가 ' + (item.priceStandard ?: '-')} "></span>
             <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'판매가 ' + (item.priceSales ?: '-')} "></span>
             <span class="bookshelf-chip bookshelf-chip-tag" th:text="${'ISBN13 ' + (item.isbn13 ?: '-')} "></span>
@@ -44,14 +44,14 @@
         </div>
       </div>
 
-      <div th:if="${item.exists}" class="mt-3">
+      <div th:if="${item.exists}" class="mt-3" data-product-owned-state>
         <button type="button" class="bookshelf-btn-ghost w-full bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs" disabled>등록됨</button>
       </div>
 
-      <details th:unless="${item.exists}" class="bookshelf-mt-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 sm:p-4">
+      <details th:unless="${item.exists}" class="bookshelf-mt-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 sm:p-4" data-product-import-panel>
         <summary class="cursor-pointer text-sm font-semibold text-slate-700">등록하기</summary>
         <div class="bookshelf-mt-2">
-          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col gap-3">
+          <form action="/products/import" method="post" class="product-import-form flex w-full flex-col gap-3" data-top-progress-ignore>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="title" th:value="${item.title}">
             <input type="hidden" name="author" th:value="${item.author}">
@@ -75,13 +75,17 @@
             <div class="flex flex-col gap-2 sm:flex-row">
               <label class="flex w-full flex-col sm:w-1/2">
                 <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">권 번호</span>
-                <input type="number" name="volume" min="1" placeholder="번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs">
+                <input type="number" name="volume" min="1" placeholder="번호" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs" data-product-volume>
               </label>
               <label class="flex w-full flex-col sm:w-1/2">
                 <span class="bookshelf-mb-1 bookshelf-form-label text-[11px]">카테고리</span>
                 <input type="text" name="type" list="product-book-type-options" placeholder="선택" class="bookshelf-input bookshelf-px-3 bookshelf-py-2 text-xs" aria-label="카테고리">
               </label>
             </div>
+            <label class="bookshelf-dialog-check bookshelf-form-label text-xs">
+              <input type="checkbox" name="sideStory" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" data-product-side-story>
+              외전
+            </label>
             <button type="submit" class="bookshelf-btn w-full bookshelf-px-4 bookshelf-py-2 text-xs font-semibold">저장</button>
           </form>
         </div>
