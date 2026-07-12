@@ -152,7 +152,7 @@ public class BookVolumeRepository {
                 SELECT id, volume AS seq, book, isbn13, name, cover, price, description, ispurchased, COALESCE(noneedtobuy, FALSE) AS noneedtobuy, volume
                 FROM book_volumes
                 WHERE book = ?
-                ORDER BY volume ASC, id ASC
+                ORDER BY CASE WHEN volume IS NULL THEN 1 ELSE 0 END, volume ASC, id ASC
                 """;
         return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, bookId);
     }
@@ -172,7 +172,7 @@ public class BookVolumeRepository {
         return seq == null ? 1 : seq;
     }
 
-    public int insertVolume(int bookId, int seq, String isbn13, String name, String cover, String price, String description) {
+    public int insertVolume(int bookId, Integer seq, String isbn13, String name, String cover, String price, String description) {
         String sql = """
                 INSERT INTO book_volumes (book, isbn13, name, cover, price, description, ispurchased, volume, createddate)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -187,7 +187,7 @@ public class BookVolumeRepository {
             ps.setString(5, Texts.trimToNull(price));
             ps.setString(6, Texts.trimToNull(description));
             ps.setBoolean(7, false);
-            ps.setInt(8, seq);
+            ps.setObject(8, seq);
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();

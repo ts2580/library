@@ -189,14 +189,20 @@ public class BookshelfController {
                                @RequestParam(value = "description", required = false) String description,
                                @RequestParam(value = "purchased", defaultValue = "false") boolean purchased,
                                @RequestParam(value = "noNeedToBuy", defaultValue = "false") boolean noNeedToBuy,
+                               @RequestParam(value = "sideStory", defaultValue = "false") boolean sideStory,
                                @RequestParam(value = "seq", required = false) Integer seq,
                                @RequestParam(value = "type", required = false) String type,
                                RedirectAttributes redirectAttributes) {
         var book = findAccessibleBook(id);
         if (book == null) return "redirect:/books";
 
+        if (!sideStory && (seq == null || seq < 1)) {
+            redirectAttributes.addFlashAttribute("error", "권 번호를 1 이상 입력하거나 외전을 선택해 주세요.");
+            return "redirect:/books/" + id;
+        }
+
         cover = persistExternalCover(cover, normalizeVolumeCoverKey(volumeId, isbn13));
-        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, noNeedToBuy, seq);
+        bookVolumeRepository.updateVolume(id, volumeId, isbn13, name, cover, price, description, purchased, noNeedToBuy, sideStory ? null : seq);
         if (type != null && !type.trim().isEmpty()) {
             String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(id).size());
             bookDataRepository.updateBook(id, book.name(), book.author(), book.description(), book.cover(), type, calculatedTotalVolume);
@@ -360,7 +366,7 @@ public class BookshelfController {
                     description,
                     volume.purchased(),
                     volume.noNeedToBuy(),
-                    volume.seq()
+                    volume.nullableSeq()
             );
             updated++;
         }

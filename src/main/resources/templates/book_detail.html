@@ -62,7 +62,7 @@
           <div th:if="${not #lists.isEmpty(volumes)}" class="bookshelf-card-list sm:grid sm:grid-cols-2 xl:grid-cols-3">
             <article th:each="v : ${volumes}"
                  class="bookshelf-panel bookshelf-hover-lift bookshelf-pad-card-sm sm:bookshelf-p-4 relative"
-                 th:attr="data-volume-id=${v.id},data-volume-seq=${v.seq},data-volume-name=${v.name},data-volume-isbn13=${v.isbn13},data-volume-cover=${v.cover},data-volume-price=${v.price},data-volume-description=${v.description},data-volume-purchased=${v.purchased},data-volume-no-need-to-buy=${v.noNeedToBuy},data-volume-type=${book.type}"
+                 th:attr="data-volume-id=${v.id},data-volume-seq=${v.seq},data-volume-side-story=${v.sideStory()},data-volume-name=${v.name},data-volume-isbn13=${v.isbn13},data-volume-cover=${v.cover},data-volume-price=${v.price},data-volume-description=${v.description},data-volume-purchased=${v.purchased},data-volume-no-need-to-buy=${v.noNeedToBuy},data-volume-type=${book.type}"
                  data-volume-card>
               <label class="volume-select-label" style="position:absolute;left:10px;top:10px;z-index:2;background:rgba(255,255,255,.85);border:1px solid var(--bk-border);border-radius:9999px;padding:2px 4px;">
                 <input type="checkbox" class="volume-select" form="deleteVolumesForm" aria-label="권 선택"/>
@@ -75,7 +75,7 @@
               </div>
               <h3 class="bookshelf-mt-4 line-clamp-2 bookshelf-title-sm" th:text="${v.name}"></h3>
               <div class="bookshelf-mt-2 bookshelf-space-y-1 bookshelf-subtitle-xs">
-                <p th:text="${'권: ' + v.seq}"></p>
+                <p th:text="${v.sideStory() ? '구분: 외전' : '권: ' + v.seq}"></p>
                 <p th:text="${v.price != null ? '가격: ' + v.price : '가격: -'}"></p>
                 <p th:text="${v.noNeedToBuy ? '살 필요 없음' : (v.purchased ? '구매완료' : '미구매')}"></p>
               </div>
@@ -91,7 +91,7 @@
     </main>
   </div>
 </div>
-<script src="/js/book-detail.js?v=2.0" defer></script>
+<script src="/js/book-detail.js?v=2.1" defer></script>
 <script src="/js/cover-preview.js" defer></script>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>

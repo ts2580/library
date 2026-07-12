@@ -41,7 +41,8 @@ class BookVolumeRepositoryTest {
                     price TEXT,
                     description TEXT,
                     ispurchased INTEGER,
-                    noneedtobuy INTEGER
+                    noneedtobuy INTEGER,
+                    createddate TEXT
                 )
                 """);
         jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?, ?)", 1, 1, 10, "9781111111111", "조회 대상", false, false);
@@ -54,6 +55,40 @@ class BookVolumeRepositoryTest {
         assertThat(repository.findUnpurchasedVolumesAfterId(0, 100))
                 .extracting(volume -> volume.isbn13())
                 .containsExactly("9781111111111");
+    }
+
+    @Test
+    void updateVolume_sideStoryStoresNullSequenceAndSortsAfterNumberedVolumes() {
+        SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.execute("""
+                CREATE TABLE book_volumes (
+                    id INTEGER PRIMARY KEY,
+                    volume INTEGER,
+                    book INTEGER,
+                    isbn13 TEXT,
+                    name TEXT,
+                    cover TEXT,
+                    price TEXT,
+                    description TEXT,
+                    ispurchased INTEGER,
+                    noneedtobuy INTEGER,
+                    createddate TEXT
+                )
+                """);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?)", 1, 1, 10, "외전", false, false);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, name, ispurchased, noneedtobuy) VALUES (?, ?, ?, ?, ?, ?)", 2, 2, 10, "2권", false, false);
+        BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
+
+        repository.updateVolume(10, 1, null, "외전", null, null, null, false, false, null);
+        repository.insertVolume(10, null, "9783333333333", "새 외전", null, null, null);
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE volume IS NULL", Integer.class)).isEqualTo(2);
+        assertThat(repository.findVolumesByBookId(10))
+                .extracting(volume -> volume.name())
+                .containsExactly("2권", "외전", "새 외전");
+        assertThat(repository.findVolumesByBookId(10).get(1).sideStory()).isTrue();
+        assertThat(repository.findVolumesByBookId(10).get(1).nullableSeq()).isNull();
     }
 
     @Test

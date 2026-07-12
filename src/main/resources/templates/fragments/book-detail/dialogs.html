@@ -43,7 +43,7 @@
         <div class="bookshelf-dialog-fields">
           <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
           <div class="bookshelf-dialog-row">
-            <div><label for="volumeEditSeq" class="bookshelf-mb-1 block bookshelf-detail-label">권 번호</label><input id="volumeEditSeq" name="seq" type="number" min="1" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+            <div><label for="volumeEditSeq" class="bookshelf-mb-1 block bookshelf-detail-label">권 번호</label><input id="volumeEditSeq" name="seq" type="number" min="1" required class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
             <div><label for="volumeEditType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="volumeEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           </div>
           <div><label for="volumeEditName" class="bookshelf-mb-1 block bookshelf-detail-label">권 제목</label><input id="volumeEditName" name="name" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
@@ -54,6 +54,7 @@
           <div><label for="volumeEditCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="volumeEditCover" name="cover" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           <div><label for="volumeEditDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="volumeEditDescription" name="description" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3" rows="3" placeholder="설명"></textarea></div>
           <div class="bookshelf-dialog-checks">
+            <label class="bookshelf-dialog-check bookshelf-detail-label"><input id="volumeEditSideStory" name="sideStory" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">외전</label>
             <label class="bookshelf-dialog-check bookshelf-detail-label"><input id="volumeEditPurchased" name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료로 표시</label>
             <label class="bookshelf-dialog-check bookshelf-detail-label"><input id="volumeEditNoNeedToBuy" name="noNeedToBuy" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">살 필요 없음</label>
           </div>

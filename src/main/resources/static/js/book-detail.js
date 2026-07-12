@@ -168,6 +168,7 @@
     syncDatasetFromSource(card, nextCard, [
       'volumeId',
       'volumeSeq',
+      'volumeSideStory',
       'volumeName',
       'volumeIsbn13',
       'volumePrice',
@@ -336,11 +337,12 @@
     const priceInput = document.getElementById('volumeEditPrice');
     const coverInput = document.getElementById('volumeEditCover');
     const descriptionInput = document.getElementById('volumeEditDescription');
+    const sideStoryInput = document.getElementById('volumeEditSideStory');
     const purchasedInput = document.getElementById('volumeEditPurchased');
     const noNeedToBuyInput = document.getElementById('volumeEditNoNeedToBuy');
     const mediaQueryMobile = window.matchMedia('(max-width: 640px)');
 
-    function applyMobileVolumeEditTitle(seq) {
+    function applyMobileVolumeEditTitle(seq, sideStory) {
       const isMobile = mediaQueryMobile.matches;
       if (volumeEditTitle) volumeEditTitle.textContent = isMobile ? '책 정보 수정' : '권 세부 내역 수정';
       if (subtitle) {
@@ -348,9 +350,19 @@
         if (isMobile) {
           subtitle.textContent = '';
         } else {
-          subtitle.textContent = `${seq || ''}권 세부 내역을 수정합니다.`;
+          subtitle.textContent = sideStory ? '외전 세부 내역을 수정합니다.' : `${seq || ''}권 세부 내역을 수정합니다.`;
         }
       }
+    }
+
+    function syncSideStoryState() {
+      const sideStory = sideStoryInput?.checked === true;
+      if (!seqInput) return;
+      seqInput.disabled = sideStory;
+      seqInput.required = !sideStory;
+      seqInput.placeholder = sideStory ? '외전은 권 번호 없음' : '';
+      if (sideStory) seqInput.value = '';
+      applyMobileVolumeEditTitle(seqInput.value, sideStory);
     }
 
     document.querySelectorAll('[data-volume-card]').forEach((card) => {
@@ -364,9 +376,11 @@
 
       const openDialog = () => {
         if (isNavigatingAfterSubmit) return;
+        const sideStory = card.dataset.volumeSideStory === 'true';
         volumeForm.action = `/books/${bookId}/volumes/${card.dataset.volumeId}`;
-        applyMobileVolumeEditTitle(card.dataset.volumeSeq || '');
-        seqInput.value = card.dataset.volumeSeq || '';
+        sideStoryInput.checked = sideStory;
+        seqInput.value = sideStory ? '' : (card.dataset.volumeSeq || '');
+        syncSideStoryState();
         typeInput.value = card.dataset.volumeType || '';
         nameInput.value = card.dataset.volumeName || '';
         isbnInput.value = card.dataset.volumeIsbn13 || '';
@@ -396,11 +410,12 @@
 
     coverInput?.addEventListener('input', () => { preview.src = coverInput.value || fallbackCover; });
     preview?.addEventListener('error', () => { preview.src = fallbackCover; });
+    sideStoryInput?.addEventListener('change', syncSideStoryState);
     document.getElementById('volumeEditClose')?.addEventListener('click', () => closeDialog(volumeDialog));
     document.getElementById('volumeEditCancel')?.addEventListener('click', () => closeDialog(volumeDialog));
     mediaQueryMobile.addEventListener('change', () => {
       if (volumeDialog && volumeDialog.open) {
-        applyMobileVolumeEditTitle(seqInput.value || '');
+        applyMobileVolumeEditTitle(seqInput.value || '', sideStoryInput?.checked === true);
       }
     });
     syncDeleteButton();

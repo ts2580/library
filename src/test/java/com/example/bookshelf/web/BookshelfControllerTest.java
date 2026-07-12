@@ -145,10 +145,46 @@ class BookshelfControllerTest {
         String cover500 = "https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg";
         when(productService.persistCoverImage(cover500, "9781234567890")).thenReturn(cover500);
 
-        String view = controller.updateVolume(3, 7, "9781234567890", "책1", cover200, "10000", "설명", false, true, 1, null, redirectAttributes);
+        String view = controller.updateVolume(3, 7, "9781234567890", "책1", cover200, "10000", "설명", false, true, false, 1, null, redirectAttributes);
 
         assertThat(view).isEqualTo("redirect:/books/3");
         verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "책1", cover500, "10000", "설명", false, true, 1);
+    }
+
+    @Test
+    void updateVolume_sideStoryIgnoresSubmittedSequence() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(bookDataRepository.findBookById(3)).thenReturn(new Book(3, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
+
+        String view = controller.updateVolume(3, 7, "9781234567890", "외전", "cover", "10000", "설명", false, false, true, 99, null, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        verify(bookVolumeRepository).updateVolume(3, 7, "9781234567890", "외전", "cover", "10000", "설명", false, false, null);
+    }
+
+    @Test
+    void updateVolume_numberedVolumeRequiresPositiveSequence() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(bookDataRepository.findBookById(3)).thenReturn(new Book(3, "기존 책", "기존 저자", "기존 설명", "10", "소설", "old-cover", null, null));
+
+        String view = controller.updateVolume(3, 7, "9781234567890", "일반 권", "cover", "10000", "설명", false, false, false, null, null, redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("권 번호를 1 이상 입력하거나 외전을 선택해 주세요.");
+        verify(bookVolumeRepository, never()).updateVolume(
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test

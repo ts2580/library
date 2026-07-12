@@ -83,10 +83,14 @@ class FrontendPrinciplesTest {
         assertThat(dialogs)
                 .contains("id=\"bookEditDialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"bookEditTitle\"")
                 .contains("id=\"volumeEditDialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"volumeEditTitle\"")
-                .contains("id=\"bookEditTotalVolume\" name=\"totalvolume\" type=\"text\" readonly");
+                .contains("id=\"bookEditTotalVolume\" name=\"totalvolume\" type=\"text\" readonly")
+                .contains("id=\"volumeEditSeq\" name=\"seq\" type=\"number\" min=\"1\" required")
+                .contains("id=\"volumeEditSideStory\" name=\"sideStory\" type=\"checkbox\"");
         assertThat(script)
                 .doesNotContain("document.getElementById('bookEditName')?.focus();")
-                .doesNotContain("seqInput.focus();");
+                .doesNotContain("seqInput.focus();")
+                .contains("seqInput.disabled = sideStory;")
+                .contains("if (sideStory) seqInput.value = '';");
     }
 
     @Test
