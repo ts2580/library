@@ -34,6 +34,10 @@
         return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
     }
 
+    function ignoresTopProgress(target) {
+        return Boolean(target?.closest?.('[data-top-progress-ignore]'));
+    }
+
     window.__sparkProgress = { show, hide };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -42,7 +46,7 @@
 
         document.addEventListener('click', (event) => {
             const target = event.target.closest('a, button[type="submit"], input[type="submit"]');
-            if (!target || isModifiedEvent(event)) {
+            if (!target || isModifiedEvent(event) || ignoresTopProgress(target)) {
                 return;
             }
             if (target.tagName === 'A') {
@@ -56,7 +60,7 @@
         }, true);
 
         document.addEventListener('submit', (event) => {
-            if (!event.defaultPrevented) {
+            if (!event.defaultPrevented && !ignoresTopProgress(event.target)) {
                 show();
             }
         }, true);

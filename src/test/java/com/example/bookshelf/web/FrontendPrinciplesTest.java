@@ -56,6 +56,39 @@ class FrontendPrinciplesTest {
     }
 
     @Test
+    void productImportUpdatesTheCardWithoutReloadingTheSearchPage() throws IOException {
+        String product = read("src/main/resources/templates/fragments/product.html");
+        String script = read("src/main/resources/static/js/product-search.js");
+        String topProgress = read("src/main/resources/static/js/top-progress.js");
+        String controller = read("src/main/java/com/example/bookshelf/web/ProductController.java");
+
+        assertThat(product)
+                .contains("data-product-card")
+                .contains("data-product-status-chips")
+                .contains("data-product-import-panel")
+                .contains("data-top-progress-ignore")
+                .contains("name=\"sideStory\" value=\"true\"")
+                .contains("data-product-side-story")
+                .contains("data-product-volume");
+        assertThat(script)
+                .contains("e.preventDefault();")
+                .contains("body: new FormData(form)")
+                .contains("'X-Requested-With': 'XMLHttpRequest'")
+                .contains("markProductAsOwned(cardRoot);")
+                .contains("volumeInput.disabled = sideStory;")
+                .contains("if (sideStory) {")
+                .contains("volumeInput.value = '';")
+                .contains("window.__sparkProgress?.hide?.(80);");
+        assertThat(topProgress)
+                .contains("ignoresTopProgress(target)")
+                .contains("[data-top-progress-ignore]")
+                .contains("!ignoresTopProgress(event.target)");
+        assertThat(controller)
+                .contains("@RequestHeader(value = \"X-Requested-With\", required = false)")
+                .contains("return ResponseEntity.ok(result);");
+    }
+
+    @Test
     void manualBookCreatePreviewsAladinCardsAndSubmitsOnlySelections() throws IOException {
         String bookList = read("src/main/resources/templates/book_list.html");
         String script = read("src/main/resources/static/js/book-list.js");

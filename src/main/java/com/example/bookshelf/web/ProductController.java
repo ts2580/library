@@ -65,7 +65,7 @@ public class ProductController {
     }
 
     @PostMapping("/products/import")
-    public String importProduct(@RequestParam("title") String title,
+    public Object importProduct(@RequestParam("title") String title,
                                 @RequestParam(value = "author", required = false) String author,
                                 @RequestParam(value = "cover", required = false) String cover,
                                 @RequestParam(value = "isbn13", required = false) String isbn13,
@@ -74,6 +74,7 @@ public class ProductController {
                                 @RequestParam(value = "description", required = false) String description,
                                 @RequestParam(value = "targetBookId", required = false) Integer targetBookId,
                                 @RequestParam(value = "volume", required = false) Integer volume,
+                                @RequestParam(value = "sideStory", defaultValue = "false") boolean sideStory,
                                 @RequestParam(value = "type", required = false) String type,
                                 @RequestParam(value = "totalVolume", required = false) String totalVolume,
                                 @RequestParam(value = "tab", required = false) String tab,
@@ -82,11 +83,15 @@ public class ProductController {
                                 @RequestParam(value = "ownedPage", defaultValue = "1") int ownedPage,
                                 @RequestParam(value = "aladinPage", defaultValue = "1") int aladinPage,
                                 @RequestParam(value = "ownedSort", defaultValue = "id") String ownedSort,
+                                @RequestHeader(value = "X-Requested-With", required = false) String requestedWith,
                                 RedirectAttributes redirectAttributes) {
         var result = productService.importProduct(new ProductService.ProductImportCommand(
-                title, author, cover, isbn13, isbn, price, description, targetBookId, volume, type, totalVolume,
+                title, author, cover, isbn13, isbn, price, description, targetBookId, volume, sideStory, type, totalVolume,
                 authSessionHelper.getMemberId(null)
         ));
+        if ("XMLHttpRequest".equalsIgnoreCase(requestedWith)) {
+            return ResponseEntity.ok(result);
+        }
         redirectAttributes.addFlashAttribute(result.success() ? "success" : "error", result.message());
         return buildRedirect(ownedQ, q, ownedPage, aladinPage, ownedSort, normalizeTab(tab));
     }
