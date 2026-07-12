@@ -13,4 +13,11 @@ public record BookVolume(
         boolean noNeedToBuy,
         String volume
 ) {
+    public boolean sideStory() {
+        return volume == null || volume.isBlank();
+    }
+
+    public Integer nullableSeq() {
+        return sideStory() ? null : seq;
+    }
 }
