@@ -249,6 +249,9 @@ public class ProductService {
             if (!filePath.startsWith(coverRoot)) {
                 throw new IOException("Unsafe cover file path");
             }
+            if (Files.isRegularFile(filePath)) {
+                return "/covers/" + filename;
+            }
             
             boolean downloaded = false;
             if (!highResUrl.equals(coverUrl)) {
