@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -173,6 +174,18 @@ class ProductServiceTest {
 
         assertThat(result).isEqualTo("http://127.0.0.1/private.jpg");
         assertThat(tempDir).isEmptyDirectory();
+    }
+
+    @Test
+    void persistCoverImage_reusesExistingCoverWithoutDownloadingIt() throws Exception {
+        ReflectionTestUtils.setField(productService, "coverStorageDir", tempDir.toString());
+        Path existingCover = tempDir.resolve("9781234567890.jpg");
+        Files.writeString(existingCover, "existing-cover");
+
+        String result = productService.persistCoverImage("http://127.0.0.1/private.jpg", "9781234567890");
+
+        assertThat(result).isEqualTo("/covers/9781234567890.jpg");
+        assertThat(existingCover).hasContent("existing-cover");
     }
 
     @Test

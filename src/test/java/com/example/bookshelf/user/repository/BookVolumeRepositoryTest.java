@@ -92,6 +92,26 @@ class BookVolumeRepositoryTest {
     }
 
     @Test
+    void nextVolumeSeq_startsAfterRegisteredVolumeCount() {
+        SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.execute("""
+                CREATE TABLE book_volumes (
+                    id INTEGER PRIMARY KEY,
+                    volume INTEGER,
+                    book INTEGER
+                )
+                """);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book) VALUES (?, ?, ?)", 1, 1, 10);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book) VALUES (?, ?, ?)", 2, 18, 10);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book) VALUES (?, ?, ?)", 3, null, 10);
+        BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
+
+        assertThat(repository.nextVolumeSeq(10)).isEqualTo(4);
+        assertThat(repository.nextVolumeSeq(20)).isEqualTo(1);
+    }
+
+    @Test
     void findCategorySummaries_countsVolumesAndAmountsByBookType() {
         SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
