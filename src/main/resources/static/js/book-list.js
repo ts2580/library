@@ -52,6 +52,7 @@
   const form = document.getElementById('bookCreateForm');
   const submitButton = document.getElementById('bookCreateSubmit');
   const selectionConfirmedInput = document.getElementById('bookCreateSelectionConfirmed');
+  const nonAladinCheckbox = document.getElementById('bookCreateNonAladin');
   const previewSection = document.getElementById('bookCreatePreview');
   const previewCount = document.getElementById('bookCreatePreviewCount');
   const previewMessage = document.getElementById('bookCreatePreviewMessage');
@@ -137,7 +138,7 @@
     }
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = '추가 예정 확인';
+      submitButton.textContent = nonAladinCheckbox?.checked ? '입력 정보로 등록' : '추가 예정 확인';
       submitButton.dataset.submitting = 'false';
     }
   };
@@ -293,6 +294,19 @@
     updateTargetMeta();
   };
 
+  const syncNonAladinMode = () => {
+    const directRegistration = nonAladinCheckbox?.checked === true;
+    resetPreview();
+    if (directRegistration) {
+      clearTargetBookSelection();
+      if (targetBookSearch) targetBookSearch.value = '';
+      hideTargetResults();
+    }
+    if (targetBookSearch) targetBookSearch.disabled = directRegistration;
+    if (selectionConfirmedInput) selectionConfirmedInput.value = 'false';
+    if (submitButton) submitButton.textContent = directRegistration ? '입력 정보로 등록' : '추가 예정 확인';
+  };
+
   const selectTargetBook = (item) => {
     if (!item) return;
     resetPreview();
@@ -440,6 +454,9 @@
     if (previewedName && nameInput.value.trim() !== previewedName) resetPreview();
   });
 
+  nonAladinCheckbox?.addEventListener('change', syncNonAladinMode);
+  syncNonAladinMode();
+
   selectAllButton?.addEventListener('click', () => {
     selectableCheckboxes().forEach((checkbox) => { checkbox.checked = false; });
     syncSelectionState();
@@ -450,6 +467,19 @@
   });
 
   form?.addEventListener('submit', async (event) => {
+    if (nonAladinCheckbox?.checked) {
+      if (submitButton?.dataset.submitting === 'true') {
+        event.preventDefault();
+        return;
+      }
+      if (submitButton) {
+        submitButton.dataset.submitting = 'true';
+        submitButton.disabled = true;
+        submitButton.textContent = '추가 중...';
+      }
+      window.__sparkProgress?.show?.();
+      return;
+    }
     const query = nameInput?.value.trim() || '';
     if (!previewedName || previewedName !== query) {
       event.preventDefault();
