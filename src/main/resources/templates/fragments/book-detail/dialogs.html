@@ -28,6 +28,63 @@
   <datalist id="book-type-options"><option th:each="type : ${bookTypes}" th:value="${type}"></option></datalist>
 </th:block>
 
+<th:block th:fragment="volumeCreateDialog(book, nextVolumeSeq)">
+  <dialog id="volumeCreateDialog" role="dialog" aria-modal="true" aria-labelledby="volumeCreateTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
+    <form id="volumeCreateForm" method="post" th:action="@{/books/{id}/volumes(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none" data-top-progress-ignore>
+      <div class="bookshelf-dialog-header bookshelf-dialog-header-book">
+        <div class="bookshelf-dialog-title-wrap">
+          <h3 id="volumeCreateTitle" class="bookshelf-title-lg bookshelf-dialog-title-text">권 추가</h3>
+          <p class="bookshelf-mt-1 bookshelf-subtitle-sm" th:text="${book.name}">도서명</p>
+        </div>
+        <button type="button" id="volumeCreateClose" class="bookshelf-dialog-close-icon" aria-label="닫기" title="닫기">×</button>
+      </div>
+      <div class="bookshelf-dialog-fields bookshelf-px-5 bookshelf-py-5 sm:bookshelf-px-6">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <input id="volumeCreateSelectedIsbn" type="hidden" name="selectedIsbn">
+
+        <label class="bookshelf-dialog-check bookshelf-detail-label">
+          <input id="volumeCreateNonAladin" type="checkbox" name="nonAladinRegistration" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+          알라딘 외 등록
+          <span class="bookshelf-subtitle-xs">권 정보를 직접 입력합니다.</span>
+        </label>
+
+        <section id="volumeCreateAladinFields">
+          <label for="volumeCreateSearchQuery" class="bookshelf-mb-1 block bookshelf-detail-label">알라딘 검색어</label>
+          <div class="flex gap-2">
+            <input id="volumeCreateSearchQuery" name="searchQuery" type="text" th:value="${book.name}" class="bookshelf-input min-w-0 flex-1 bookshelf-px-4 bookshelf-py-3" placeholder="책 제목 또는 ISBN13">
+            <button id="volumeCreateSearchButton" type="button" class="bookshelf-btn-soft bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">검색</button>
+          </div>
+          <p id="volumeCreateSearchMessage" class="bookshelf-mt-2 bookshelf-subtitle-xs">검색 후 추가할 권을 선택해 주세요.</p>
+          <div id="volumeCreateSearchResults" class="bookshelf-mt-3 grid max-h-72 gap-2 overflow-y-auto"></div>
+        </section>
+
+        <section id="volumeCreateDirectFields" class="bookshelf-dialog-fields" hidden>
+          <div><label for="volumeCreateName" class="bookshelf-mb-1 block bookshelf-detail-label">권 제목</label><input id="volumeCreateName" name="name" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="권 제목"></div>
+          <div class="bookshelf-dialog-row">
+            <div><label for="volumeCreateIsbn13" class="bookshelf-mb-1 block bookshelf-detail-label">ISBN13 <span class="bookshelf-subtitle-xs">(선택)</span></label><input id="volumeCreateIsbn13" name="isbn13" type="text" inputmode="numeric" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+            <div><label for="volumeCreatePrice" class="bookshelf-mb-1 block bookshelf-detail-label">가격</label><input id="volumeCreatePrice" name="price" type="text" inputmode="numeric" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+          </div>
+          <div><label for="volumeCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="volumeCreateCover" name="cover" type="url" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="https://..."></div>
+          <div><label for="volumeCreateDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="volumeCreateDescription" name="description" rows="3" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3"></textarea></div>
+          <div class="bookshelf-dialog-checks">
+            <label class="bookshelf-dialog-check bookshelf-detail-label"><input name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료</label>
+            <label class="bookshelf-dialog-check bookshelf-detail-label"><input name="noNeedToBuy" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">살 필요 없음</label>
+          </div>
+        </section>
+
+        <div class="bookshelf-dialog-row">
+          <div><label for="volumeCreateSeq" class="bookshelf-mb-1 block bookshelf-detail-label">권 번호</label><input id="volumeCreateSeq" name="seq" type="number" min="1" required th:value="${nextVolumeSeq}" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
+          <label class="bookshelf-dialog-check bookshelf-detail-label self-end bookshelf-py-3"><input id="volumeCreateSideStory" name="sideStory" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">외전</label>
+        </div>
+      </div>
+      <div class="bookshelf-dialog-actions">
+        <button type="button" id="volumeCreateCancel" class="bookshelf-btn-ghost bookshelf-py-2 bookshelf-btn-size-sm bookshelf-dialog-action-btn">취소</button>
+        <button id="volumeCreateSubmit" type="submit" class="bookshelf-btn bookshelf-py-2 bookshelf-btn-size-sm bookshelf-dialog-action-btn">권 추가</button>
+      </div>
+    </form>
+  </dialog>
+</th:block>
+
 <th:block th:fragment="volumeEditDialog()">
   <dialog id="volumeEditDialog" role="dialog" aria-modal="true" aria-labelledby="volumeEditTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
     <form id="volumeEditForm" method="post" class="bookshelf-card overflow-hidden border-0 shadow-none">

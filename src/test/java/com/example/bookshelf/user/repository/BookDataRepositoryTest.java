@@ -30,6 +30,10 @@ class BookDataRepositoryTest {
         repository.updateBook(bookId, "책", "저자", "설명", "cover", "소설", "12");
 
         assertThat(repository.findAllBookTypes()).contains("만화", "소설");
+        assertThat(jdbcTemplate.queryForObject("SELECT cover_generated FROM books WHERE id = ?", Integer.class, bookId)).isZero();
+
+        repository.updateBook(bookId, "책", "저자", "설명", "/covers/book.jpg", "소설", "12");
+        assertThat(jdbcTemplate.queryForObject("SELECT cover_generated FROM books WHERE id = ?", Integer.class, bookId)).isOne();
     }
 
     @Test
@@ -58,6 +62,7 @@ class BookDataRepositoryTest {
                     totalvolume TEXT,
                     type TEXT,
                     cover TEXT,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """);
@@ -67,6 +72,7 @@ class BookDataRepositoryTest {
                     book INTEGER,
                     name TEXT,
                     volume INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """);

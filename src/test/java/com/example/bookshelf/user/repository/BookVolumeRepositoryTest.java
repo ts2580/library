@@ -42,6 +42,7 @@ class BookVolumeRepositoryTest {
                     description TEXT,
                     ispurchased INTEGER,
                     noneedtobuy INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT
                 )
                 """);
@@ -73,6 +74,7 @@ class BookVolumeRepositoryTest {
                     description TEXT,
                     ispurchased INTEGER,
                     noneedtobuy INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT
                 )
                 """);
@@ -89,6 +91,9 @@ class BookVolumeRepositoryTest {
                 .containsExactly("2권", "외전", "새 외전");
         assertThat(repository.findVolumesByBookId(10).get(1).sideStory()).isTrue();
         assertThat(repository.findVolumesByBookId(10).get(1).nullableSeq()).isNull();
+
+        repository.updateVolume(10, 1, null, "외전", "/covers/side.jpg", null, null, false, false, null);
+        assertThat(jdbcTemplate.queryForObject("SELECT cover_generated FROM book_volumes WHERE id = 1", Integer.class)).isOne();
     }
 
     @Test
