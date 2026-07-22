@@ -131,6 +131,12 @@ public class BookVolumeRepository {
         return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, ownerId, limit, offset);
     }
 
+    public List<BookVolume> findVolumesPendingCoverGenerationForOwner(int ownerId) {
+        if (!ownerColumnExists()) return List.of();
+        String sql = "SELECT " + SCOPED_BOOK_VOLUME_COLUMNS + " FROM book_volumes bv JOIN books b ON b.id = bv.book WHERE b.owner_id = ? AND COALESCE(bv.cover_generated, 0) = 0 ORDER BY bv.id";
+        return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, ownerId);
+    }
+
     public int countUnpurchasedVolumes() {
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes WHERE ispurchased = FALSE AND COALESCE(noneedtobuy, FALSE) = FALSE", Integer.class);
         return count == null ? 0 : count;
@@ -174,8 +180,8 @@ public class BookVolumeRepository {
 
     public int insertVolume(int bookId, Integer seq, String isbn13, String name, String cover, String price, String description) {
         String sql = """
-                INSERT INTO book_volumes (book, isbn13, name, cover, price, description, ispurchased, volume, createddate)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO book_volumes (book, isbn13, name, cover, price, description, ispurchased, volume, createddate, cover_generated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
@@ -188,6 +194,7 @@ public class BookVolumeRepository {
             ps.setString(6, Texts.trimToNull(description));
             ps.setBoolean(7, false);
             ps.setObject(8, seq);
+            ps.setBoolean(9, isGeneratedCover(cover));
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -198,10 +205,19 @@ public class BookVolumeRepository {
     public void updateVolume(int bookId, int volumeId, String isbn13, String name, String cover, String price, String description, boolean purchased, boolean noNeedToBuy, Integer seq) {
         String sql = """
                 UPDATE book_volumes
-                SET isbn13 = ?, name = ?, cover = ?, price = ?, description = ?, ispurchased = ?, noneedtobuy = ?, volume = ?
+                SET isbn13 = ?, name = ?, cover = ?, price = ?, description = ?, ispurchased = ?, noneedtobuy = ?, volume = ?, cover_generated = ?
                 WHERE id = ? AND book = ?
                 """;
-        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), purchased, noNeedToBuy, seq, volumeId, bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(isbn13), Texts.trimToNull(name), Texts.trimToNull(cover), Texts.trimToNull(price), Texts.trimToNull(description), purchased, noNeedToBuy, seq, isGeneratedCover(cover), volumeId, bookId);
+    }
+
+    public void updateGeneratedCoverForOwner(int bookId, int volumeId, int ownerId, String cover) {
+        jdbcTemplate.update("""
+                UPDATE book_volumes
+                SET cover = ?, cover_generated = ?
+                WHERE id = ? AND book = ?
+                  AND EXISTS (SELECT 1 FROM books b WHERE b.id = book_volumes.book AND b.owner_id = ?)
+                """, Texts.trimToNull(cover), isGeneratedCover(cover), volumeId, bookId, ownerId);
     }
 
     public void deleteVolumesByBookId(int bookId) {
@@ -283,6 +299,11 @@ public class BookVolumeRepository {
 
     private boolean ownerColumnExists() {
         return count("SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'owner_id'") > 0;
+    }
+
+    private static boolean isGeneratedCover(String cover) {
+        String normalized = Texts.trimToNull(cover);
+        return normalized != null && normalized.startsWith("/covers/");
     }
 
     public record CategorySummary(String category, int volumeCount, long totalAmount) {}

@@ -408,6 +408,20 @@ public class ProductService {
         return downloadCoverImage(coverUrl, fileKey);
     }
 
+    public boolean isLocalCoverAvailable(String coverUrl) {
+        String normalized = Texts.trimToNull(coverUrl);
+        if (normalized == null || !normalized.startsWith("/covers/")) {
+            return false;
+        }
+        String filename = normalized.substring("/covers/".length());
+        if (filename.isBlank() || filename.contains("/") || filename.contains("\\")) {
+            return false;
+        }
+        Path coverRoot = Paths.get(coverStorageDir).toAbsolutePath().normalize();
+        Path coverPath = coverRoot.resolve(filename).normalize();
+        return coverPath.startsWith(coverRoot) && Files.isRegularFile(coverPath);
+    }
+
     public void deleteLocalCoverFilesIfUnused(Collection<String> coverUrls) {
         if (coverUrls == null || coverUrls.isEmpty()) {
             return;
