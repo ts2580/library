@@ -180,6 +180,8 @@ class FrontendPrinciplesTest {
                 .contains("COVER_ARCHIVE_CHUNK_BYTES = 8 * 1024 * 1024")
                 .contains("/user/profile/covers/archive/upload/chunk")
                 .contains("/user/profile/covers/archive/upload/chunk/status?uploadId=")
+                .contains("fetchRestoreStatus")
+                .contains("retry <= 3")
                 .contains("file.slice(")
                 .contains("result.completed")
                 .contains("result?.processing")
