@@ -232,9 +232,6 @@ public class BookshelfBackupService {
             if (sideStory && sequence != null) {
                 throw new BackupException(context + ": 외전인 권은 권번호를 비워 주세요.");
             }
-            if (!sideStory && sequence == null) {
-                throw new BackupException(context + ": 일반 권은 1 이상의 권번호가 필요합니다.");
-            }
 
             volumes.add(new BackupVolume(
                     bookKey,
@@ -419,6 +416,7 @@ public class BookshelfBackupService {
         if (raw == null) return null;
         try {
             int sequence = new BigDecimal(raw).intValueExact();
+            if (sequence == 0) return null;
             if (sequence < 1) throw new ArithmeticException();
             return sequence;
         } catch (ArithmeticException | NumberFormatException e) {

@@ -211,6 +211,29 @@
     return true;
   }
 
+  function validateCoverFile(form) {
+      const coverFileInput = form?.querySelector('input[type="file"][name="coverFile"]');
+      const coverFile = coverFileInput?.files?.[0];
+      if (!coverFileInput) return true;
+      coverFileInput.setCustomValidity('');
+      if (coverFile) {
+        const allowedName = /\.(jpe?g|png|gif)$/i.test(coverFile.name);
+        const allowedType = !coverFile.type || ['image/jpeg', 'image/png', 'image/gif'].includes(coverFile.type);
+        let message = '';
+        if (!allowedName || !allowedType) {
+          message = '표지 이미지는 JPG, PNG, GIF 파일만 선택할 수 있습니다.';
+        } else if (coverFile.size > 8 * 1024 * 1024) {
+          message = '표지 이미지 파일은 8MB 이하만 선택할 수 있습니다.';
+        }
+        coverFileInput.setCustomValidity(message);
+        if (message) {
+          coverFileInput.reportValidity();
+          return false;
+        }
+      }
+      return true;
+  }
+
   function submitWithHistoryReplace(form, options = {}) {
     if (!form) return;
     const submitButton = form.querySelector('button[type="submit"]');
@@ -220,7 +243,7 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (isSubmitting) return;
+      if (isSubmitting || !validateCoverFile(form)) return;
       isSubmitting = true;
       isNavigatingAfterSubmit = true;
 
@@ -260,6 +283,14 @@
           window.__sparkProgress.hide(80);
         }
         const responseText = await response.text();
+        const responseDocument = responseText
+          ? new DOMParser().parseFromString(responseText, 'text/html')
+          : null;
+        const serverError = responseDocument?.querySelector('.bookshelf-toast-source[data-toast-kind="error"]')
+          ?.textContent?.trim();
+        if (serverError) {
+          throw new Error(`server-message:${serverError}`);
+        }
         const actionPath = new URL(form.action, window.location.origin).pathname;
         const isVolumeSubmit = /\/books\/\d+\/volumes\/\d+$/.test(actionPath);
         const isBookSubmit = /\/books\/\d+$/.test(actionPath);
@@ -284,6 +315,10 @@
           showToast('로그인이 필요합니다. 다시 로그인해 주세요.', 'error');
           return;
         }
+        if (error && error.message && error.message.startsWith('server-message:')) {
+          showToast(error.message.substring('server-message:'.length), 'error');
+          return;
+        }
         showToast('저장을 처리할 수 없습니다. 다시 시도해 주세요.', 'error');
         console.error('book-detail save failed', error);
       } finally {
@@ -306,6 +341,11 @@
       document.getElementById('bookEditAuthor').value = bookCard.dataset.bookAuthor || '';
       document.getElementById('bookEditDescription').value = bookCard.dataset.bookDescription || '';
       document.getElementById('bookEditCover').value = bookCard.dataset.bookCover || '';
+      const coverFileInput = document.getElementById('bookEditCoverFile');
+      if (coverFileInput) {
+        coverFileInput.value = '';
+        coverFileInput.setCustomValidity('');
+      }
       document.getElementById('bookEditType').value = bookCard.dataset.bookType || '';
       document.getElementById('bookEditTotalVolume').value = bookCard.dataset.bookTotalvolume || '';
       bookDialog.showModal();
@@ -339,6 +379,7 @@
     const searchResults = document.getElementById('volumeCreateSearchResults');
     const selectedIsbnInput = document.getElementById('volumeCreateSelectedIsbn');
     const nameInput = document.getElementById('volumeCreateName');
+    const coverFileInput = document.getElementById('volumeCreateCoverFile');
     const seqInput = document.getElementById('volumeCreateSeq');
     const sideStoryInput = document.getElementById('volumeCreateSideStory');
     const submitButton = document.getElementById('volumeCreateSubmit');
@@ -370,6 +411,10 @@
       }
       if (queryInput) queryInput.required = !direct;
       if (nameInput) nameInput.required = direct;
+      if (coverFileInput && !direct) {
+        coverFileInput.value = '';
+        coverFileInput.setCustomValidity('');
+      }
       if (submitButton) submitButton.textContent = direct ? '입력 정보로 추가' : '선택한 권 추가';
       clearAladinSelection();
     }
@@ -481,6 +526,10 @@
     });
     searchButton?.addEventListener('click', searchAladin);
     volumeCreateForm.addEventListener('submit', (event) => {
+      if (!validateCoverFile(volumeCreateForm)) {
+        event.preventDefault();
+        return;
+      }
       if (directCheckbox?.checked !== true && !selectedIsbnInput?.value) {
         event.preventDefault();
         if (searchMessage) searchMessage.textContent = '추가할 알라딘 권을 선택해 주세요.';

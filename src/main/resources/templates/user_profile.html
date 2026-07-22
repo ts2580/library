@@ -131,7 +131,7 @@
                 <h3 class="bookshelf-title-base">엑셀 다운로드</h3>
                 <p class="bookshelf-mt-1 bookshelf-subtitle-xs">도서와 권 정보만 .xlsx 파일로 내보냅니다.</p>
               </div>
-              <a href="/user/profile/backup/download" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">백업 다운로드</a>
+              <a href="/user/profile/backup/download" data-top-progress-ignore class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">백업 다운로드</a>
             </article>
 
             <article class="bookshelf-profile-data-action">
@@ -154,28 +154,37 @@
                 <h3 class="bookshelf-title-base">표지 ZIP 다운로드</h3>
                 <p class="bookshelf-mt-1 bookshelf-subtitle-xs">현재 계정의 도서와 권에서 사용 중인 로컬 표지 파일만 압축해 내려받습니다.</p>
               </div>
-              <a href="/user/profile/covers/archive/download" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">표지 압축 다운로드</a>
+              <a href="/user/profile/covers/archive/download" data-top-progress-ignore class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">표지 압축 다운로드</a>
             </article>
 
             <article class="bookshelf-profile-data-action">
               <div>
                 <h3 class="bookshelf-title-base">표지 ZIP 업로드</h3>
-                <p class="bookshelf-mt-1 bookshelf-subtitle-xs">표지 백업 ZIP을 풀어 커버 저장소에 복원합니다. 현재 계정에서 참조하는 파일만 처리하며 기존 파일은 덮어쓰지 않습니다.</p>
+                <p class="bookshelf-mt-1 bookshelf-subtitle-xs">표지 백업 ZIP을 8MB 청크로 나누어 최대 2GB까지 복원합니다. 현재 계정에서 참조하는 파일만 처리하며 기존 파일은 덮어쓰지 않습니다.</p>
               </div>
               <form method="post" action="/user/profile/covers/archive/upload" enctype="multipart/form-data"
-                    class="bookshelf-profile-upload-form" data-cover-archive-upload-form>
+                    class="bookshelf-profile-upload-form" data-cover-archive-upload-form data-top-progress-ignore>
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <label for="profileCoverArchive" class="bookshelf-form-label">표지 백업 ZIP 파일</label>
                 <input id="profileCoverArchive" type="file" name="coverArchive" accept=".zip,application/zip"
                        required class="bookshelf-input bookshelf-profile-file-input">
-                <button type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">표지 압축 복원</button>
+                <button type="submit" data-cover-archive-upload-button class="bookshelf-btn bookshelf-px-4 bookshelf-py-2 bookshelf-btn-size-sm">표지 압축 복원</button>
+                <div hidden data-cover-archive-upload-progress aria-live="polite" class="bookshelf-space-y-1-5">
+                  <div class="flex items-center justify-between bookshelf-subtitle-xs">
+                    <span data-cover-archive-upload-status>업로드 준비 중</span>
+                    <strong data-cover-archive-upload-percent>0%</strong>
+                  </div>
+                  <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div data-cover-archive-upload-bar class="h-full rounded-full bg-violet-500 transition-all duration-300" style="width:0%"></div>
+                  </div>
+                </div>
               </form>
             </article>
 
             <article class="bookshelf-profile-data-action">
               <div>
                 <h3 class="bookshelf-title-base">커버 재생성</h3>
-                <p class="bookshelf-mt-1 bookshelf-subtitle-xs">현재 계정에서 커버 생성 여부가 false인 도서와 권만 처리합니다. 실패 항목은 false로 남아 다음 실행에서 재시도됩니다.</p>
+                <p class="bookshelf-mt-1 bookshelf-subtitle-xs">현재 계정에서 알라딘 ISBN이 있는 도서와 권 중 커버 생성 여부가 false인 항목만 처리합니다. 완전 수동 등록 항목은 제외됩니다.</p>
               </div>
               <form method="post" action="/user/profile/covers/regenerate" data-cover-regenerate-form>
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">

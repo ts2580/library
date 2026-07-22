@@ -114,6 +114,52 @@ class ProfileDataControllerTest {
         verify(coverArchiveService).writeArchive(29, output);
     }
 
+    @Test
+    void uploadCoverArchiveChunk_usesCurrentSessionMemberAndReturnsProgress() throws Exception {
+        Member member = new Member(52, "cover-owner", "pw", null, null, null);
+        when(authSessionHelper.getCurrentMember(session)).thenReturn(member);
+        when(coverArchiveService.importArchiveChunk(
+                eq(52), eq("c83454f4-c137-46a6-b558-66b1ca2de204"), eq("covers.zip"),
+                eq(10L), eq(2), eq(0), eq(3L), any(InputStream.class)
+        )).thenReturn(new CoverArchiveService.ChunkUploadResult(false, false, 1, 2, null, null));
+        MockMultipartFile chunk = new MockMultipartFile(
+                "chunk", "covers.zip.part-0", "application/octet-stream", new byte[]{1, 2, 3}
+        );
+
+        var response = controller().uploadCoverArchiveChunk(
+                chunk, "c83454f4-c137-46a6-b558-66b1ca2de204", "covers.zip", 10L, 2, 0, session
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().success()).isTrue();
+        assertThat(response.getBody().completed()).isFalse();
+        assertThat(response.getBody().processing()).isFalse();
+        assertThat(response.getBody().percent()).isEqualTo(50);
+        verify(coverArchiveService).importArchiveChunk(
+                eq(52), eq("c83454f4-c137-46a6-b558-66b1ca2de204"), eq("covers.zip"),
+                eq(10L), eq(2), eq(0), eq(3L), any(InputStream.class)
+        );
+    }
+
+    @Test
+    void coverArchiveChunkStatus_isScopedToCurrentSessionMember() {
+        Member member = new Member(52, "cover-owner", "pw", null, null, null);
+        when(authSessionHelper.getCurrentMember(session)).thenReturn(member);
+        when(coverArchiveService.getArchiveChunkStatus(52, "c83454f4-c137-46a6-b558-66b1ca2de204"))
+                .thenReturn(new CoverArchiveService.ChunkUploadResult(false, true, 2, 2, null, null));
+
+        var response = controller().coverArchiveChunkStatus(
+                "c83454f4-c137-46a6-b558-66b1ca2de204", session
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().processing()).isTrue();
+        assertThat(response.getBody().percent()).isEqualTo(100);
+        verify(coverArchiveService).getArchiveChunkStatus(
+                52, "c83454f4-c137-46a6-b558-66b1ca2de204"
+        );
+    }
+
     private ProfileDataController controller() {
         return new ProfileDataController(authSessionHelper, backupService, coverRegenerationService, coverArchiveService);
     }

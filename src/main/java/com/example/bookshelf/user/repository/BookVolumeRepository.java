@@ -133,7 +133,10 @@ public class BookVolumeRepository {
 
     public List<BookVolume> findVolumesPendingCoverGenerationForOwner(int ownerId) {
         if (!ownerColumnExists()) return List.of();
-        String sql = "SELECT " + SCOPED_BOOK_VOLUME_COLUMNS + " FROM book_volumes bv JOIN books b ON b.id = bv.book WHERE b.owner_id = ? AND COALESCE(bv.cover_generated, 0) = 0 ORDER BY bv.id";
+        String sql = "SELECT " + SCOPED_BOOK_VOLUME_COLUMNS
+                + " FROM book_volumes bv JOIN books b ON b.id = bv.book"
+                + " WHERE b.owner_id = ? AND COALESCE(bv.cover_generated, 0) = 0"
+                + " AND TRIM(COALESCE(bv.isbn13, '')) <> '' ORDER BY bv.id";
         return jdbcTemplate.query(sql, BookRowMappers.BOOK_VOLUME, ownerId);
     }
 
