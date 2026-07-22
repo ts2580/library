@@ -43,8 +43,9 @@ public class AsyncConfig {
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(2);
         executor.setThreadNamePrefix("CoverArchive-");
-        executor.setDaemon(true);
-        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setDaemon(false);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(1800);
         executor.initialize();
         return executor;
     }
