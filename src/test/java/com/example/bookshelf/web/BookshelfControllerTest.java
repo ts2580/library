@@ -10,11 +10,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import com.example.bookshelf.integration.aladin.AladinItem;
 
+import java.io.InputStream;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -76,6 +81,33 @@ class BookshelfControllerTest {
         assertThat(view).isEqualTo("redirect:/books/51");
         assertThat(redirectAttributes.getFlashAttributes().get("success")).isEqualTo("알라딘 외 도서를 추가했습니다.");
         verify(bookDataRepository).insertBook("독립 출판물", "직접 저자", "직접 설명", null, "에세이", "1");
+        verifyNoInteractions(aladinSearchService);
+    }
+
+    @Test
+    void createBook_directRegistrationStoresUploadedCoverFile() throws Exception {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        MockMultipartFile coverFile = new MockMultipartFile(
+                "coverFile", "manual.png", "image/png", new byte[]{1, 2, 3}
+        );
+        when(productService.persistUploadedCoverImage(
+                eq("manual.png"), eq(3L), any(InputStream.class),
+                org.mockito.ArgumentMatchers.startsWith("manual_book_")
+        )).thenReturn("/covers/manual.png");
+        when(bookDataRepository.insertBook(
+                "독립 출판물", "직접 저자", "직접 설명", "/covers/manual.png", "에세이", "1"
+        )).thenReturn(51);
+
+        String view = controller.createBook(
+                "독립 출판물", "직접 저자", "직접 설명", "https://example.com/ignored.jpg", "에세이", "1",
+                null, null, null, false, true, coverFile, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/51");
+        verify(bookDataRepository).insertBook(
+                "독립 출판물", "직접 저자", "직접 설명", "/covers/manual.png", "에세이", "1"
+        );
         verifyNoInteractions(aladinSearchService);
     }
 
@@ -318,6 +350,39 @@ class BookshelfControllerTest {
     }
 
     @Test
+    void addVolume_directRegistrationStoresUploadedCoverFile() throws Exception {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        MockMultipartFile coverFile = new MockMultipartFile(
+                "coverFile", "volume.png", "image/png", new byte[]{1, 2, 3}
+        );
+        Book book = new Book(3, "기존 책", "기존 저자", "기존 설명", "1", "소설", null, null, null);
+        when(bookDataRepository.findBookById(3)).thenReturn(book);
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
+        when(productService.persistUploadedCoverImage(
+                eq("volume.png"), eq(3L), any(InputStream.class), eq("9781234567890")
+        )).thenReturn("/covers/9781234567890.png");
+        when(bookVolumeRepository.insertVolume(
+                3, 2, "9781234567890", "직접 입력 2권", "/covers/9781234567890.png", "12000", "권 설명"
+        )).thenReturn(12);
+        when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.Collections.nCopies(2, null));
+
+        String view = controller.addVolume(
+                3, true, null, null, "9781234567890", "직접 입력 2권", "https://example.com/ignored.jpg",
+                coverFile, "12000", "권 설명", false, false, false, 2, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        verify(bookVolumeRepository).insertVolume(
+                3, 2, "9781234567890", "직접 입력 2권", "/covers/9781234567890.png", "12000", "권 설명"
+        );
+        verify(bookDataRepository).updateBook(
+                3, "기존 책", "기존 저자", "기존 설명", "/covers/9781234567890.png", "소설", "2"
+        );
+        verifyNoInteractions(aladinSearchService);
+    }
+
+    @Test
     void addVolume_aladinRegistrationUsesServerVerifiedSelection() {
         BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
@@ -376,6 +441,33 @@ class BookshelfControllerTest {
 
         assertThat(view).isEqualTo("redirect:/books/3");
         verify(bookDataRepository).updateBook(3, "기존 책", "기존 저자", "기존 설명", cover500, "소설", "2");
+    }
+
+    @Test
+    void updateBook_uploadedCoverFileOverridesUrlAndRemovesUnusedOldCover() throws Exception {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        MockMultipartFile coverFile = new MockMultipartFile(
+                "coverFile", "new.png", "image/png", new byte[]{1, 2, 3}
+        );
+        when(bookDataRepository.findBookById(3)).thenReturn(
+                new Book(3, "기존 책", "기존 저자", "기존 설명", "10", "소설", "/covers/old.jpg", null, null)
+        );
+        when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.List.of());
+        when(productService.persistUploadedCoverImage(
+                eq("new.png"), eq(3L), any(InputStream.class), eq("book_3")
+        )).thenReturn("/covers/book_3.png");
+
+        String view = controller.updateBook(
+                3, "기존 책", "기존 저자", "기존 설명", "https://example.com/ignored.jpg",
+                coverFile, "소설", "10", redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/3");
+        verify(bookDataRepository).updateBook(
+                3, "기존 책", "기존 저자", "기존 설명", "/covers/book_3.png", "소설", "0"
+        );
+        verify(productService).deleteLocalCoverFilesIfUnused(java.util.List.of("/covers/old.jpg"));
     }
 
     @Test

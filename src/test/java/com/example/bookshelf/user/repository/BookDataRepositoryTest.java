@@ -52,6 +52,23 @@ class BookDataRepositoryTest {
                 .isEqualTo("2");
     }
 
+    @Test
+    void pendingCoverGeneration_excludesBooksWithoutAladinIsbnVolumes() {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(new SingleConnectionDataSource("jdbc:sqlite::memory:", true));
+        createSchema(jdbcTemplate);
+        BookDataRepository repository = new BookDataRepository(jdbcTemplate);
+        jdbcTemplate.update("INSERT INTO books (id, owner_id, name, cover_generated) VALUES (?, ?, ?, ?)", 1, 7, "알라딘 책", false);
+        jdbcTemplate.update("INSERT INTO books (id, owner_id, name, cover_generated) VALUES (?, ?, ?, ?)", 2, 7, "완전 수동 책", false);
+        jdbcTemplate.update("INSERT INTO books (id, owner_id, name, cover_generated) VALUES (?, ?, ?, ?)", 3, 8, "다른 사용자 책", false);
+        jdbcTemplate.update("INSERT INTO book_volumes (book, isbn13, name) VALUES (?, ?, ?)", 1, "9781234567890", "알라딘 책 1권");
+        jdbcTemplate.update("INSERT INTO book_volumes (book, isbn13, name) VALUES (?, ?, ?)", 2, null, "직접 입력 1권");
+        jdbcTemplate.update("INSERT INTO book_volumes (book, isbn13, name) VALUES (?, ?, ?)", 3, "9780000000000", "다른 사용자 책 1권");
+
+        assertThat(repository.findBooksPendingCoverGenerationForOwner(7))
+                .extracting(book -> book.id())
+                .containsExactly(1);
+    }
+
     private void createSchema(JdbcTemplate jdbcTemplate) {
         jdbcTemplate.execute("""
                 CREATE TABLE books (
@@ -62,6 +79,7 @@ class BookDataRepositoryTest {
                     totalvolume TEXT,
                     type TEXT,
                     cover TEXT,
+                    owner_id INTEGER,
                     cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT DEFAULT CURRENT_TIMESTAMP
                 )
@@ -70,6 +88,7 @@ class BookDataRepositoryTest {
                 CREATE TABLE book_volumes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book INTEGER,
+                    isbn13 TEXT,
                     name TEXT,
                     volume INTEGER,
                     cover_generated INTEGER NOT NULL DEFAULT 0,

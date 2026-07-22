@@ -3,7 +3,7 @@
 <body>
 <th:block th:fragment="bookEditDialog(book, bookTypes)">
   <dialog id="bookEditDialog" role="dialog" aria-modal="true" aria-labelledby="bookEditTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
-    <form id="bookEditForm" method="post" th:action="@{/books/{id}(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none">
+    <form id="bookEditForm" method="post" enctype="multipart/form-data" th:action="@{/books/{id}(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none">
       <div class="bookshelf-dialog-header bookshelf-dialog-header-book">
         <div class="bookshelf-dialog-title-wrap"><h3 id="bookEditTitle" class="bookshelf-title-lg bookshelf-dialog-title-text" style="display:block; width:100%; max-width:100%; white-space:normal; word-break:keep-all; overflow-wrap:normal; writing-mode:horizontal-tb; text-orientation:mixed; transform:none; text-wrap:pretty; margin:0 !important;">책 정보 수정</h3></div>
         <button type="button" id="bookEditClose" class="bookshelf-dialog-close-icon" aria-label="닫기" title="닫기">×</button>
@@ -17,6 +17,7 @@
           <div><label for="bookEditType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="bookEditType" name="type" list="book-type-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="카테고리"></div>
         </div>
         <div><label for="bookEditCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookEditCover" name="cover" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="표지 URL"></div>
+        <div><label for="bookEditCoverFile" class="bookshelf-mb-1 block bookshelf-detail-label">새 표지 이미지 파일 <span class="bookshelf-subtitle-xs">(선택 · URL보다 우선)</span></label><input id="bookEditCoverFile" name="coverFile" type="file" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif" class="bookshelf-input bookshelf-profile-file-input"></div>
         <div><label for="bookEditDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="bookEditDescription" name="description" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3" rows="4" placeholder="설명"></textarea></div>
       </div>
       <div class="bookshelf-dialog-actions">
@@ -30,7 +31,7 @@
 
 <th:block th:fragment="volumeCreateDialog(book, nextVolumeSeq)">
   <dialog id="volumeCreateDialog" role="dialog" aria-modal="true" aria-labelledby="volumeCreateTitle" class="backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
-    <form id="volumeCreateForm" method="post" th:action="@{/books/{id}/volumes(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none" data-top-progress-ignore>
+    <form id="volumeCreateForm" method="post" enctype="multipart/form-data" th:action="@{/books/{id}/volumes(id=${book.id})}" class="bookshelf-card overflow-hidden border-0 shadow-none" data-top-progress-ignore>
       <div class="bookshelf-dialog-header bookshelf-dialog-header-book">
         <div class="bookshelf-dialog-title-wrap">
           <h3 id="volumeCreateTitle" class="bookshelf-title-lg bookshelf-dialog-title-text">권 추가</h3>
@@ -65,6 +66,7 @@
             <div><label for="volumeCreatePrice" class="bookshelf-mb-1 block bookshelf-detail-label">가격</label><input id="volumeCreatePrice" name="price" type="text" inputmode="numeric" class="bookshelf-input bookshelf-px-4 bookshelf-py-3"></div>
           </div>
           <div><label for="volumeCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="volumeCreateCover" name="cover" type="url" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="https://..."></div>
+          <div><label for="volumeCreateCoverFile" class="bookshelf-mb-1 block bookshelf-detail-label">표지 이미지 파일 <span class="bookshelf-subtitle-xs">(선택 · URL보다 우선)</span></label><input id="volumeCreateCoverFile" name="coverFile" type="file" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif" class="bookshelf-input bookshelf-profile-file-input"></div>
           <div><label for="volumeCreateDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="volumeCreateDescription" name="description" rows="3" class="bookshelf-textarea bookshelf-px-4 bookshelf-py-3"></textarea></div>
           <div class="bookshelf-dialog-checks">
             <label class="bookshelf-dialog-check bookshelf-detail-label"><input name="purchased" type="checkbox" value="true" class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">구매 완료</label>

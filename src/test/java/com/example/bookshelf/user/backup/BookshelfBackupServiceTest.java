@@ -11,6 +11,7 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -77,6 +78,51 @@ class BookshelfBackupServiceTest {
         assertThat(secondResult.updatedVolumes()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM books WHERE owner_id = 2", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM book_volumes bv JOIN books b ON b.id = bv.book WHERE b.owner_id = 2", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void import_allowsMissingVolumeCountsAndNormalizesLegacyZeroSequence() throws Exception {
+        byte[] backup = service.exportBackup(new Member(1, "source", "pw", null, null, null));
+        byte[] backupWithMissingCounts;
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(backup));
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            workbook.getSheet("도서").getRow(1).getCell(4).setBlank();
+            workbook.getSheet("권").getRow(1).getCell(2).setCellValue("0");
+            workbook.getSheet("권").getRow(1).getCell(3).setCellValue("아니오");
+            workbook.write(output);
+            backupWithMissingCounts = output.toByteArray();
+        }
+
+        var result = service.importBackup(
+                2,
+                "backup.xlsx",
+                backupWithMissingCounts.length,
+                new ByteArrayInputStream(backupWithMissingCounts)
+        );
+
+        assertThat(result.insertedBooks()).isEqualTo(1);
+        assertThat(result.insertedVolumes()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT totalvolume FROM books WHERE owner_id = 2", String.class
+        )).isNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT bv.volume
+                FROM book_volumes bv
+                JOIN books b ON b.id = bv.book
+                WHERE b.owner_id = 2
+                """, Integer.class)).isNull();
+    }
+
+    @Test
+    void export_writesLegacyNonPositiveSequenceAsMissingSideStoryNumber() throws Exception {
+        jdbcTemplate.update("UPDATE book_volumes SET volume = 0, seq = 0 WHERE id = 20");
+
+        byte[] backup = service.exportBackup(new Member(1, "source", "pw", null, null, null));
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(backup))) {
+            assertThat(workbook.getSheet("권").getRow(1).getCell(2).getStringCellValue()).isEmpty();
+            assertThat(workbook.getSheet("권").getRow(1).getCell(3).getStringCellValue()).isEqualTo("예");
+        }
     }
 
     @Test
