@@ -29,6 +29,37 @@ class ManualCoverUploadLimitFilterTest {
     }
 
     @Test
+    void rejectsOversizedManualCoverRequestForSignedBookIds() throws Exception {
+        for (String path : new String[]{"/books/+12", "/books/-1", "/books/+12/volumes"}) {
+            MockHttpServletRequest request = multipartPost(
+                    path, ManualCoverUploadLimitFilter.MAX_MANUAL_COVER_REQUEST_BYTES + 1
+            );
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            FilterChain chain = mock(FilterChain.class);
+
+            filter.doFilter(request, response, chain);
+
+            assertThat(response.getStatus()).as(path).isEqualTo(413);
+            verify(chain, never()).doFilter(request, response);
+        }
+    }
+
+    @Test
+    void rejectsOversizedManualCoverRequestWithMatrixParameters() throws Exception {
+        MockHttpServletRequest request = multipartPost(
+                "/books/12;x=y/volumes;z=q",
+                ManualCoverUploadLimitFilter.MAX_MANUAL_COVER_REQUEST_BYTES + 1
+        );
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(413);
+        verify(chain, never()).doFilter(request, response);
+    }
+
+    @Test
     void rejectsManualCoverRequestWithoutKnownLength() throws Exception {
         MockHttpServletRequest request = multipartPost("/books", -1);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -58,6 +89,19 @@ class ManualCoverUploadLimitFilterTest {
         MockHttpServletRequest request = multipartPost(
                 "/user/profile/covers/archive/upload/chunk",
                 ManualCoverUploadLimitFilter.MAX_MANUAL_COVER_REQUEST_BYTES + 1
+        );
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(request, response, chain);
+
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void doesNotApplyManualCoverLimitToSimilarPathPrefix() throws Exception {
+        MockHttpServletRequest request = multipartPost(
+                "/bookshelf/import", ManualCoverUploadLimitFilter.MAX_MANUAL_COVER_REQUEST_BYTES + 1
         );
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);

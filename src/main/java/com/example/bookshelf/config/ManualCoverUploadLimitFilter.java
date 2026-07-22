@@ -10,16 +10,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class ManualCoverUploadLimitFilter extends OncePerRequestFilter {
 
     static final long MAX_MANUAL_COVER_REQUEST_BYTES = 9L * 1024 * 1024;
-    private static final Pattern MANUAL_COVER_PATH = Pattern.compile(
-            "^/books(?:/\\d+|/\\d+/volumes)?$"
-    );
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -53,6 +49,6 @@ public class ManualCoverUploadLimitFilter extends OncePerRequestFilter {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
-        return MANUAL_COVER_PATH.matcher(path).matches();
+        return path.equals("/books") || path.startsWith("/books/") || path.startsWith("/books;");
     }
 }
