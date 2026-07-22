@@ -10,6 +10,8 @@
   const bookCard = document.getElementById('bookInfoCard');
   const bookForm = document.getElementById('bookEditForm');
   const bookDialog = document.getElementById('bookEditDialog');
+  const volumeCreateDialog = document.getElementById('volumeCreateDialog');
+  const volumeCreateForm = document.getElementById('volumeCreateForm');
   const volumeDialog = document.getElementById('volumeEditDialog');
   const volumeForm = document.getElementById('volumeEditForm');
   const deleteVolumesForm = document.getElementById('deleteVolumesForm');
@@ -209,6 +211,29 @@
     return true;
   }
 
+  function validateCoverFile(form) {
+      const coverFileInput = form?.querySelector('input[type="file"][name="coverFile"]');
+      const coverFile = coverFileInput?.files?.[0];
+      if (!coverFileInput) return true;
+      coverFileInput.setCustomValidity('');
+      if (coverFile) {
+        const allowedName = /\.(jpe?g|png|gif)$/i.test(coverFile.name);
+        const allowedType = !coverFile.type || ['image/jpeg', 'image/png', 'image/gif'].includes(coverFile.type);
+        let message = '';
+        if (!allowedName || !allowedType) {
+          message = '표지 이미지는 JPG, PNG, GIF 파일만 선택할 수 있습니다.';
+        } else if (coverFile.size > 8 * 1024 * 1024) {
+          message = '표지 이미지 파일은 8MB 이하만 선택할 수 있습니다.';
+        }
+        coverFileInput.setCustomValidity(message);
+        if (message) {
+          coverFileInput.reportValidity();
+          return false;
+        }
+      }
+      return true;
+  }
+
   function submitWithHistoryReplace(form, options = {}) {
     if (!form) return;
     const submitButton = form.querySelector('button[type="submit"]');
@@ -218,7 +243,7 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (isSubmitting) return;
+      if (isSubmitting || !validateCoverFile(form)) return;
       isSubmitting = true;
       isNavigatingAfterSubmit = true;
 
@@ -258,6 +283,14 @@
           window.__sparkProgress.hide(80);
         }
         const responseText = await response.text();
+        const responseDocument = responseText
+          ? new DOMParser().parseFromString(responseText, 'text/html')
+          : null;
+        const serverError = responseDocument?.querySelector('.bookshelf-toast-source[data-toast-kind="error"]')
+          ?.textContent?.trim();
+        if (serverError) {
+          throw new Error(`server-message:${serverError}`);
+        }
         const actionPath = new URL(form.action, window.location.origin).pathname;
         const isVolumeSubmit = /\/books\/\d+\/volumes\/\d+$/.test(actionPath);
         const isBookSubmit = /\/books\/\d+$/.test(actionPath);
@@ -282,6 +315,10 @@
           showToast('로그인이 필요합니다. 다시 로그인해 주세요.', 'error');
           return;
         }
+        if (error && error.message && error.message.startsWith('server-message:')) {
+          showToast(error.message.substring('server-message:'.length), 'error');
+          return;
+        }
         showToast('저장을 처리할 수 없습니다. 다시 시도해 주세요.', 'error');
         console.error('book-detail save failed', error);
       } finally {
@@ -304,6 +341,11 @@
       document.getElementById('bookEditAuthor').value = bookCard.dataset.bookAuthor || '';
       document.getElementById('bookEditDescription').value = bookCard.dataset.bookDescription || '';
       document.getElementById('bookEditCover').value = bookCard.dataset.bookCover || '';
+      const coverFileInput = document.getElementById('bookEditCoverFile');
+      if (coverFileInput) {
+        coverFileInput.value = '';
+        coverFileInput.setCustomValidity('');
+      }
       document.getElementById('bookEditType').value = bookCard.dataset.bookType || '';
       document.getElementById('bookEditTotalVolume').value = bookCard.dataset.bookTotalvolume || '';
       bookDialog.showModal();
@@ -323,6 +365,184 @@
     });
     document.getElementById('bookEditClose')?.addEventListener('click', () => closeDialog(bookDialog));
     document.getElementById('bookEditCancel')?.addEventListener('click', () => closeDialog(bookDialog));
+  }
+
+  function bindVolumeCreation() {
+    if (!volumeCreateDialog || !volumeCreateForm) return;
+    const openButton = document.getElementById('openVolumeCreateDialog');
+    const directCheckbox = document.getElementById('volumeCreateNonAladin');
+    const aladinFields = document.getElementById('volumeCreateAladinFields');
+    const directFields = document.getElementById('volumeCreateDirectFields');
+    const queryInput = document.getElementById('volumeCreateSearchQuery');
+    const searchButton = document.getElementById('volumeCreateSearchButton');
+    const searchMessage = document.getElementById('volumeCreateSearchMessage');
+    const searchResults = document.getElementById('volumeCreateSearchResults');
+    const selectedIsbnInput = document.getElementById('volumeCreateSelectedIsbn');
+    const nameInput = document.getElementById('volumeCreateName');
+    const coverFileInput = document.getElementById('volumeCreateCoverFile');
+    const seqInput = document.getElementById('volumeCreateSeq');
+    const sideStoryInput = document.getElementById('volumeCreateSideStory');
+    const submitButton = document.getElementById('volumeCreateSubmit');
+    const defaultNextVolume = root.dataset.nextVolume || '1';
+    let isSearching = false;
+
+    const escapeHtml = (value) => String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+
+    function clearAladinSelection(message = '검색 후 추가할 권을 선택해 주세요.') {
+      if (selectedIsbnInput) selectedIsbnInput.value = '';
+      if (searchResults) searchResults.innerHTML = '';
+      if (searchMessage) searchMessage.textContent = message;
+    }
+
+    function syncCreateMode() {
+      const direct = directCheckbox?.checked === true;
+      if (aladinFields) {
+        aladinFields.hidden = direct;
+        aladinFields.style.display = direct ? 'none' : '';
+      }
+      if (directFields) {
+        directFields.hidden = !direct;
+        directFields.style.display = direct ? 'grid' : 'none';
+      }
+      if (queryInput) queryInput.required = !direct;
+      if (nameInput) nameInput.required = direct;
+      if (coverFileInput && !direct) {
+        coverFileInput.value = '';
+        coverFileInput.setCustomValidity('');
+      }
+      if (submitButton) submitButton.textContent = direct ? '입력 정보로 추가' : '선택한 권 추가';
+      clearAladinSelection();
+    }
+
+    function syncSideStory() {
+      if (!seqInput) return;
+      const sideStory = sideStoryInput?.checked === true;
+      seqInput.disabled = sideStory;
+      seqInput.required = !sideStory;
+      if (sideStory) {
+        seqInput.value = '';
+        seqInput.placeholder = '외전은 권 번호 없음';
+      } else {
+        if (!seqInput.value) seqInput.value = defaultNextVolume;
+        seqInput.placeholder = '';
+      }
+    }
+
+    function renderSearchResults(items) {
+      if (!searchResults) return;
+      if (!items.length) {
+        clearAladinSelection('알라딘 검색 결과가 없습니다.');
+        return;
+      }
+      searchResults.innerHTML = items.map((item, index) => {
+        const selectionKey = item.selectionKey || '';
+        const selectable = item.selectable === true && selectionKey;
+        const state = item.exists ? '이미 등록됨' : (selectable ? '선택 가능' : '등록 불가');
+        return `
+          <button type="button" class="bookshelf-panel w-full rounded-[16px] border bookshelf-px-3 bookshelf-py-3 text-left transition ${selectable ? 'hover:border-violet-300 hover:bg-violet-50' : 'cursor-not-allowed opacity-60'}" data-volume-create-option data-index="${index}" ${selectable ? '' : 'disabled'}>
+            <div class="flex items-center bookshelf-gap-3">
+              ${item.cover ? `<img src="${escapeHtml(item.cover)}" alt="" class="h-16 w-11 shrink-0 rounded-[8px] object-cover">` : '<div class="flex h-16 w-11 shrink-0 items-center justify-center rounded-[8px] bg-slate-100 text-[10px] text-slate-400">NO</div>'}
+              <div class="min-w-0">
+                <div class="line-clamp-2 text-sm font-semibold text-slate-900">${escapeHtml(item.title || '제목 없음')}</div>
+                <div class="bookshelf-mt-1 text-xs text-slate-500">${escapeHtml(item.author || '저자 미입력')} · ISBN13 ${escapeHtml(item.isbn13 || '-')}</div>
+                <div class="bookshelf-mt-1 text-xs font-semibold ${selectable ? 'text-violet-700' : 'text-slate-400'}">${state}</div>
+              </div>
+            </div>
+          </button>`;
+      }).join('');
+      searchResults.querySelectorAll('[data-volume-create-option]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const item = items[Number(button.dataset.index)];
+          if (!item?.selectionKey || item.selectable !== true) return;
+          selectedIsbnInput.value = item.selectionKey;
+          searchResults.querySelectorAll('[data-volume-create-option]').forEach((option) => {
+            option.classList.remove('ring-2', 'ring-violet-500', 'bg-violet-50');
+          });
+          button.classList.add('ring-2', 'ring-violet-500', 'bg-violet-50');
+          if (searchMessage) searchMessage.textContent = `선택됨: ${item.title || item.isbn13}`;
+        });
+      });
+      if (searchMessage) searchMessage.textContent = '추가할 권을 선택해 주세요.';
+    }
+
+    async function searchAladin() {
+      const query = queryInput?.value.trim() || '';
+      if (!query || isSearching) {
+        queryInput?.reportValidity();
+        return;
+      }
+      isSearching = true;
+      clearAladinSelection('알라딘에서 검색 중입니다...');
+      if (searchButton) {
+        searchButton.disabled = true;
+        searchButton.textContent = '검색 중...';
+      }
+      try {
+        const response = await fetch(`/books/aladin-preview?name=${encodeURIComponent(query)}`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) throw new Error('로그인 상태를 확인해 주세요.');
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message || '알라딘 검색에 실패했습니다.');
+        renderSearchResults(Array.isArray(payload.items) ? payload.items : []);
+      } catch (error) {
+        clearAladinSelection(error.message || '알라딘 검색에 실패했습니다.');
+      } finally {
+        isSearching = false;
+        if (searchButton) {
+          searchButton.disabled = false;
+          searchButton.textContent = '검색';
+        }
+      }
+    }
+
+    openButton?.addEventListener('click', () => {
+      volumeCreateForm.reset();
+      if (queryInput) queryInput.value = bookName;
+      if (seqInput) seqInput.value = defaultNextVolume;
+      syncCreateMode();
+      syncSideStory();
+      volumeCreateDialog.showModal();
+      requestAnimationFrame(() => focusDialogNonInput(volumeCreateDialog));
+    });
+    document.getElementById('volumeCreateClose')?.addEventListener('click', () => closeDialog(volumeCreateDialog));
+    document.getElementById('volumeCreateCancel')?.addEventListener('click', () => closeDialog(volumeCreateDialog));
+    directCheckbox?.addEventListener('change', syncCreateMode);
+    sideStoryInput?.addEventListener('change', syncSideStory);
+    queryInput?.addEventListener('input', () => clearAladinSelection());
+    queryInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        searchAladin();
+      }
+    });
+    searchButton?.addEventListener('click', searchAladin);
+    volumeCreateForm.addEventListener('submit', (event) => {
+      if (!validateCoverFile(volumeCreateForm)) {
+        event.preventDefault();
+        return;
+      }
+      if (directCheckbox?.checked !== true && !selectedIsbnInput?.value) {
+        event.preventDefault();
+        if (searchMessage) searchMessage.textContent = '추가할 알라딘 권을 선택해 주세요.';
+        showToast('추가할 알라딘 권을 선택해 주세요.', 'error');
+        return;
+      }
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '추가 중...';
+      }
+    });
+    syncCreateMode();
+    syncSideStory();
   }
 
   function bindVolumeDialog() {
@@ -491,6 +711,7 @@
   }
 
   bindBookDialog();
+  bindVolumeCreation();
   bindVolumeDialog();
   bindEditSubmit();
   bindDeleteConfirm();

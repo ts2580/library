@@ -42,6 +42,7 @@ class BookVolumeRepositoryTest {
                     description TEXT,
                     ispurchased INTEGER,
                     noneedtobuy INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT
                 )
                 """);
@@ -73,6 +74,7 @@ class BookVolumeRepositoryTest {
                     description TEXT,
                     ispurchased INTEGER,
                     noneedtobuy INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0,
                     createddate TEXT
                 )
                 """);
@@ -89,6 +91,9 @@ class BookVolumeRepositoryTest {
                 .containsExactly("2권", "외전", "새 외전");
         assertThat(repository.findVolumesByBookId(10).get(1).sideStory()).isTrue();
         assertThat(repository.findVolumesByBookId(10).get(1).nullableSeq()).isNull();
+
+        repository.updateVolume(10, 1, null, "외전", "/covers/side.jpg", null, null, false, false, null);
+        assertThat(jdbcTemplate.queryForObject("SELECT cover_generated FROM book_volumes WHERE id = 1", Integer.class)).isOne();
     }
 
     @Test
@@ -109,6 +114,38 @@ class BookVolumeRepositoryTest {
 
         assertThat(repository.nextVolumeSeq(10)).isEqualTo(4);
         assertThat(repository.nextVolumeSeq(20)).isEqualTo(1);
+    }
+
+    @Test
+    void pendingCoverGeneration_excludesVolumesWithoutAladinIsbn() {
+        SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.execute("CREATE TABLE books (id INTEGER PRIMARY KEY, owner_id INTEGER)");
+        jdbcTemplate.execute("""
+                CREATE TABLE book_volumes (
+                    id INTEGER PRIMARY KEY,
+                    volume INTEGER,
+                    book INTEGER,
+                    isbn13 TEXT,
+                    name TEXT,
+                    cover TEXT,
+                    price TEXT,
+                    description TEXT,
+                    ispurchased INTEGER,
+                    noneedtobuy INTEGER,
+                    cover_generated INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+        jdbcTemplate.update("INSERT INTO books (id, owner_id) VALUES (?, ?)", 10, 7);
+        jdbcTemplate.update("INSERT INTO books (id, owner_id) VALUES (?, ?)", 20, 8);
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name) VALUES (?, ?, ?, ?, ?)", 1, 1, 10, "9781234567890", "알라딘 권");
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name) VALUES (?, ?, ?, ?, ?)", 2, 2, 10, null, "직접 입력 권");
+        jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book, isbn13, name) VALUES (?, ?, ?, ?, ?)", 3, 1, 20, "9780000000000", "다른 사용자 권");
+        BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
+
+        assertThat(repository.findVolumesPendingCoverGenerationForOwner(7))
+                .extracting(volume -> volume.id())
+                .containsExactly(1);
     }
 
     @Test

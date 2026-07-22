@@ -408,6 +408,99 @@ public class ProductService {
         return downloadCoverImage(coverUrl, fileKey);
     }
 
+    public String persistUploadedCoverImage(String originalFilename,
+                                            long fileSize,
+                                            InputStream inputStream,
+                                            String fileKey) {
+        if (fileSize <= 0) {
+            throw new CoverUploadException("업로드할 표지 이미지 파일을 선택해 주세요.");
+        }
+        if (fileSize > MAX_COVER_BYTES) {
+            throw new CoverUploadException("표지 이미지 파일은 8MB 이하만 업로드할 수 있습니다.");
+        }
+        validateUploadedFilename(originalFilename);
+
+        Path temporary = null;
+        try {
+            Path coverRoot = Paths.get(coverStorageDir).toAbsolutePath().normalize();
+            Files.createDirectories(coverRoot);
+            temporary = Files.createTempFile(coverRoot, ".cover-upload-", ".part");
+            try (InputStream uploaded = inputStream;
+                 OutputStream output = Files.newOutputStream(temporary, StandardOpenOption.TRUNCATE_EXISTING)) {
+                copyWithLimit(uploaded, output);
+            }
+            String extension = uploadedImageExtension(temporary);
+            validateImageDimensions(temporary);
+            String filename = sanitizeCoverFileKey(fileKey) + extension;
+            Path destination = coverRoot.resolve(filename).normalize();
+            if (!destination.startsWith(coverRoot)) {
+                throw new IOException("Unsafe uploaded cover path");
+            }
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException atomicMoveFailure) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            temporary = null;
+            return "/covers/" + filename;
+        } catch (CoverUploadException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new CoverUploadException("표지 이미지 파일을 저장하지 못했습니다.", e);
+        } finally {
+            if (temporary != null) {
+                try {
+                    Files.deleteIfExists(temporary);
+                } catch (IOException ignored) {
+                    // Best-effort cleanup of an invalid or failed upload.
+                }
+            }
+        }
+    }
+
+    private static void validateUploadedFilename(String originalFilename) {
+        String normalized = originalFilename == null ? "" : originalFilename.toLowerCase(Locale.ROOT);
+        if (!(normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")
+                || normalized.endsWith(".png") || normalized.endsWith(".gif"))) {
+            throw new CoverUploadException("표지 이미지는 JPG, PNG, GIF 파일만 업로드할 수 있습니다.");
+        }
+    }
+
+    private static String uploadedImageExtension(Path imagePath) throws IOException {
+        try (ImageInputStream imageInput = ImageIO.createImageInputStream(imagePath.toFile())) {
+            if (imageInput == null) throw new IOException("Invalid image data");
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(imageInput);
+            if (!readers.hasNext()) {
+                throw new CoverUploadException("이미지 파일이 아닌 항목은 표지로 업로드할 수 없습니다.");
+            }
+            ImageReader reader = readers.next();
+            try {
+                return switch (reader.getFormatName().toLowerCase(Locale.ROOT)) {
+                    case "jpeg", "jpg" -> ".jpg";
+                    case "png" -> ".png";
+                    case "gif" -> ".gif";
+                    default -> throw new CoverUploadException("지원하지 않는 표지 이미지 형식입니다.");
+                };
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    public boolean isLocalCoverAvailable(String coverUrl) {
+        String normalized = Texts.trimToNull(coverUrl);
+        if (normalized == null || !normalized.startsWith("/covers/")) {
+            return false;
+        }
+        String filename = normalized.substring("/covers/".length());
+        if (filename.isBlank() || filename.contains("/") || filename.contains("\\")) {
+            return false;
+        }
+        Path coverRoot = Paths.get(coverStorageDir).toAbsolutePath().normalize();
+        Path coverPath = coverRoot.resolve(filename).normalize();
+        return coverPath.startsWith(coverRoot) && Files.isRegularFile(coverPath);
+    }
+
     public void deleteLocalCoverFilesIfUnused(Collection<String> coverUrls) {
         if (coverUrls == null || coverUrls.isEmpty()) {
             return;
@@ -503,6 +596,16 @@ public class ProductService {
 
         public static ProductImportResult error(String message) {
             return new ProductImportResult(false, message);
+        }
+    }
+
+    public static class CoverUploadException extends RuntimeException {
+        public CoverUploadException(String message) {
+            super(message);
+        }
+
+        public CoverUploadException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 }

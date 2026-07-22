@@ -35,4 +35,18 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "coverArchiveExecutor")
+    public Executor coverArchiveExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(2);
+        executor.setThreadNamePrefix("CoverArchive-");
+        executor.setDaemon(false);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(1800);
+        executor.initialize();
+        return executor;
+    }
 }
