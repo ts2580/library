@@ -360,10 +360,11 @@ class BookshelfControllerTest {
         when(bookDataRepository.findBookById(3)).thenReturn(book);
         when(bookVolumeRepository.existsVolumeByIsbn13("9781234567890")).thenReturn(false);
         when(productService.persistUploadedCoverImage(
-                eq("volume.png"), eq(3L), any(InputStream.class), eq("9781234567890")
-        )).thenReturn("/covers/9781234567890.png");
+                eq("volume.png"), eq(3L), any(InputStream.class),
+                org.mockito.ArgumentMatchers.startsWith("book_3_manual_volume_")
+        )).thenReturn("/covers/book_3_manual_volume_unique.png");
         when(bookVolumeRepository.insertVolume(
-                3, 2, "9781234567890", "직접 입력 2권", "/covers/9781234567890.png", "12000", "권 설명"
+                3, 2, "9781234567890", "직접 입력 2권", "/covers/book_3_manual_volume_unique.png", "12000", "권 설명"
         )).thenReturn(12);
         when(bookVolumeRepository.findVolumesByBookId(3)).thenReturn(java.util.Collections.nCopies(2, null));
 
@@ -374,10 +375,10 @@ class BookshelfControllerTest {
 
         assertThat(view).isEqualTo("redirect:/books/3");
         verify(bookVolumeRepository).insertVolume(
-                3, 2, "9781234567890", "직접 입력 2권", "/covers/9781234567890.png", "12000", "권 설명"
+                3, 2, "9781234567890", "직접 입력 2권", "/covers/book_3_manual_volume_unique.png", "12000", "권 설명"
         );
         verify(bookDataRepository).updateBook(
-                3, "기존 책", "기존 저자", "기존 설명", "/covers/9781234567890.png", "소설", "2"
+                3, "기존 책", "기존 저자", "기존 설명", "/covers/book_3_manual_volume_unique.png", "소설", "2"
         );
         verifyNoInteractions(aladinSearchService);
     }

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -39,6 +40,8 @@ public class CoverArchiveService {
     public static final long MAX_UPLOAD_BYTES = 500L * 1024 * 1024;
     public static final long MAX_CHUNKED_UPLOAD_BYTES = 2L * 1024 * 1024 * 1024;
     public static final int CHUNK_BYTES = 8 * 1024 * 1024;
+    static final int MAX_ACTIVE_CHUNK_UPLOADS_PER_OWNER = 2;
+    static final long MAX_STORED_CHUNK_BYTES_PER_OWNER = MAX_CHUNKED_UPLOAD_BYTES;
     private static final long MAX_EXPANDED_BYTES = 2L * 1024 * 1024 * 1024;
     private static final long MAX_IMAGE_BYTES = 25L * 1024 * 1024;
     private static final int MAX_ENTRIES = 50_000;
@@ -51,16 +54,34 @@ public class CoverArchiveService {
     private final Path coverRoot;
     private final Path chunkUploadRoot;
     private final Executor coverArchiveExecutor;
+    private final int maxActiveChunkUploadsPerOwner;
+    private final long maxStoredChunkBytesPerOwner;
     private final Map<String, ChunkJobState> chunkJobStates = new ConcurrentHashMap<>();
 
     @Autowired
     public CoverArchiveService(BookshelfBackupRepository repository,
                                @Value("${app.covers.storage-dir:./data/covers}") String coverStorageDir,
                                @Qualifier("coverArchiveExecutor") Executor coverArchiveExecutor) {
+        this(
+                repository,
+                coverStorageDir,
+                coverArchiveExecutor,
+                MAX_ACTIVE_CHUNK_UPLOADS_PER_OWNER,
+                MAX_STORED_CHUNK_BYTES_PER_OWNER
+        );
+    }
+
+    CoverArchiveService(BookshelfBackupRepository repository,
+                        String coverStorageDir,
+                        Executor coverArchiveExecutor,
+                        int maxActiveChunkUploadsPerOwner,
+                        long maxStoredChunkBytesPerOwner) {
         this.repository = repository;
         this.coverRoot = Path.of(coverStorageDir).toAbsolutePath().normalize();
         this.chunkUploadRoot = coverRoot.getParent().resolve(".cover-uploads").normalize();
         this.coverArchiveExecutor = coverArchiveExecutor;
+        this.maxActiveChunkUploadsPerOwner = maxActiveChunkUploadsPerOwner;
+        this.maxStoredChunkBytesPerOwner = maxStoredChunkBytesPerOwner;
     }
 
     public CoverArchiveService(BookshelfBackupRepository repository, String coverStorageDir) {
@@ -147,6 +168,7 @@ public class CoverArchiveService {
         try {
             Files.createDirectories(chunkUploadRoot);
             cleanupAbandonedChunkUploads();
+            enforceOwnerChunkUploadLimits(ownerId, uploadDirectory, chunkIndex, chunkSize);
             Files.createDirectories(uploadDirectory);
             validateOrCreateManifest(uploadDirectory, requested);
             writeChunk(uploadDirectory, chunkIndex, chunkSize, inputStream);
@@ -456,6 +478,70 @@ public class CoverArchiveService {
             throw new CoverArchiveException("안전하지 않은 청크 업로드 경로입니다.");
         }
         return directory;
+    }
+
+    private void enforceOwnerChunkUploadLimits(int ownerId,
+                                               Path uploadDirectory,
+                                               int chunkIndex,
+                                               long chunkSize) throws IOException {
+        List<Path> ownerUploads = ownerChunkUploadDirectories(ownerId);
+        boolean existingUpload = ownerUploads.contains(uploadDirectory);
+        if (!existingUpload && ownerUploads.size() >= maxActiveChunkUploadsPerOwner) {
+            throw new CoverArchiveException(
+                    "동시에 진행할 수 있는 표지 ZIP 업로드 수를 초과했습니다. 기존 업로드를 완료한 뒤 다시 시도해 주세요."
+            );
+        }
+
+        Path existingChunk = chunkPath(uploadDirectory, chunkIndex);
+        long existingChunkBytes = Files.isRegularFile(existingChunk, LinkOption.NOFOLLOW_LINKS)
+                ? Files.size(existingChunk)
+                : 0L;
+        long storedBytes = storedChunkBytes(ownerUploads);
+        long projectedBytes;
+        try {
+            projectedBytes = Math.addExact(Math.subtractExact(storedBytes, existingChunkBytes), chunkSize);
+        } catch (ArithmeticException e) {
+            projectedBytes = Long.MAX_VALUE;
+        }
+        if (projectedBytes > maxStoredChunkBytesPerOwner) {
+            deleteStagingDirectory(uploadDirectory);
+            throw new CoverArchiveException(
+                    "계정별 표지 ZIP 임시 저장 한도를 초과했습니다. 현재 업로드를 정리했으니 다시 시도해 주세요."
+            );
+        }
+    }
+
+    private List<Path> ownerChunkUploadDirectories(int ownerId) throws IOException {
+        if (!Files.isDirectory(chunkUploadRoot, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        String ownerPrefix = ownerId + "-";
+        try (var uploads = Files.list(chunkUploadRoot)) {
+            return uploads
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> path.getFileName().toString().startsWith(ownerPrefix))
+                    .toList();
+        }
+    }
+
+    private static long storedChunkBytes(List<Path> uploadDirectories) throws IOException {
+        long total = 0L;
+        for (Path directory : uploadDirectories) {
+            try (var files = Files.list(directory)) {
+                for (Path file : files.toList()) {
+                    String filename = file.getFileName().toString();
+                    if ((filename.endsWith(".part") || filename.endsWith(".tmp"))
+                            && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+                        total = Math.addExact(total, Files.size(file));
+                    }
+                }
+            } catch (java.nio.file.NoSuchFileException ignored) {
+                // A completed asynchronous import may remove its upload directory concurrently.
+            } catch (ArithmeticException e) {
+                return Long.MAX_VALUE;
+            }
+        }
+        return total;
     }
 
     private static void validateOrCreateManifest(Path uploadDirectory,

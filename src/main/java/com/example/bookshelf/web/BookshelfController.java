@@ -413,9 +413,11 @@ public class BookshelfController {
             return "redirect:/books/" + id;
         }
 
-        String coverKey = resolvedIsbn != null
-                ? resolvedIsbn
-                : "book_" + id + "_volume_" + (hasUploadedFile(coverFile) ? UUID.randomUUID() : (sideStory ? "side" : seq));
+        String coverKey = nonAladinRegistration && hasUploadedFile(coverFile)
+                ? "book_" + id + "_manual_volume_" + UUID.randomUUID()
+                : resolvedIsbn != null
+                        ? resolvedIsbn
+                        : "book_" + id + "_volume_" + (sideStory ? "side" : seq);
         String persistedCover;
         try {
             persistedCover = nonAladinRegistration && hasUploadedFile(coverFile)

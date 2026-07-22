@@ -175,6 +175,58 @@ class CoverArchiveServiceTest {
         assertThat(Files.readAllBytes(tempDir.resolve("book.jpg"))).containsExactly(JPEG);
     }
 
+    @Test
+    void importArchiveChunk_limitsConcurrentIncompleteUploadsPerOwner() {
+        BookshelfBackupRepository repository = mock(BookshelfBackupRepository.class);
+        CoverArchiveService service = new CoverArchiveService(
+                repository,
+                tempDir.resolve("covers").toString(),
+                Runnable::run,
+                1,
+                CoverArchiveService.MAX_STORED_CHUNK_BYTES_PER_OWNER
+        );
+        byte[] firstChunk = new byte[CoverArchiveService.CHUNK_BYTES];
+
+        service.importArchiveChunk(
+                7, "018990a1-4458-4e8e-a73d-675a87f40d9d", "first.zip",
+                CoverArchiveService.CHUNK_BYTES + 1L, 2, 0, CoverArchiveService.CHUNK_BYTES,
+                new ByteArrayInputStream(firstChunk)
+        );
+
+        assertThatThrownBy(() -> service.importArchiveChunk(
+                7, "118990a1-4458-4e8e-a73d-675a87f40d9d", "second.zip",
+                CoverArchiveService.CHUNK_BYTES + 1L, 2, 0, CoverArchiveService.CHUNK_BYTES,
+                new ByteArrayInputStream(firstChunk)
+        )).isInstanceOf(CoverArchiveService.CoverArchiveException.class)
+                .hasMessageContaining("동시에 진행");
+    }
+
+    @Test
+    void importArchiveChunk_removesCurrentUploadWhenOwnerByteLimitIsExceeded() {
+        BookshelfBackupRepository repository = mock(BookshelfBackupRepository.class);
+        CoverArchiveService service = new CoverArchiveService(
+                repository,
+                tempDir.resolve("covers").toString(),
+                Runnable::run,
+                2,
+                CoverArchiveService.CHUNK_BYTES
+        );
+        String uploadId = "218990a1-4458-4e8e-a73d-675a87f40d9d";
+        byte[] firstChunk = new byte[CoverArchiveService.CHUNK_BYTES];
+
+        service.importArchiveChunk(
+                7, uploadId, "covers.zip", CoverArchiveService.CHUNK_BYTES + 1L,
+                2, 0, CoverArchiveService.CHUNK_BYTES, new ByteArrayInputStream(firstChunk)
+        );
+
+        assertThatThrownBy(() -> service.importArchiveChunk(
+                7, uploadId, "covers.zip", CoverArchiveService.CHUNK_BYTES + 1L,
+                2, 1, 1L, new ByteArrayInputStream(new byte[]{1})
+        )).isInstanceOf(CoverArchiveService.CoverArchiveException.class)
+                .hasMessageContaining("임시 저장 한도");
+        assertThat(tempDir.resolve(".cover-uploads").resolve("7-" + uploadId)).doesNotExist();
+    }
+
     private static byte[] zip(Map<String, byte[]> files) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(output)) {

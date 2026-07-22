@@ -147,22 +147,39 @@
       throw lastError || new Error('청크 업로드에 실패했습니다.');
     };
 
+    const fetchRestoreStatus = async (statusUrl) => {
+      let lastError;
+      for (let retry = 1; retry <= 3; retry++) {
+        try {
+          const response = await fetch(statusUrl, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          });
+          let result;
+          try {
+            result = await response.json();
+          } catch (ignored) {
+            result = null;
+          }
+          if (!response.ok || !result?.success) {
+            const error = new Error(result?.message || `표지 복원 상태를 확인하지 못했습니다. (${response.status})`);
+            error.retryable = response.status >= 500 || result === null;
+            throw error;
+          }
+          return result;
+        } catch (error) {
+          lastError = error;
+          if (error.retryable === false || retry === 3) break;
+          await wait(retry * 600);
+        }
+      }
+      throw lastError || new Error('표지 복원 상태를 확인하지 못했습니다.');
+    };
+
     const waitForRestore = async () => {
       const statusUrl = `/user/profile/covers/archive/upload/chunk/status?uploadId=${encodeURIComponent(uploadId)}`;
       for (let attempt = 0; attempt < 1800; attempt++) {
-        const response = await fetch(statusUrl, {
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' }
-        });
-        let result;
-        try {
-          result = await response.json();
-        } catch (ignored) {
-          result = null;
-        }
-        if (!response.ok || !result?.success) {
-          throw new Error(result?.message || `표지 복원 상태를 확인하지 못했습니다. (${response.status})`);
-        }
+        const result = await fetchRestoreStatus(statusUrl);
         updateProgress(result.percent, result.message);
         if (result.completed) return result;
         await wait(1000);
