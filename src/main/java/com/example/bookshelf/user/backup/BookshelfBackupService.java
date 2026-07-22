@@ -229,17 +229,15 @@ public class BookshelfBackupService {
 
             boolean sideStory = parseBoolean(optionalText(row, columns, "외전", context), "외전", context);
             Integer sequence = parseSequence(optionalText(row, columns, "권번호", context), context);
-            if (sideStory && sequence != null) {
+            if (sideStory && sequence != null && sequence > 0) {
                 throw new BackupException(context + ": 외전인 권은 권번호를 비워 주세요.");
             }
-            if (!sideStory && sequence == null) {
-                throw new BackupException(context + ": 일반 권은 1 이상의 권번호가 필요합니다.");
-            }
+            Integer storedSequence = sideStory ? null : sequence == null ? 0 : sequence;
 
             volumes.add(new BackupVolume(
                     bookKey,
                     volumeKey,
-                    sideStory ? null : sequence,
+                    storedSequence,
                     optionalText(row, columns, "ISBN13", context),
                     optionalText(row, columns, "ISBN10", context),
                     optionalText(row, columns, "제목", context),
@@ -320,7 +318,7 @@ public class BookshelfBackupService {
         for (BackupVolume volume : volumes) {
             Row row = sheet.createRow(rowIndex++);
             writeValues(row,
-                    volume.bookBackupKey(), volume.backupKey(), value(volume.sequence()),
+                    volume.bookBackupKey(), volume.backupKey(), positiveValue(volume.sequence()),
                     yesNo(volume.sequence() == null), volume.isbn13(), volume.isbn(), volume.name(),
                     volume.author(), volume.type(), volume.price(), yesNo(volume.purchased()),
                     yesNo(volume.noNeedToBuy()), volume.description(), volume.cover(), volume.originalUrl(),
@@ -419,11 +417,15 @@ public class BookshelfBackupService {
         if (raw == null) return null;
         try {
             int sequence = new BigDecimal(raw).intValueExact();
-            if (sequence < 1) throw new ArithmeticException();
+            if (sequence < 0) throw new ArithmeticException();
             return sequence;
         } catch (ArithmeticException | NumberFormatException e) {
-            throw new BackupException(context + ": 권번호는 1 이상의 정수여야 합니다.");
+            throw new BackupException(context + ": 권번호는 0 이상의 정수여야 합니다.");
         }
+    }
+
+    private String positiveValue(Integer value) {
+        return value == null || value <= 0 ? null : Integer.toString(value);
     }
 
     private boolean parseBoolean(String raw, String column, String context) {

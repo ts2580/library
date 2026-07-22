@@ -8,6 +8,7 @@ import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookDataRepository;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.integration.aladin.AladinCoverUtils;
+import com.example.bookshelf.user.service.ProductService.CoverUploadException;
 import com.example.bookshelf.web.viewmodel.BookDetailViewModel;
 import com.example.bookshelf.web.viewmodel.BookListViewModel;
 import org.springframework.stereotype.Controller;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Controller
@@ -114,6 +117,7 @@ public class BookshelfController {
                              @RequestParam(value = "sideStoryIsbn", required = false) List<String> sideStoryIsbns,
                              @RequestParam(value = "selectionConfirmed", defaultValue = "false") boolean selectionConfirmed,
                              @RequestParam(value = "nonAladinRegistration", defaultValue = "false") boolean nonAladinRegistration,
+                             @RequestParam(value = "coverFile", required = false) MultipartFile coverFile,
                              RedirectAttributes redirectAttributes) {
         if (name == null || name.isBlank()) {
             redirectAttributes.addFlashAttribute("error", "책 제목을 입력해 주세요.");
@@ -132,11 +136,27 @@ public class BookshelfController {
                 redirectAttributes.addFlashAttribute("error", "알라딘 외 등록은 새 책 등록에만 사용할 수 있습니다.");
                 return "redirect:/books";
             }
-            String normalizedCover = AladinCoverUtils.toCover500(cover);
+            String normalizedCover;
+            try {
+                normalizedCover = hasUploadedFile(coverFile)
+                        ? productService.persistUploadedCoverImage(
+                                coverFile.getOriginalFilename(), coverFile.getSize(), coverFile.getInputStream(),
+                                "manual_book_" + UUID.randomUUID()
+                        )
+                        : AladinCoverUtils.toCover500(cover);
+            } catch (CoverUploadException | java.io.IOException e) {
+                String message = e instanceof CoverUploadException
+                        ? e.getMessage()
+                        : "표지 이미지 파일을 읽지 못했습니다.";
+                redirectAttributes.addFlashAttribute("error", message);
+                return "redirect:/books";
+            }
             int bookId = ownerId == null
                     ? bookDataRepository.insertBook(name, author, description, normalizedCover, type, totalVolume)
                     : bookDataRepository.insertBookForOwner(ownerId, name, author, description, normalizedCover, type, totalVolume);
-            String persistedCover = persistExternalCover(normalizedCover, resolveBookCoverCacheKey(bookId, null));
+            String persistedCover = hasUploadedFile(coverFile)
+                    ? normalizedCover
+                    : persistExternalCover(normalizedCover, resolveBookCoverCacheKey(bookId, null));
             if (persistedCover == null ? normalizedCover != null : !persistedCover.equals(normalizedCover)) {
                 bookDataRepository.updateBook(bookId, name, author, description, persistedCover, type, totalVolume);
             }
@@ -241,6 +261,25 @@ public class BookshelfController {
         return "redirect:/books/" + bookId;
     }
 
+    public String createBook(String name,
+                             String author,
+                             String description,
+                             String cover,
+                             String type,
+                             String totalVolume,
+                             Integer targetBookId,
+                             List<String> selectedIsbns,
+                             List<String> sideStoryIsbns,
+                             boolean selectionConfirmed,
+                             boolean nonAladinRegistration,
+                             RedirectAttributes redirectAttributes) {
+        return createBook(
+                name, author, description, cover, type, totalVolume, targetBookId,
+                selectedIsbns, sideStoryIsbns, selectionConfirmed, nonAladinRegistration,
+                null, redirectAttributes
+        );
+    }
+
     @GetMapping("/books/{id}")
     public String detail(@PathVariable int id, Model model) {
         var book = findAccessibleBook(id);
@@ -265,6 +304,7 @@ public class BookshelfController {
                              @RequestParam(value = "author", required = false) String author,
                              @RequestParam(value = "description", required = false) String description,
                              @RequestParam(value = "cover", required = false) String cover,
+                             @RequestParam(value = "coverFile", required = false) MultipartFile coverFile,
                              @RequestParam(value = "type", required = false) String type,
                              @RequestParam(value = "totalvolume", required = false) String ignoredTotalVolume,
                              RedirectAttributes redirectAttributes) {
@@ -272,11 +312,39 @@ public class BookshelfController {
         if (book == null) return "redirect:/books";
 
         String bookCoverCacheKey = resolveBookCoverCacheKey(id, resolveBookPrimaryVolumeIsbn13(id));
-        cover = persistExternalCover(cover, bookCoverCacheKey);
+        try {
+            cover = hasUploadedFile(coverFile)
+                    ? productService.persistUploadedCoverImage(
+                            coverFile.getOriginalFilename(), coverFile.getSize(), coverFile.getInputStream(), bookCoverCacheKey
+                    )
+                    : persistExternalCover(cover, bookCoverCacheKey);
+        } catch (CoverUploadException | java.io.IOException e) {
+            String message = e instanceof CoverUploadException
+                    ? e.getMessage()
+                    : "표지 이미지 파일을 읽지 못했습니다.";
+            redirectAttributes.addFlashAttribute("error", message);
+            return "redirect:/books/" + id;
+        }
         String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(id).size());
         bookDataRepository.updateBook(id, name, author, description, cover, type, calculatedTotalVolume);
+        if (hasUploadedFile(coverFile) && book.cover() != null && !Objects.equals(book.cover(), cover)) {
+            productService.deleteLocalCoverFilesIfUnused(List.of(book.cover()));
+        }
         redirectAttributes.addFlashAttribute("success", "책 정보를 수정했습니다.");
         return "redirect:/books/" + id;
+    }
+
+    public String updateBook(int id,
+                             String name,
+                             String author,
+                             String description,
+                             String cover,
+                             String type,
+                             String ignoredTotalVolume,
+                             RedirectAttributes redirectAttributes) {
+        return updateBook(
+                id, name, author, description, cover, null, type, ignoredTotalVolume, redirectAttributes
+        );
     }
 
     @PostMapping("/books/{id}/volumes")
@@ -287,6 +355,7 @@ public class BookshelfController {
                             @RequestParam(value = "isbn13", required = false) String isbn13,
                             @RequestParam(value = "name", required = false) String name,
                             @RequestParam(value = "cover", required = false) String cover,
+                            @RequestParam(value = "coverFile", required = false) MultipartFile coverFile,
                             @RequestParam(value = "price", required = false) String price,
                             @RequestParam(value = "description", required = false) String description,
                             @RequestParam(value = "purchased", defaultValue = "false") boolean purchased,
@@ -344,8 +413,25 @@ public class BookshelfController {
             return "redirect:/books/" + id;
         }
 
-        String coverKey = resolvedIsbn != null ? resolvedIsbn : "book_" + id + "_volume_" + (sideStory ? "side" : seq);
-        String persistedCover = persistExternalCover(resolvedCover, coverKey);
+        String coverKey = nonAladinRegistration && hasUploadedFile(coverFile)
+                ? "book_" + id + "_manual_volume_" + UUID.randomUUID()
+                : resolvedIsbn != null
+                        ? resolvedIsbn
+                        : "book_" + id + "_volume_" + (sideStory ? "side" : seq);
+        String persistedCover;
+        try {
+            persistedCover = nonAladinRegistration && hasUploadedFile(coverFile)
+                    ? productService.persistUploadedCoverImage(
+                            coverFile.getOriginalFilename(), coverFile.getSize(), coverFile.getInputStream(), coverKey
+                    )
+                    : persistExternalCover(resolvedCover, coverKey);
+        } catch (CoverUploadException | java.io.IOException e) {
+            String message = e instanceof CoverUploadException
+                    ? e.getMessage()
+                    : "표지 이미지 파일을 읽지 못했습니다.";
+            redirectAttributes.addFlashAttribute("error", message);
+            return "redirect:/books/" + id;
+        }
         int volumeId = bookVolumeRepository.insertVolume(
                 id, sideStory ? null : seq, resolvedIsbn, resolvedName, persistedCover, resolvedPrice, resolvedDescription
         );
@@ -356,13 +442,36 @@ public class BookshelfController {
             );
         }
         String calculatedTotalVolume = String.valueOf(bookVolumeRepository.findVolumesByBookId(id).size());
+        String mappedBookCover = Texts.trimToNull(book.cover()) == null
+                ? persistedCover
+                : book.cover();
         bookDataRepository.updateBook(
-                id, book.name(), book.author(), book.description(), book.cover(), book.type(), calculatedTotalVolume
+                id, book.name(), book.author(), book.description(), mappedBookCover, book.type(), calculatedTotalVolume
         );
         redirectAttributes.addFlashAttribute("success", nonAladinRegistration
                 ? "직접 입력한 권을 추가했습니다."
                 : "알라딘 권을 추가했습니다.");
         return "redirect:/books/" + id;
+    }
+
+    public String addVolume(int id,
+                            boolean nonAladinRegistration,
+                            String searchQuery,
+                            String selectedIsbn,
+                            String isbn13,
+                            String name,
+                            String cover,
+                            String price,
+                            String description,
+                            boolean purchased,
+                            boolean noNeedToBuy,
+                            boolean sideStory,
+                            Integer seq,
+                            RedirectAttributes redirectAttributes) {
+        return addVolume(
+                id, nonAladinRegistration, searchQuery, selectedIsbn, isbn13, name, cover, null,
+                price, description, purchased, noNeedToBuy, sideStory, seq, redirectAttributes
+        );
     }
 
     @PostMapping("/books/{id}/volumes/{volumeId}")
@@ -528,6 +637,10 @@ public class BookshelfController {
             return normalizedCover;
         }
         return productService.persistCoverImage(normalizedCover, cacheKey);
+    }
+
+    private static boolean hasUploadedFile(MultipartFile file) {
+        return file != null && !file.isEmpty();
     }
 
     private String resolvePrimaryIsbn13FromItems(List<com.example.bookshelf.integration.aladin.AladinItem> items) {
