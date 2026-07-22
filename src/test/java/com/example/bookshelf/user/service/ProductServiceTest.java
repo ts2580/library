@@ -16,11 +16,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -193,5 +198,43 @@ class ProductServiceTest {
         String sanitized = ReflectionTestUtils.invokeMethod(productService, "sanitizeCoverFileKey", "../../evil\\name");
 
         assertThat(sanitized).doesNotContain("/", "\\", "..");
+    }
+
+    @Test
+    void persistUploadedCoverImage_validatesAndStoresLocalImage() throws Exception {
+        ReflectionTestUtils.setField(productService, "coverStorageDir", tempDir.toString());
+        BufferedImage image = new BufferedImage(3, 4, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        byte[] bytes = output.toByteArray();
+
+        String result = productService.persistUploadedCoverImage(
+                "manual-cover.png",
+                bytes.length,
+                new ByteArrayInputStream(bytes),
+                "book_42"
+        );
+
+        assertThat(result).isEqualTo("/covers/book_42.png");
+        BufferedImage saved = ImageIO.read(tempDir.resolve("book_42.png").toFile());
+        assertThat(saved.getWidth()).isEqualTo(3);
+        assertThat(saved.getHeight()).isEqualTo(4);
+    }
+
+    @Test
+    void persistUploadedCoverImage_rejectsSpoofedImageWithoutLeavingFile() {
+        ReflectionTestUtils.setField(productService, "coverStorageDir", tempDir.toString());
+        byte[] bytes = "not-an-image".getBytes();
+
+        assertThatThrownBy(() -> productService.persistUploadedCoverImage(
+                "fake.jpg",
+                bytes.length,
+                new ByteArrayInputStream(bytes),
+                "book_43"
+        ))
+                .isInstanceOf(ProductService.CoverUploadException.class)
+                .hasMessageContaining("이미지 파일이 아닌");
+
+        assertThat(tempDir).isEmptyDirectory();
     }
 }

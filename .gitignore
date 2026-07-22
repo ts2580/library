@@ -29,8 +29,8 @@ node_modules/
 # OS
 .DS_Store
 
-# Runtime image cache
-/data/covers/
+# Runtime data
+/data/
 
 temp/
 

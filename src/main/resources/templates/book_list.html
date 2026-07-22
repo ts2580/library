@@ -55,7 +55,7 @@
       </div>
 
       <dialog id="bookCreateDialog" role="dialog" aria-modal="true" aria-labelledby="bookCreateTitle" class="bookshelf-book-create-dialog backdrop:bg-slate-900/40 w-full max-w-2xl rounded-[28px] border border-slate-200 bookshelf-p-0 shadow-2xl">
-        <form id="bookCreateForm" method="post" action="/books" class="bookshelf-book-create-form bookshelf-card overflow-hidden border-0 shadow-none" data-top-progress-ignore>
+        <form id="bookCreateForm" method="post" action="/books" enctype="multipart/form-data" class="bookshelf-book-create-form bookshelf-card overflow-hidden border-0 shadow-none" data-top-progress-ignore>
           <div class="flex items-center justify-between border-b border-slate-200 bookshelf-px-5 bookshelf-py-4 sm:bookshelf-px-6">
             <div><h3 id="bookCreateTitle" class="bookshelf-title-lg">책 수동 추가</h3></div>
             <button type="button" id="bookCreateClose" class="bookshelf-btn-ghost bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-sm sm:w-auto">닫기</button>
@@ -82,6 +82,7 @@
               <div><label for="bookCreateType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="bookCreateType" name="type" list="book-category-options" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="카테고리"></div>
               <div><label for="bookCreateTotalVolume" class="bookshelf-mb-1 block bookshelf-detail-label">총 권수</label><input id="bookCreateTotalVolume" name="totalvolume" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="예: 12"></div>
               <div class="sm:col-span-2"><label for="bookCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookCreateCover" name="cover" type="url" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="https://..."></div>
+              <div id="bookCreateCoverFileField" class="sm:col-span-2" hidden><label for="bookCreateCoverFile" class="bookshelf-mb-1 block bookshelf-detail-label">표지 이미지 파일 <span class="bookshelf-subtitle-xs">(선택 · URL보다 우선)</span></label><input id="bookCreateCoverFile" name="coverFile" type="file" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif" class="bookshelf-input bookshelf-profile-file-input"></div>
               <div class="sm:col-span-2"><label for="bookCreateDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="bookCreateDescription" name="description" rows="3" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="책 설명"></textarea></div>
             </div>
 
@@ -111,7 +112,7 @@
     </main>
   </div>
 </div>
-<script src="/js/book-list.js?v=1.4.0" defer></script>
+<script src="/js/book-list.js?v=1.5.0" defer></script>
 <script src="/js/cover-preview.js" defer></script>
 <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
 </body>

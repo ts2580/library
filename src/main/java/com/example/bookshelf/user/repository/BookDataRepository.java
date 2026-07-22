@@ -154,7 +154,19 @@ public class BookDataRepository {
 
     public List<Book> findBooksPendingCoverGenerationForOwner(int ownerId) {
         if (!ownerColumnExists()) return List.of();
-        String sql = "SELECT " + BOOK_TABLE_COLUMNS + " FROM books WHERE owner_id = ? AND COALESCE(cover_generated, 0) = 0 ORDER BY id";
+        String sql = """
+                SELECT %s
+                FROM books b
+                WHERE b.owner_id = ?
+                  AND COALESCE(b.cover_generated, 0) = 0
+                  AND EXISTS (
+                      SELECT 1
+                      FROM book_volumes bv
+                      WHERE bv.book = b.id
+                        AND TRIM(COALESCE(bv.isbn13, '')) <> ''
+                  )
+                ORDER BY b.id
+                """.formatted(BOOK_TABLE_COLUMNS);
         return jdbcTemplate.query(sql, BookRowMappers.BOOK, ownerId);
     }
 

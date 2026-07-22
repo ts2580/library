@@ -51,7 +51,7 @@ public class BookshelfBackupRepository {
                 """, (rs, rowNum) -> new BackupVolume(
                 Integer.toString(rs.getInt("book")),
                 Integer.toString(rs.getInt("id")),
-                nullableInteger(rs, "volume"),
+                nullableNonNegativeInteger(rs, "volume"),
                 rs.getString("isbn13"),
                 rs.getString("isbn"),
                 rs.getString("name"),
@@ -249,9 +249,12 @@ public class BookshelfBackupRepository {
         }
     }
 
-    private static Integer nullableInteger(ResultSet resultSet, String column) throws SQLException {
+    private static Integer nullableNonNegativeInteger(ResultSet resultSet, String column) throws SQLException {
         int value = resultSet.getInt(column);
-        return resultSet.wasNull() ? null : value;
+        if (resultSet.wasNull()) {
+            return null;
+        }
+        return Math.max(value, 0);
     }
 
     public record BackupBook(
