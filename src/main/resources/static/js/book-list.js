@@ -52,6 +52,9 @@
   const form = document.getElementById('bookCreateForm');
   const submitButton = document.getElementById('bookCreateSubmit');
   const selectionConfirmedInput = document.getElementById('bookCreateSelectionConfirmed');
+  const nonAladinCheckbox = document.getElementById('bookCreateNonAladin');
+  const coverFileField = document.getElementById('bookCreateCoverFileField');
+  const coverFileInput = document.getElementById('bookCreateCoverFile');
   const previewSection = document.getElementById('bookCreatePreview');
   const previewCount = document.getElementById('bookCreatePreviewCount');
   const previewMessage = document.getElementById('bookCreatePreviewMessage');
@@ -137,7 +140,7 @@
     }
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = '추가 예정 확인';
+      submitButton.textContent = nonAladinCheckbox?.checked ? '입력 정보로 등록' : '추가 예정 확인';
       submitButton.dataset.submitting = 'false';
     }
   };
@@ -293,6 +296,41 @@
     updateTargetMeta();
   };
 
+  const syncNonAladinMode = () => {
+    const directRegistration = nonAladinCheckbox?.checked === true;
+    resetPreview();
+    if (directRegistration) {
+      clearTargetBookSelection();
+      if (targetBookSearch) targetBookSearch.value = '';
+      hideTargetResults();
+    }
+    if (targetBookSearch) targetBookSearch.disabled = directRegistration;
+    if (coverFileField) coverFileField.hidden = !directRegistration;
+    if (coverFileInput) {
+      coverFileInput.disabled = !directRegistration;
+      coverFileInput.setCustomValidity('');
+      if (!directRegistration) coverFileInput.value = '';
+    }
+    if (selectionConfirmedInput) selectionConfirmedInput.value = 'false';
+    if (submitButton) submitButton.textContent = directRegistration ? '입력 정보로 등록' : '추가 예정 확인';
+  };
+
+  const validateCoverFile = () => {
+    const file = coverFileInput?.files?.[0];
+    if (!file) return true;
+    const allowedName = /\.(jpe?g|png|gif)$/i.test(file.name);
+    const allowedType = !file.type || ['image/jpeg', 'image/png', 'image/gif'].includes(file.type);
+    let message = '';
+    if (!allowedName || !allowedType) {
+      message = '표지 이미지는 JPG, PNG, GIF 파일만 선택할 수 있습니다.';
+    } else if (file.size > 8 * 1024 * 1024) {
+      message = '표지 이미지 파일은 8MB 이하만 선택할 수 있습니다.';
+    }
+    coverFileInput.setCustomValidity(message);
+    if (message) coverFileInput.reportValidity();
+    return !message;
+  };
+
   const selectTargetBook = (item) => {
     if (!item) return;
     resetPreview();
@@ -440,6 +478,10 @@
     if (previewedName && nameInput.value.trim() !== previewedName) resetPreview();
   });
 
+  nonAladinCheckbox?.addEventListener('change', syncNonAladinMode);
+  coverFileInput?.addEventListener('change', validateCoverFile);
+  syncNonAladinMode();
+
   selectAllButton?.addEventListener('click', () => {
     selectableCheckboxes().forEach((checkbox) => { checkbox.checked = false; });
     syncSelectionState();
@@ -450,6 +492,23 @@
   });
 
   form?.addEventListener('submit', async (event) => {
+    if (nonAladinCheckbox?.checked) {
+      if (!validateCoverFile()) {
+        event.preventDefault();
+        return;
+      }
+      if (submitButton?.dataset.submitting === 'true') {
+        event.preventDefault();
+        return;
+      }
+      if (submitButton) {
+        submitButton.dataset.submitting = 'true';
+        submitButton.disabled = true;
+        submitButton.textContent = '추가 중...';
+      }
+      window.__sparkProgress?.show?.();
+      return;
+    }
     const query = nameInput?.value.trim() || '';
     if (!previewedName || previewedName !== query) {
       event.preventDefault();

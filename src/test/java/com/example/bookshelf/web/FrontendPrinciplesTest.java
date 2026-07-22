@@ -103,6 +103,13 @@ class FrontendPrinciplesTest {
                 .contains("name=\"selectionConfirmed\"")
                 .contains("id=\"bookCreateTargetSearch\"")
                 .contains("name=\"targetBookId\"")
+                .contains("id=\"bookCreateNonAladin\"")
+                .contains("name=\"author\"")
+                .contains("name=\"description\"")
+                .contains("name=\"cover\"")
+                .contains("name=\"coverFile\"")
+                .contains("enctype=\"multipart/form-data\"")
+                .contains("name=\"totalvolume\"")
                 .contains(">전체 선택<")
                 .contains("추가 예정 확인")
                 .doesNotContain("id=\"bookCreateSideStory\"");
@@ -119,6 +126,10 @@ class FrontendPrinciplesTest {
                 .contains("/products/books/autocomplete?q=")
                 .contains("typeInput.readOnly = true;")
                 .contains("selectedTargetBook.nextVolume")
+                .contains("syncNonAladinMode")
+                .contains("bookCreateCoverFileField")
+                .contains("validateCoverFile")
+                .contains("directRegistration ? '입력 정보로 등록'")
                 .contains("sideStoryCheckbox?.checked === true")
                 .contains("selectionInput.disabled = !included");
         assertThat(css)
@@ -149,9 +160,32 @@ class FrontendPrinciplesTest {
                 .contains("autocomplete=\"email\"")
                 .contains("data-password-toggle=\"profileCurrentPassword\"")
                 .contains("data-password-toggle=\"profileNewPassword\"")
+                .contains("/user/profile/backup/download")
+                .contains("/user/profile/backup/upload")
+                .contains("/user/profile/covers/archive/download")
+                .contains("/user/profile/covers/archive/upload")
+                .contains("/user/profile/covers/regenerate")
+                .contains("name=\"backupFile\"")
+                .contains("name=\"coverArchive\"")
+                .contains("href=\"/user/profile/backup/download\" data-top-progress-ignore")
+                .contains("href=\"/user/profile/covers/archive/download\" data-top-progress-ignore")
+                .contains("data-cover-archive-upload-progress")
+                .contains("data-cover-archive-upload-bar")
                 .contains("/js/user-profile.js");
         assertThat(script)
                 .contains("data-profile-description-count")
+                .contains("data-backup-upload-form")
+                .contains("data-cover-archive-upload-form")
+                .contains("data-cover-regenerate-form")
+                .contains("COVER_ARCHIVE_CHUNK_BYTES = 8 * 1024 * 1024")
+                .contains("/user/profile/covers/archive/upload/chunk")
+                .contains("/user/profile/covers/archive/upload/chunk/status?uploadId=")
+                .contains("fetchRestoreStatus")
+                .contains("retry <= 3")
+                .contains("file.slice(")
+                .contains("result.completed")
+                .contains("result?.processing")
+                .contains("window.__sparkProgress?.hide?.(80);")
                 .contains("input.type = shouldShow ? 'text' : 'password';");
     }
 
@@ -160,18 +194,33 @@ class FrontendPrinciplesTest {
         String dialogs = read("src/main/resources/templates/fragments/book-detail/dialogs.html");
         String script = read("src/main/resources/static/js/book-detail.js");
         String bookList = read("src/main/resources/templates/book_list.html");
+        String bookDetail = read("src/main/resources/templates/book_detail.html");
 
         assertThat(dialogs)
                 .contains("id=\"bookEditDialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"bookEditTitle\"")
+                .contains("id=\"volumeCreateDialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"volumeCreateTitle\"")
+                .contains("id=\"volumeCreateNonAladin\"")
+                .contains("id=\"volumeCreateSearchQuery\"")
                 .contains("id=\"volumeEditDialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"volumeEditTitle\"")
                 .contains("id=\"bookEditTotalVolume\" name=\"totalvolume\" type=\"text\" readonly")
+                .contains("id=\"bookEditCoverFile\" name=\"coverFile\" type=\"file\"")
+                .contains("id=\"bookEditForm\" method=\"post\" enctype=\"multipart/form-data\"")
+                .contains("id=\"volumeCreateCoverFile\" name=\"coverFile\" type=\"file\"")
+                .contains("id=\"volumeCreateForm\" method=\"post\" enctype=\"multipart/form-data\"")
                 .contains("id=\"volumeEditSeq\" name=\"seq\" type=\"number\" min=\"1\" required")
                 .contains("id=\"volumeEditSideStory\" name=\"sideStory\" type=\"checkbox\"");
         assertThat(script)
                 .doesNotContain("document.getElementById('bookEditName')?.focus();")
                 .doesNotContain("seqInput.focus();")
+                .contains("bindVolumeCreation()")
+                .contains("/books/aladin-preview?name=")
+                .contains("directCheckbox?.checked === true")
+                .contains("input[type=\"file\"][name=\"coverFile\"]")
+                .contains("validateCoverFile(volumeCreateForm)")
+                .contains("server-message:")
                 .contains("seqInput.disabled = sideStory;")
                 .contains("if (sideStory) seqInput.value = '';");
+        assertThat(bookDetail).contains("id=\"openVolumeCreateDialog\"");
     }
 
     @Test

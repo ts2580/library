@@ -12,6 +12,10 @@ spring:
       mode: always
   thymeleaf:
     cache: false
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 501MB
 
 app:
   covers:

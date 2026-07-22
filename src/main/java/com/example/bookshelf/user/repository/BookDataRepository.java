@@ -152,6 +152,24 @@ public class BookDataRepository {
         return jdbcTemplate.query(sql, BookRowMappers.BOOK);
     }
 
+    public List<Book> findBooksPendingCoverGenerationForOwner(int ownerId) {
+        if (!ownerColumnExists()) return List.of();
+        String sql = """
+                SELECT %s
+                FROM books b
+                WHERE b.owner_id = ?
+                  AND COALESCE(b.cover_generated, 0) = 0
+                  AND EXISTS (
+                      SELECT 1
+                      FROM book_volumes bv
+                      WHERE bv.book = b.id
+                        AND TRIM(COALESCE(bv.isbn13, '')) <> ''
+                  )
+                ORDER BY b.id
+                """.formatted(BOOK_TABLE_COLUMNS);
+        return jdbcTemplate.query(sql, BookRowMappers.BOOK, ownerId);
+    }
+
     public Book findBookById(int id) {
         String sql = "SELECT " + BOOK_TABLE_COLUMNS + " FROM books WHERE id = ?";
         try {
@@ -203,7 +221,7 @@ public class BookDataRepository {
     public int insertBook(String name, String author, String description, String cover, String type, String totalVolume) {
         saveCategory(type);
         KeyHolder keyHolder = new GeneratedKeyHolder();
-        String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume, cover_generated) VALUES (?, ?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(connection -> {
             var ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, Texts.trimToNull(name));
@@ -212,6 +230,7 @@ public class BookDataRepository {
             ps.setString(4, Texts.trimToNull(type));
             ps.setString(5, Texts.trimToNull(cover));
             ps.setString(6, Texts.trimToNull(totalVolume));
+            ps.setBoolean(7, isGeneratedCover(cover));
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -222,7 +241,7 @@ public class BookDataRepository {
     public int insertBookForOwner(int ownerId, String name, String author, String description, String cover, String type, String totalVolume) {
         saveCategory(type);
         KeyHolder keyHolder = new GeneratedKeyHolder();
-        String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO books (name, author, description, type, cover, totalvolume, owner_id, cover_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         jdbcTemplate.update(connection -> {
             var ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, Texts.trimToNull(name));
@@ -232,6 +251,7 @@ public class BookDataRepository {
             ps.setString(5, Texts.trimToNull(cover));
             ps.setString(6, Texts.trimToNull(totalVolume));
             ps.setInt(7, ownerId);
+            ps.setBoolean(8, isGeneratedCover(cover));
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -243,10 +263,18 @@ public class BookDataRepository {
         saveCategory(type);
         String sql = """
                 UPDATE books
-                SET name = ?, author = ?, description = ?, cover = ?, type = ?, totalvolume = ?
+                SET name = ?, author = ?, description = ?, cover = ?, type = ?, totalvolume = ?, cover_generated = ?
                 WHERE id = ?
                 """;
-        jdbcTemplate.update(sql, Texts.trimToNull(name), Texts.trimToNull(author), Texts.trimToNull(description), Texts.trimToNull(cover), Texts.trimToNull(type), Texts.trimToNull(totalVolume), bookId);
+        jdbcTemplate.update(sql, Texts.trimToNull(name), Texts.trimToNull(author), Texts.trimToNull(description), Texts.trimToNull(cover), Texts.trimToNull(type), Texts.trimToNull(totalVolume), isGeneratedCover(cover), bookId);
+    }
+
+    public void updateGeneratedCoverForOwner(int bookId, int ownerId, String cover) {
+        jdbcTemplate.update("""
+                UPDATE books
+                SET cover = ?, cover_generated = ?
+                WHERE id = ? AND owner_id = ?
+                """, Texts.trimToNull(cover), isGeneratedCover(cover), bookId, ownerId);
     }
 
     public void deleteBookById(int bookId) {
@@ -360,6 +388,11 @@ public class BookDataRepository {
                 Integer.class
         );
         return count != null && count > 0;
+    }
+
+    private static boolean isGeneratedCover(String cover) {
+        String normalized = Texts.trimToNull(cover);
+        return normalized != null && normalized.startsWith("/covers/");
     }
 
     private record QueryParts(String sql, List<Object> args) {
