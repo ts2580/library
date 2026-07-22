@@ -25,4 +25,19 @@
       button.setAttribute('title', `${fieldName} ${action}`);
     });
   });
+
+  document.querySelector('[data-backup-upload-form]')?.addEventListener('submit', (event) => {
+    const confirmed = window.confirm('선택한 엑셀 데이터를 현재 계정의 책장에 병합하시겠습니까?');
+    if (!confirmed) event.preventDefault();
+  });
+
+  document.querySelector('[data-cover-archive-upload-form]')?.addEventListener('submit', (event) => {
+    const confirmed = window.confirm('선택한 표지 ZIP을 현재 계정의 커버 저장소에 복원하시겠습니까?');
+    if (!confirmed) event.preventDefault();
+  });
+
+  document.querySelector('[data-cover-regenerate-form]')?.addEventListener('submit', (event) => {
+    const confirmed = window.confirm('현재 계정의 미생성 커버를 순서대로 생성하시겠습니까?');
+    if (!confirmed) event.preventDefault();
+  });
 })();

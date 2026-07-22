@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS books (
     hc_lastop TEXT,
     hc_err TEXT,
     owner_id INTEGER,
+    cover_generated INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (owner_id) REFERENCES member (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS book_volumes (
     pubdate TEXT,
     createddate TEXT,
     author TEXT,
+    cover_generated INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (book) REFERENCES books (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
