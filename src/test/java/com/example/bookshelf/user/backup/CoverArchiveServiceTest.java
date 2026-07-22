@@ -132,6 +132,7 @@ class CoverArchiveServiceTest {
         assertThat(second.completed()).isTrue();
         assertThat(second.importResult()).isEqualTo(new CoverArchiveService.ImportResult(1, 0, 0));
         assertThat(Files.size(tempDir.resolve("book.jpg"))).isEqualTo(image.length);
+        assertThat(tempDir.getParent().resolve(".cover-uploads").resolve("7-" + uploadId)).doesNotExist();
         verify(repository).markLocalCoverAvailableForOwner(7, "/covers/book.jpg");
     }
 

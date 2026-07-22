@@ -222,9 +222,8 @@ public class CoverArchiveService {
                                          long totalSize,
                                          int totalChunks) {
         try {
-            Path assembledArchive = uploadDirectory.resolve("assembled.zip");
-            assembleChunks(uploadDirectory, assembledArchive, totalChunks, totalSize);
-            try (InputStream archiveInput = Files.newInputStream(assembledArchive)) {
+            validateChunkSet(uploadDirectory, totalChunks, totalSize);
+            try (InputStream archiveInput = new ChunkSequenceInputStream(uploadDirectory, totalChunks)) {
                 ImportResult result = importArchive(
                         ownerId, originalFilename, totalSize, archiveInput, MAX_CHUNKED_UPLOAD_BYTES
                 );
@@ -625,30 +624,100 @@ public class CoverArchiveService {
                 && countUploadedChunks(uploadDirectory, totalChunks) == totalChunks;
     }
 
-    private static void assembleChunks(Path uploadDirectory,
-                                       Path assembledArchive,
-                                       int totalChunks,
-                                       long expectedSize) throws IOException {
-        long assembledSize = 0L;
-        byte[] buffer = new byte[BUFFER_SIZE];
-        try (OutputStream output = Files.newOutputStream(
-                assembledArchive, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            for (int index = 0; index < totalChunks; index++) {
-                Path chunk = chunkPath(uploadDirectory, index);
-                try (InputStream input = Files.newInputStream(chunk)) {
-                    int read;
-                    while ((read = input.read(buffer)) != -1) {
-                        assembledSize += read;
-                        if (assembledSize > expectedSize) {
-                            throw new CoverArchiveException("재조립한 표지 ZIP 크기가 올바르지 않습니다.");
-                        }
-                        output.write(buffer, 0, read);
-                    }
-                }
+    private static void validateChunkSet(Path uploadDirectory,
+                                         int totalChunks,
+                                         long expectedSize) throws IOException {
+        long chunkBytes = 0L;
+        for (int index = 0; index < totalChunks; index++) {
+            Path chunk = chunkPath(uploadDirectory, index);
+            if (!Files.isRegularFile(chunk)) {
+                throw new CoverArchiveException("표지 ZIP 청크가 모두 업로드되지 않았습니다.");
+            }
+            try {
+                chunkBytes = Math.addExact(chunkBytes, Files.size(chunk));
+            } catch (ArithmeticException e) {
+                throw new CoverArchiveException("재조립한 표지 ZIP 크기가 올바르지 않습니다.", e);
             }
         }
-        if (assembledSize != expectedSize) {
+        if (chunkBytes != expectedSize) {
             throw new CoverArchiveException("재조립한 표지 ZIP 크기가 올바르지 않습니다.");
+        }
+    }
+
+    private static final class ChunkSequenceInputStream extends InputStream {
+        private final Path uploadDirectory;
+        private final int totalChunks;
+        private int nextChunkIndex;
+        private InputStream current;
+        private Path currentPath;
+
+        private ChunkSequenceInputStream(Path uploadDirectory, int totalChunks) {
+            this.uploadDirectory = uploadDirectory;
+            this.totalChunks = totalChunks;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] singleByte = new byte[1];
+            int read = read(singleByte, 0, 1);
+            return read == -1 ? -1 : Byte.toUnsignedInt(singleByte[0]);
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            if (length == 0) {
+                return 0;
+            }
+            while (true) {
+                if (current == null && !openNextChunk()) {
+                    return -1;
+                }
+                int read = current.read(buffer, offset, length);
+                if (read != -1) {
+                    return read;
+                }
+                closeCurrentChunk();
+            }
+        }
+
+        private boolean openNextChunk() throws IOException {
+            if (nextChunkIndex >= totalChunks) {
+                return false;
+            }
+            currentPath = chunkPath(uploadDirectory, nextChunkIndex++);
+            current = Files.newInputStream(currentPath);
+            return true;
+        }
+
+        private void closeCurrentChunk() throws IOException {
+            IOException failure = null;
+            try {
+                current.close();
+            } catch (IOException e) {
+                failure = e;
+            }
+            try {
+                Files.deleteIfExists(currentPath);
+            } catch (IOException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            } finally {
+                current = null;
+                currentPath = null;
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (current != null) {
+                closeCurrentChunk();
+            }
         }
     }
 

@@ -81,7 +81,7 @@ class BookshelfBackupServiceTest {
     }
 
     @Test
-    void import_allowsMissingVolumeCountsAndNormalizesLegacyZeroSequence() throws Exception {
+    void import_allowsMissingVolumeCountsAndPreservesZeroAsUnnumberedStandardVolume() throws Exception {
         byte[] backup = service.exportBackup(new Member(1, "source", "pw", null, null, null));
         byte[] backupWithMissingCounts;
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(backup));
@@ -110,18 +110,45 @@ class BookshelfBackupServiceTest {
                 FROM book_volumes bv
                 JOIN books b ON b.id = bv.book
                 WHERE b.owner_id = 2
-                """, Integer.class)).isNull();
+                """, Integer.class)).isZero();
     }
 
     @Test
-    void export_writesLegacyNonPositiveSequenceAsMissingSideStoryNumber() throws Exception {
+    void import_preservesBlankSequenceAsUnnumberedStandardVolume() throws Exception {
+        byte[] backup = service.exportBackup(new Member(1, "source", "pw", null, null, null));
+        byte[] backupWithBlankSequence;
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(backup));
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            workbook.getSheet("권").getRow(1).getCell(2).setBlank();
+            workbook.getSheet("권").getRow(1).getCell(3).setCellValue("아니오");
+            workbook.write(output);
+            backupWithBlankSequence = output.toByteArray();
+        }
+
+        service.importBackup(
+                2,
+                "backup.xlsx",
+                backupWithBlankSequence.length,
+                new ByteArrayInputStream(backupWithBlankSequence)
+        );
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT bv.volume
+                FROM book_volumes bv
+                JOIN books b ON b.id = bv.book
+                WHERE b.owner_id = 2
+                """, Integer.class)).isZero();
+    }
+
+    @Test
+    void export_writesZeroSequenceAsUnnumberedStandardVolume() throws Exception {
         jdbcTemplate.update("UPDATE book_volumes SET volume = 0, seq = 0 WHERE id = 20");
 
         byte[] backup = service.exportBackup(new Member(1, "source", "pw", null, null, null));
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(backup))) {
             assertThat(workbook.getSheet("권").getRow(1).getCell(2).getStringCellValue()).isEmpty();
-            assertThat(workbook.getSheet("권").getRow(1).getCell(3).getStringCellValue()).isEqualTo("예");
+            assertThat(workbook.getSheet("권").getRow(1).getCell(3).getStringCellValue()).isEqualTo("아니오");
         }
     }
 
