@@ -9,10 +9,15 @@ services:
       SERVER_PORT: "25647"
       REGISTRATION: "false"
       ALADIN_TTB_KEY: ""
+      ALADIN_MIN_REQUEST_INTERVAL_MS: "${ALADIN_MIN_REQUEST_INTERVAL_MS:-1000}"
+      ALADIN_MAX_ATTEMPTS: "${ALADIN_MAX_ATTEMPTS:-3}"
+      ALADIN_INITIAL_BACKOFF_MS: "${ALADIN_INITIAL_BACKOFF_MS:-2000}"
+      ALADIN_MAX_BACKOFF_MS: "${ALADIN_MAX_BACKOFF_MS:-30000}"
       # Required stable random key. Generate one before `docker compose up`,
       # for example: export APP_REMEMBER_ME_KEY="$(openssl rand -hex 32)"
       APP_REMEMBER_ME_KEY: "${APP_REMEMBER_ME_KEY:?APP_REMEMBER_ME_KEY must be set}"
       BOOKSHELF_COVER_DIR: "/data/covers"
+      BOOKSHELF_APP_LOG_FILE: "/data/logs/bookshelf.log"
       # Set true only when serving through HTTPS. Keep false for direct HTTP/local access.
       SESSION_COOKIE_SECURE: "false"
     volumes:
