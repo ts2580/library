@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.example'
-version = '2.6.1'
+version = '2.6.2'
 description = 'bookshelf'
 
 java {
@@ -36,4 +36,5 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'logging.file.name', layout.buildDirectory.file('test-logs/bookshelf.log').get().asFile.absolutePath
 }

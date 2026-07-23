@@ -11,17 +11,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AsyncConfigTest {
 
     @Test
-    void aladinFetchExecutor_limitsConcurrentRequestsToTwo() {
-        ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) new AsyncConfig().aladinFetchExecutor();
-        try {
-            assertThat(executor.getCorePoolSize()).isEqualTo(2);
-            assertThat(executor.getMaxPoolSize()).isEqualTo(2);
-        } finally {
-            executor.destroy();
-        }
-    }
-
-    @Test
     void coverArchiveExecutor_waitsForRestoreTasksDuringShutdown() throws Exception {
         ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) new AsyncConfig().coverArchiveExecutor();
         try {

@@ -2,6 +2,7 @@ package com.example.bookshelf.user.service;
 
 import com.example.bookshelf.integration.aladin.AladinUsedStockService;
 import com.example.bookshelf.integration.aladin.AladinBranchStock;
+import com.example.bookshelf.integration.aladin.AladinRateLimitException;
 import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,7 +30,6 @@ public class StockRefreshService {
     private final BookVolumeRepository bookVolumeRepository;
     private final BranchInventoryRepository branchInventoryRepository;
     private final AladinUsedStockService aladinUsedStockService;
-    private final Executor aladinFetchExecutor;
     private final Executor refreshExecutor;
     private final StockRefreshJobRepository stockRefreshJobRepository;
 
@@ -42,13 +41,11 @@ public class StockRefreshService {
     public StockRefreshService(BookVolumeRepository bookVolumeRepository,
                                BranchInventoryRepository branchInventoryRepository,
                                AladinUsedStockService aladinUsedStockService,
-                               @Qualifier("aladinFetchExecutor") Executor aladinFetchExecutor,
                                @Qualifier("stockRefreshExecutor") Executor refreshExecutor,
                                StockRefreshJobRepository stockRefreshJobRepository) {
         this.bookVolumeRepository = bookVolumeRepository;
         this.branchInventoryRepository = branchInventoryRepository;
         this.aladinUsedStockService = aladinUsedStockService;
-        this.aladinFetchExecutor = aladinFetchExecutor;
         this.refreshExecutor = refreshExecutor;
         this.stockRefreshJobRepository = stockRefreshJobRepository;
     }
@@ -56,12 +53,8 @@ public class StockRefreshService {
     public StockRefreshService(BookVolumeRepository bookVolumeRepository,
                                BranchInventoryRepository branchInventoryRepository,
                                AladinUsedStockService aladinUsedStockService,
-                               Executor aladinFetchExecutor) {
-        this(bookVolumeRepository, branchInventoryRepository, aladinUsedStockService, aladinFetchExecutor, command -> {
-            Thread thread = new Thread(command, "bookshelf-stock-refresh");
-            thread.setDaemon(true);
-            thread.start();
-        }, null);
+                               Executor refreshExecutor) {
+        this(bookVolumeRepository, branchInventoryRepository, aladinUsedStockService, refreshExecutor, null);
     }
 
     @PostConstruct
@@ -130,6 +123,16 @@ public class StockRefreshService {
                 lastSeenId = processRefreshBatch(volumes, total, counters);
             }
             rebuildSummaryAfterRefresh(total, counters);
+        } catch (AladinRateLimitException e) {
+            log.warn("Stock refresh stopped because the Aladin API rate limit persisted after retries", e);
+            setProgress(StockRefreshProgress.failed(
+                    total,
+                    counters.processed.get(),
+                    counters.success.get(),
+                    counters.empty.get(),
+                    counters.fail.get(),
+                    "알라딘 API 호출 제한(429)이 계속되어 갱신을 중단했습니다. 잠시 후 다시 실행해 주세요."
+            ));
         } catch (Exception e) {
             log.error("Stock refresh job failed", e);
             setProgress(StockRefreshProgress.failed(total, counters.processed.get(), counters.success.get(), counters.empty.get(), counters.fail.get(), "일괄 갱신 중 오류가 발생했습니다: " + e.getMessage()));
@@ -143,14 +146,9 @@ public class StockRefreshService {
     }
 
     private int processRefreshBatch(List<BookVolume> volumes, int total, RefreshCounters counters) {
-        List<CompletableFuture<Void>> futures = volumes.stream()
-                .map(volume -> CompletableFuture.runAsync(() -> processSingleRefreshTarget(volume, total, counters), aladinFetchExecutor))
-                .toList();
-
-        // Wait for all tasks in the current batch to complete
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        // Return the ID of the last processed volume in this batch for the next fetch
+        for (BookVolume volume : volumes) {
+            processSingleRefreshTarget(volume, total, counters);
+        }
         return volumes.get(volumes.size() - 1).id();
     }
 
@@ -158,6 +156,8 @@ public class StockRefreshService {
         String isbn13 = volume.isbn13();
         if (isbn13 == null || isbn13.isEmpty()) {
             counters.fail.incrementAndGet();
+            log.warn("Stock refresh skipped because ISBN13 is missing for bookVolumeId={}, bookId={}, seq={}, title={}",
+                    volume.id(), volume.bookId(), volume.seq(), safeTitle(volume));
             counters.processed.incrementAndGet();
             publishRefreshProgress(total, counters, "ISBN13이 없는 항목을 건너뛰는 중입니다.");
             return;
@@ -176,6 +176,12 @@ public class StockRefreshService {
                 branchInventoryRepository.replaceBranchBooks(volume.id(), volume.bookId(), safeTitle(volume), volume.seq(), lookup.stocks());
                 counters.success.incrementAndGet();
             }
+        } catch (AladinRateLimitException e) {
+            counters.fail.incrementAndGet();
+            counters.processed.incrementAndGet();
+            publishRefreshProgress(total, counters, "알라딘 API 호출 제한으로 갱신을 중단하는 중입니다.");
+            log.warn("Stock refresh rate-limited for bookId={}, seq={}, isbn13={}", volume.bookId(), volume.seq(), isbn13);
+            throw e;
         } catch (RuntimeException e) {
             counters.fail.incrementAndGet();
             log.warn("Failed to refresh stocks for bookId={}, seq={}, isbn13={}", volume.bookId(), volume.seq(), isbn13, e);
@@ -189,6 +195,13 @@ public class StockRefreshService {
         publishRefreshProgress(total, counters, "차트용 집계 테이블을 갱신하는 중입니다.");
         branchInventoryRepository.rebuildBranchInventorySummary();
         String message = "재고 일괄 조회 완료: 총 " + total + "권 중 " + counters.success.get() + "권 성공, " + counters.empty.get() + "권 재고없음, " + counters.fail.get() + "권 실패";
+        if (counters.fail.get() > 0) {
+            log.warn("Stock refresh completed with failures: total={}, processed={}, success={}, empty={}, fail={}",
+                    total, counters.processed.get(), counters.success.get(), counters.empty.get(), counters.fail.get());
+        } else {
+            log.info("Stock refresh completed: total={}, success={}, empty={}",
+                    total, counters.success.get(), counters.empty.get());
+        }
         setProgress(StockRefreshProgress.completed(total, counters.processed.get(), counters.success.get(), counters.empty.get(), counters.fail.get(), message));
     }
 
