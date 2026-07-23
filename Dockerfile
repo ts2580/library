@@ -28,6 +28,7 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV SPRING_DATASOURCE_URL="jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
 ENV BOOKSHELF_COVER_DIR="/data/covers"
+ENV BOOKSHELF_APP_LOG_FILE="/data/logs/bookshelf.log"
 
 EXPOSE 25647
 VOLUME ["/data"]
