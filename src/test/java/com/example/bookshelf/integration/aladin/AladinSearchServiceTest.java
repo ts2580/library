@@ -98,4 +98,16 @@ class AladinSearchServiceTest {
         assertThat(view.items().get(1).priceStandard()).isEqualTo("12,000");
         assertThat(view.items().get(1).exists()).isFalse();
     }
+
+    @Test
+    void searchBookView_returnsFriendlyError_whenRateLimitPersists() {
+        when(aladinClient.getBookInfo(any(AladinSearchOptions.class)))
+                .thenThrow(new AladinRateLimitException("HTTP 429", new RuntimeException("rate limited")));
+
+        var view = service.searchBookView("해리포터");
+
+        assertThat(view.hasError()).isTrue();
+        assertThat(view.items()).isEmpty();
+        assertThat(view.message()).contains("429");
+    }
 }

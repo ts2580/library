@@ -2,6 +2,7 @@ package com.example.bookshelf.user.service;
 
 import com.example.bookshelf.integration.aladin.AladinUsedStockService;
 import com.example.bookshelf.integration.aladin.AladinBranchStock;
+import com.example.bookshelf.integration.aladin.AladinRateLimitException;
 import com.example.bookshelf.user.model.BookVolume;
 import com.example.bookshelf.user.repository.BookVolumeRepository;
 import com.example.bookshelf.user.repository.BranchInventoryRepository;
@@ -34,13 +35,12 @@ class StockRefreshServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Use a direct executor for both fetching and the main job to make tests synchronous
+        // Use a direct executor for the main job to make tests synchronous
         Executor directExecutor = Runnable::run;
         stockRefreshService = new StockRefreshService(
                 bookVolumeRepository,
                 branchInventoryRepository,
                 aladinUsedStockService,
-                directExecutor,
                 directExecutor,
                 null
         );
@@ -105,6 +105,30 @@ class StockRefreshServiceTest {
     }
 
     @Test
+    void startStockRefreshJob_stopsRemainingTargets_whenRateLimitPersists() {
+        when(aladinUsedStockService.isApiConfigured()).thenReturn(true);
+        when(bookVolumeRepository.countUnpurchasedVolumes()).thenReturn(2);
+        when(bookVolumeRepository.findUnpurchasedVolumesAfterId(0, 100)).thenReturn(List.of(
+                new BookVolume(1, 1, 10, "9781234567890", "책1", null, null, null, false, false, "1"),
+                new BookVolume(2, 2, 20, "9781234567891", "책2", null, null, null, false, false, "1")
+        ));
+        when(aladinUsedStockService.lookupUsedStocksByIsbn13("9781234567890"))
+                .thenThrow(new AladinRateLimitException("HTTP 429", new RuntimeException("rate limited")));
+
+        stockRefreshService.startStockRefreshJob();
+
+        assertThat(stockRefreshService.getStockRefreshProgress().failed()).isTrue();
+        assertThat(stockRefreshService.getStockRefreshProgress().message()).contains("429");
+        verify(aladinUsedStockService, never()).lookupUsedStocksByIsbn13("9781234567891");
+        verify(branchInventoryRepository, never()).deleteBranchBooksByBookVolumeId(
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+        );
+        verify(branchInventoryRepository, never()).rebuildBranchInventorySummary();
+    }
+
+    @Test
     void startStockRefreshJob_returnsFailedProgress_whenAladinKeyIsMissing() {
         when(aladinUsedStockService.isApiConfigured()).thenReturn(false);
 
@@ -124,7 +148,6 @@ class StockRefreshServiceTest {
                 bookVolumeRepository,
                 branchInventoryRepository,
                 aladinUsedStockService,
-                Runnable::run,
                 queuedJob::set,
                 null
         );
@@ -151,7 +174,6 @@ class StockRefreshServiceTest {
                 bookVolumeRepository,
                 branchInventoryRepository,
                 aladinUsedStockService,
-                directExecutor,
                 directExecutor,
                 stockRefreshJobRepository
         );
