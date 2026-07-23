@@ -35,21 +35,34 @@ public class AladinUsedStockService {
     public AladinUsedView usedBookView(String isbn13, String type) {
         String normalizedIsbn13 = Texts.trimToEmpty(isbn13);
         String normalizedType = Texts.trimToNull(type) == null ? "dropshipping" : type.trim();
-        
-        Object response;
-        if ("dropshipping".equalsIgnoreCase(normalizedType)) {
-            response = aladinClient.getDropshippingUsedBook(normalizedIsbn13);
-        } else {
-            response = aladinClient.getUsedBookInfo(normalizedIsbn13);
-        }
-        
-        String rawJson = serializeToJson(response);
 
-        List<AladinBranchStock> stocks = findUsedStocksByIsbn13(normalizedIsbn13);
-        Integer minPrice = findMinPrice(stocks);
-        boolean hasError = response == null;
-        String message = hasError ? "알라딘 중고 응답을 가져오지 못했습니다." : (stocks.isEmpty() ? "중고 재고가 없습니다." : null);
-        return new AladinUsedView(normalizedIsbn13, normalizedType, stocks.size(), minPrice, stocks, rawJson, hasError, message);
+        try {
+            Object response;
+            if ("dropshipping".equalsIgnoreCase(normalizedType)) {
+                response = aladinClient.getDropshippingUsedBook(normalizedIsbn13);
+            } else {
+                response = aladinClient.getUsedBookInfo(normalizedIsbn13);
+            }
+
+            String rawJson = serializeToJson(response);
+            List<AladinBranchStock> stocks = findUsedStocksByIsbn13(normalizedIsbn13);
+            Integer minPrice = findMinPrice(stocks);
+            boolean hasError = response == null;
+            String message = hasError ? "알라딘 중고 응답을 가져오지 못했습니다." : (stocks.isEmpty() ? "중고 재고가 없습니다." : null);
+            return new AladinUsedView(normalizedIsbn13, normalizedType, stocks.size(), minPrice, stocks, rawJson, hasError, message);
+        } catch (AladinRateLimitException e) {
+            log.warn("Used stock view stopped by Aladin API rate limit for isbn13={}", normalizedIsbn13);
+            return new AladinUsedView(
+                    normalizedIsbn13,
+                    normalizedType,
+                    0,
+                    null,
+                    List.of(),
+                    "{}",
+                    true,
+                    "알라딘 API 호출 제한(429)으로 조회하지 못했습니다. 잠시 후 다시 시도해 주세요."
+            );
+        }
     }
 
     public List<AladinBranchStock> findUsedStocksByIsbn13(String isbn13) {
@@ -92,6 +105,8 @@ public class AladinUsedStockService {
                 stocks.addAll(findSpaceUsedStocks(normalizedIsbn13, item, spaceUsed));
             }
             return StockLookupResult.success(stocks);
+        } catch (AladinRateLimitException e) {
+            throw e;
         } catch (Exception e) {
             log.warn("Failed to fetch used stocks for isbn13={}", normalizedIsbn13, e);
             return StockLookupResult.failure("알라딘 중고 재고 조회에 실패했습니다.");
