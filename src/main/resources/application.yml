@@ -27,6 +27,11 @@ app:
 
 aladin:
   ttb-key: ${ALADIN_TTB_KEY:}
+  request:
+    min-interval-ms: ${ALADIN_MIN_REQUEST_INTERVAL_MS:1000}
+    max-attempts: ${ALADIN_MAX_ATTEMPTS:3}
+    initial-backoff-ms: ${ALADIN_INITIAL_BACKOFF_MS:2000}
+    max-backoff-ms: ${ALADIN_MAX_BACKOFF_MS:30000}
 
 server:
   forward-headers-strategy: framework
@@ -39,6 +44,15 @@ server:
         http-only: true
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
+
+logging:
+  file:
+    name: ${BOOKSHELF_APP_LOG_FILE:./data/logs/bookshelf.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 14
+      total-size-cap: 200MB
 
 ---
 spring:

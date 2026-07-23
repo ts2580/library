@@ -28,7 +28,13 @@ public class AladinSearchService {
     public AladinSearchResult searchBookItems(String query, int page) {
         int currentPage = Math.max(page, 1);
         String normalizedQuery = Texts.trimToEmpty(query);
-        AladinSearchResponse response = aladinClient.getBookInfo(normalizedQuery, currentPage, PAGE_SIZE);
+        AladinSearchResponse response;
+        try {
+            response = aladinClient.getBookInfo(normalizedQuery, currentPage, PAGE_SIZE);
+        } catch (AladinRateLimitException e) {
+            log.warn("[aladin] search stopped by API rate limit for query='{}'", normalizedQuery);
+            response = null;
+        }
 
         if (response == null) {
             log.warn("[aladin] API response is null for query='{}'", normalizedQuery);
@@ -55,7 +61,20 @@ public class AladinSearchService {
 
     public AladinSearchView searchBookView(AladinSearchOptions options, Integer ownerId) {
         String normalizedQuery = Texts.trimToEmpty(options.query());
-        AladinSearchResponse response = aladinClient.getBookInfo(options);
+        AladinSearchResponse response;
+        try {
+            response = aladinClient.getBookInfo(options);
+        } catch (AladinRateLimitException e) {
+            log.warn("[aladin] search stopped by API rate limit for query='{}'", normalizedQuery);
+            return new AladinSearchView(
+                    normalizedQuery,
+                    0,
+                    Collections.emptyList(),
+                    "{}",
+                    true,
+                    "알라딘 API 호출 제한(429)으로 검색하지 못했습니다. 잠시 후 다시 시도해 주세요."
+            );
+        }
 
         String json = serializeToJson(response);
 
