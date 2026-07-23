@@ -14,8 +14,8 @@ public class AsyncConfig {
     @Bean(name = "aladinFetchExecutor")
     public Executor aladinFetchExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(20);
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("AladinFetch-");
         executor.setDaemon(true);
