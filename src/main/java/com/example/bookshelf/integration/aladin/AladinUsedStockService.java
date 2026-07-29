@@ -3,10 +3,6 @@ package com.example.bookshelf.integration.aladin;
 import com.example.bookshelf.common.Texts;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -136,102 +132,15 @@ public class AladinUsedStockService {
         List<AladinBranchStock> stocks = new ArrayList<>();
         for (AladinOffStoreItem offStoreItem : usedInfo.getItemOffStoreList()) {
             if (offStoreItem == null) continue;
-            List<AladinBranchStock> parsed = findOffStoreStocks(offStoreItem, item, spaceUsed);
-            stocks.addAll(parsed);
+            stocks.add(toFallbackBranchStock(
+                    textValue(offStoreItem.getOffCode()),
+                    textValue(offStoreItem.getOffName()),
+                    normalizeLink(offStoreItem.getLink()),
+                    textValue(item.getTitle()),
+                    spaceUsed
+            ));
         }
         return stocks;
-    }
-
-    private List<AladinBranchStock> findOffStoreStocks(
-            AladinOffStoreItem offStoreItem,
-            AladinDropshippingItem item,
-            AladinUsedSummary spaceUsed
-    ) {
-        String branchLink = normalizeLink(offStoreItem.getLink());
-        String branchName = textValue(offStoreItem.getOffName());
-        String branchCode = textValue(offStoreItem.getOffCode());
-        String title = textValue(item.getTitle());
-
-        List<AladinBranchStock> parsed = extractBranchStocks(branchLink, branchName, branchCode, title, spaceUsed);
-        if (!parsed.isEmpty()) {
-            return parsed;
-        }
-        return List.of(toFallbackBranchStock(branchCode, branchName, branchLink, title, spaceUsed));
-    }
-
-    private List<AladinBranchStock> extractBranchStocks(
-            String branchLink,
-            String branchName,
-            String branchCode,
-            String title,
-            AladinUsedSummary spaceUsed
-    ) {
-        if (branchLink == null || branchLink.isBlank()) return Collections.emptyList();
-        String html = aladinClient.callRaw(branchLink);
-        if (html == null || html.isBlank()) return Collections.emptyList();
-
-        List<AladinBranchStock> parsed = new ArrayList<>();
-        try {
-            Document doc = Jsoup.parse(html);
-            // Aladin's offstore item list usually uses 'ss_book_box' for each item.
-            // If that's not present, we fall back to searching for price and quality spans directly.
-            Elements itemBoxes = doc.select("div.ss_book_box");
-
-            if (!itemBoxes.isEmpty()) {
-                for (Element box : itemBoxes) {
-                    Element priceEl = box.selectFirst("span.ss_p2 b");
-                    Element qualityEl = box.selectFirst("span.us_f_bob");
-                    Element linkEl = box.selectFirst("a[href*=/shop/UsedShop/wuseditemall.aspx?]");
-
-                    if (priceEl != null && qualityEl != null) {
-                        String priceText = priceEl.text().replaceAll("[^0-9,]", "");
-                        String qualityText = qualityEl.text().trim();
-                        String purchaseUrl = linkEl != null ? makeAbsoluteUrl(normalizeLink(linkEl.attr("href"))) : null;
-
-                        parsed.add(new AladinBranchStock(
-                                branchCode,
-                                branchName,
-                                qualityText,
-                                branchLink,
-                                purchaseUrl,
-                                priceText,
-                                0,
-                                title
-                        ));
-                    }
-                }
-            } else {
-                // Linear fallback if ss_book_box is missing
-                Elements prices = doc.select("span.ss_p2 b");
-                Elements qualities = doc.select("span.us_f_bob");
-                Elements links = doc.select("a[href*=/shop/UsedShop/wuseditemall.aspx?]");
-
-                int size = Math.min(prices.size(), qualities.size());
-                for (int i = 0; i < size; i++) {
-                    String priceText = prices.get(i).text().replaceAll("[^0-9,]", "");
-                    String qualityText = qualities.get(i).text().trim();
-                    String purchaseUrl = i < links.size() ? makeAbsoluteUrl(normalizeLink(links.get(i).attr("href"))) : null;
-
-                    parsed.add(new AladinBranchStock(
-                            branchCode,
-                            branchName,
-                            qualityText,
-                            branchLink,
-                            purchaseUrl,
-                            priceText,
-                            0,
-                            title
-                    ));
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to parse branch stocks with Jsoup for branchLink={}", branchLink, e);
-        }
-
-        if (!parsed.isEmpty() || spaceUsed == null || spaceUsed.getMinPrice() == null) {
-            return parsed;
-        }
-        return List.of(toFallbackBranchStock(branchCode, branchName, branchLink, title, spaceUsed));
     }
 
     private AladinBranchStock toDropshippingStock(AladinUsedSummary aladinUsed, AladinDropshippingItem item) {
@@ -268,12 +177,6 @@ public class AladinUsedStockService {
                 .map(Integer::parseInt)
                 .min(Integer::compareTo)
                 .orElse(null);
-    }
-
-    private String makeAbsoluteUrl(String url) {
-        if (url == null || url.isBlank()) return null;
-        if (url.startsWith("http://") || url.startsWith("https://")) return url;
-        return "https://www.aladin.co.kr" + (url.startsWith("/") ? "" : "/") + url;
     }
 
     private String serializeToJson(Object obj) {
