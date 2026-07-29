@@ -19,7 +19,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AladinClientRequestPolicyTest {
 
@@ -41,18 +43,19 @@ class AladinClientRequestPolicyTest {
                 writeResponse(exchange, 429, "rate limited");
                 return;
             }
-            writeResponse(exchange, 200, "ok");
+            writeResponse(exchange, 200, "{\"itemOffStoreList\":[]}");
         });
         List<Long> sleeps = new ArrayList<>();
         AladinClient client = client(
                 new AladinClient.RequestSettings(0, 3, 2_000, 30_000),
                 new AtomicLong(),
-                sleeps
+                sleeps,
+                url
         );
 
-        String response = client.callRaw(url);
+        AladinUsedInfoResponse response = client.getUsedBookInfo("9781234567890");
 
-        assertThat(response).isEqualTo("ok");
+        assertThat(response.getItemOffStoreList()).isEmpty();
         assertThat(hits).hasValue(3);
         assertThat(sleeps).containsExactly(2_000L, 4_000L);
     }
@@ -68,10 +71,11 @@ class AladinClientRequestPolicyTest {
         AladinClient client = client(
                 new AladinClient.RequestSettings(0, 2, 2_000, 30_000),
                 new AtomicLong(),
-                sleeps
+                sleeps,
+                url
         );
 
-        assertThatThrownBy(() -> client.callRaw(url))
+        assertThatThrownBy(() -> client.getUsedBookInfo("9781234567890"))
                 .isInstanceOf(AladinRateLimitException.class)
                 .hasMessageContaining("429");
         assertThat(hits).hasValue(2);
@@ -80,17 +84,18 @@ class AladinClientRequestPolicyTest {
 
     @Test
     void spacesEveryOutboundRequestThroughOneGlobalPacingGate() throws IOException {
-        String url = startServer(exchange -> writeResponse(exchange, 200, "ok"));
+        String url = startServer(exchange -> writeResponse(exchange, 200, "{\"itemOffStoreList\":[]}"));
         AtomicLong currentTimeMillis = new AtomicLong();
         List<Long> sleeps = new ArrayList<>();
         AladinClient client = client(
                 new AladinClient.RequestSettings(1_000, 1, 0, 0),
                 currentTimeMillis,
-                sleeps
+                sleeps,
+                url
         );
 
-        assertThat(client.callRaw(url)).isEqualTo("ok");
-        assertThat(client.callRaw(url)).isEqualTo("ok");
+        assertThat(client.getUsedBookInfo("9781234567890")).isNotNull();
+        assertThat(client.getUsedBookInfo("9781234567890")).isNotNull();
 
         assertThat(sleeps).containsExactly(1_000L);
     }
@@ -108,10 +113,14 @@ class AladinClientRequestPolicyTest {
     private AladinClient client(
             AladinClient.RequestSettings settings,
             AtomicLong currentTimeMillis,
-            List<Long> sleeps
+            List<Long> sleeps,
+            String url
     ) {
+        AladinUrlBuilder urlBuilder = mock(AladinUrlBuilder.class);
+        when(urlBuilder.isConfigured()).thenReturn(true);
+        when(urlBuilder.usedBookInfoUrl(anyString())).thenReturn(url);
         return new AladinClient(
-                mock(AladinUrlBuilder.class),
+                urlBuilder,
                 RestClient.builder(),
                 settings,
                 currentTimeMillis::get,
@@ -132,6 +141,7 @@ class AladinClientRequestPolicyTest {
 
     private static void writeResponse(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json;charset=UTF-8");
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(bytes);
