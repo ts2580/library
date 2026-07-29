@@ -38,7 +38,7 @@ public class AladinClient {
     public AladinClient(
             AladinUrlBuilder urlBuilder,
             RestClient.Builder restClientBuilder,
-            @Value("${aladin.request.min-interval-ms:1000}") long minIntervalMs,
+            @Value("${aladin.request.min-interval-ms:500}") long minIntervalMs,
             @Value("${aladin.request.max-attempts:3}") int maxAttempts,
             @Value("${aladin.request.initial-backoff-ms:2000}") long initialBackoffMs,
             @Value("${aladin.request.max-backoff-ms:30000}") long maxBackoffMs
@@ -112,21 +112,14 @@ public class AladinClient {
         return callForObject(urlBuilder.usedBookInfoUrl(isbn13), AladinUsedInfoResponse.class);
     }
 
-    public String callRaw(String url) {
-        return executeWithRetry(url, () -> restClient.get()
-                .uri(URI.create(url))
-                .retrieve()
-                .body(String.class), true);
-    }
-
     private <T> T callForObject(String url, Class<T> responseType) {
         return executeWithRetry(url, () -> restClient.get()
                 .uri(URI.create(url))
                 .retrieve()
-                .body(responseType), false);
+                .body(responseType));
     }
 
-    private <T> T executeWithRetry(String url, Supplier<T> request, boolean rawRequest) {
+    private <T> T executeWithRetry(String url, Supplier<T> request) {
         String maskedUrl = maskSensitiveQueryParams(url);
         for (int attempt = 1; attempt <= requestSettings.maxAttempts(); attempt++) {
             synchronized (requestPacingMonitor) {
@@ -140,7 +133,7 @@ public class AladinClient {
                     boolean rateLimited = isRateLimited(e);
                     boolean retryable = isRetryable(e);
                     if (!retryable) {
-                        logFinalFailure(maskedUrl, rawRequest, e);
+                        logFinalFailure(maskedUrl, e);
                         return null;
                     }
                     if (attempt == requestSettings.maxAttempts()) {
@@ -150,7 +143,7 @@ public class AladinClient {
                                     e
                             );
                         }
-                        logFinalFailure(maskedUrl, rawRequest, e);
+                        logFinalFailure(maskedUrl, e);
                         return null;
                     }
 
@@ -232,12 +225,8 @@ public class AladinClient {
         return exception.getClass().getSimpleName();
     }
 
-    private void logFinalFailure(String maskedUrl, boolean rawRequest, RestClientException exception) {
-        if (rawRequest) {
-            log.debug("Raw call failed for url={}", maskedUrl, exception);
-        } else {
-            log.warn("Aladin API call failed for url={}", maskedUrl, exception);
-        }
+    private void logFinalFailure(String maskedUrl, RestClientException exception) {
+        log.warn("Aladin API call failed for url={}", maskedUrl, exception);
     }
 
     private boolean pause(long delayMillis) {
