@@ -131,7 +131,10 @@ class FrontendPrinciplesTest {
                 .contains("validateCoverFile")
                 .contains("directRegistration ? '입력 정보로 등록'")
                 .contains("sideStoryCheckbox?.checked === true")
-                .contains("selectionInput.disabled = !included");
+                .contains("selectionInput.disabled = !included")
+                .contains("const resetCreateForm = () => {")
+                .contains("form?.reset();")
+                .contains("openButton?.addEventListener('click', () => {\n    resetCreateForm();");
         assertThat(css)
                 .contains(".bookshelf-book-create-preview-grid")
                 .contains(".bookshelf-book-create-preview-card.is-excluded")
