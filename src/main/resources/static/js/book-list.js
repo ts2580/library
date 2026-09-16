@@ -409,7 +409,30 @@
     if (dialog.open) dialog.close();
   };
 
+  const resetCreateForm = () => {
+    form?.reset();
+    if (targetSearchTimer) clearTimeout(targetSearchTimer);
+    targetSearchTimer = null;
+    selectedTargetBook = null;
+    manualTypeValue = '';
+    if (targetBookIdInput) targetBookIdInput.value = '';
+    if (targetBookSearch) targetBookSearch.value = '';
+    if (typeInput) {
+      typeInput.readOnly = false;
+      typeInput.value = '';
+    }
+    if (coverFileInput) {
+      coverFileInput.value = '';
+      coverFileInput.setCustomValidity('');
+    }
+    hideTargetResults();
+    updateTargetMeta();
+    resetPreview();
+    syncNonAladinMode();
+  };
+
   openButton?.addEventListener('click', () => {
+    resetCreateForm();
     dialog.showModal();
     nameInput?.focus();
   });
