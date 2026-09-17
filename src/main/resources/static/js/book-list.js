@@ -66,6 +66,8 @@
   let previewItemCount = 0;
   let previewTotalResults = 0;
   let previewLoading = false;
+  let previewRequestGeneration = 0;
+  let targetSearchGeneration = 0;
   let selectedTargetBook = null;
   let manualTypeValue = typeInput?.value || '';
 
@@ -224,6 +226,7 @@
   const loadPreview = async () => {
     const query = nameInput?.value.trim() || '';
     if (!query || previewLoading) return;
+    const requestGeneration = ++previewRequestGeneration;
     previewLoading = true;
     if (submitButton) {
       submitButton.disabled = true;
@@ -243,17 +246,27 @@
       }
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || '알라딘 검색에 실패했습니다.');
+      if (requestGeneration !== previewRequestGeneration) return;
       renderPreview(payload, query);
     } catch (error) {
+      if (requestGeneration !== previewRequestGeneration) return;
       showPreviewError(error.message || '추가 예정 목록을 불러오지 못했습니다.');
     } finally {
-      previewLoading = false;
-      window.__sparkProgress?.hide?.(80);
-      if (submitButton && !previewedName) {
-        submitButton.disabled = false;
-        submitButton.textContent = '다시 확인';
+      if (requestGeneration === previewRequestGeneration) {
+        previewLoading = false;
+        window.__sparkProgress?.hide?.(80);
+        if (submitButton && !previewedName) {
+          submitButton.disabled = false;
+          submitButton.textContent = '다시 확인';
+        }
       }
     }
+  };
+
+  const invalidatePreviewRequest = () => {
+    previewRequestGeneration += 1;
+    previewLoading = false;
+    window.__sparkProgress?.hide?.(0);
   };
 
   let targetSearchTimer = null;
@@ -273,6 +286,12 @@
     targetHighlightedIndex = -1;
     targetBookSearch?.removeAttribute('aria-activedescendant');
     setTargetExpanded(false);
+  };
+
+  const invalidateTargetSearch = () => {
+    targetSearchGeneration += 1;
+    if (targetSearchTimer) clearTimeout(targetSearchTimer);
+    targetSearchTimer = null;
   };
 
   const updateTargetMeta = () => {
@@ -300,6 +319,7 @@
     const directRegistration = nonAladinCheckbox?.checked === true;
     resetPreview();
     if (directRegistration) {
+      invalidateTargetSearch();
       clearTargetBookSelection();
       if (targetBookSearch) targetBookSearch.value = '';
       hideTargetResults();
@@ -409,7 +429,30 @@
     if (dialog.open) dialog.close();
   };
 
+  const resetCreateForm = () => {
+    invalidatePreviewRequest();
+    invalidateTargetSearch();
+    form?.reset();
+    selectedTargetBook = null;
+    manualTypeValue = '';
+    if (targetBookIdInput) targetBookIdInput.value = '';
+    if (targetBookSearch) targetBookSearch.value = '';
+    if (typeInput) {
+      typeInput.readOnly = false;
+      typeInput.value = '';
+    }
+    if (coverFileInput) {
+      coverFileInput.value = '';
+      coverFileInput.setCustomValidity('');
+    }
+    hideTargetResults();
+    updateTargetMeta();
+    resetPreview();
+    syncNonAladinMode();
+  };
+
   openButton?.addEventListener('click', () => {
+    resetCreateForm();
     dialog.showModal();
     nameInput?.focus();
   });
@@ -426,7 +469,8 @@
       clearTargetBookSelection();
     }
     const query = targetBookSearch.value.trim();
-    if (targetSearchTimer) clearTimeout(targetSearchTimer);
+    invalidateTargetSearch();
+    const targetRequestGeneration = ++targetSearchGeneration;
     if (!query) {
       hideTargetResults();
       return;
@@ -441,8 +485,10 @@
         });
         if (!response.ok) throw new Error(`autocomplete-failed:${response.status}`);
         const items = await response.json();
+        if (targetRequestGeneration !== targetSearchGeneration) return;
         if (targetBookSearch.value.trim() === query) renderTargetBooks(Array.isArray(items) ? items : []);
       } catch (error) {
+        if (targetRequestGeneration !== targetSearchGeneration) return;
         console.error('manual book target autocomplete failed', error);
         if (targetBookResults) {
           targetBookResults.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-rose-600">기존 책을 불러오지 못했습니다.</div>';
