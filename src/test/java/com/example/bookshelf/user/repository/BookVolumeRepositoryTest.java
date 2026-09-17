@@ -97,7 +97,7 @@ class BookVolumeRepositoryTest {
     }
 
     @Test
-    void nextVolumeSeq_startsAfterRegisteredVolumeCount() {
+    void nextVolumeSeq_startsAfterHighestNumberedVolume_excludingSideStories() {
         SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         jdbcTemplate.execute("""
@@ -112,7 +112,7 @@ class BookVolumeRepositoryTest {
         jdbcTemplate.update("INSERT INTO book_volumes (id, volume, book) VALUES (?, ?, ?)", 3, null, 10);
         BookVolumeRepository repository = new BookVolumeRepository(jdbcTemplate);
 
-        assertThat(repository.nextVolumeSeq(10)).isEqualTo(4);
+        assertThat(repository.nextVolumeSeq(10)).isEqualTo(19);
         assertThat(repository.nextVolumeSeq(20)).isEqualTo(1);
     }
 

@@ -98,7 +98,7 @@ npm run verify:local
 
 애플리케이션 로그는 실행 방식과 관계없이 `data/logs/bookshelf.log`에도 남습니다. 재고 갱신 실패는 책 ID, 권차, ISBN13, 실패 원인과 함께 이 파일에 기록되며, 10MB 단위로 회전하고 14일간 보관합니다. Docker에서는 같은 로그가 `/data/logs/bookshelf.log`에 저장되므로 `/data` 볼륨에 유지됩니다. 경로는 `BOOKSHELF_APP_LOG_FILE`로 변경할 수 있습니다.
 
-알라딘 재고 갱신은 API 호출 제한을 넘지 않도록 한 번에 한 권씩 처리하고, 모든 알라딘 요청 사이에 기본 0.5초 간격을 둡니다. 지점 재고는 API가 제공하는 최저가만 저장하며 지점별 상세 HTML은 조회하지 않습니다. 429 또는 네트워크 timeout은 기본 3회까지 지수 백오프로 재시도하며, 429가 계속되면 기존 재고를 보존하고 남은 일괄 갱신을 중단합니다. 간격과 재시도는 `ALADIN_MIN_REQUEST_INTERVAL_MS`, `ALADIN_MAX_ATTEMPTS`, `ALADIN_INITIAL_BACKOFF_MS`, `ALADIN_MAX_BACKOFF_MS`로 조정할 수 있습니다.
+알라딘 재고 갱신은 API 호출 제한을 넘지 않도록 한 번에 한 권씩 처리하고, 모든 알라딘 요청 시작 사이에 기본 최소 0.1초 간격을 둡니다. 지점 재고는 API가 제공하는 최저가만 저장하며 지점별 상세 HTML은 조회하지 않습니다. 429 또는 네트워크 timeout은 기본 3회까지 지수 백오프로 재시도하며, 429가 계속되면 기존 재고를 보존하고 남은 일괄 갱신을 중단합니다. 간격과 재시도는 `ALADIN_MIN_REQUEST_INTERVAL_MS`, `ALADIN_MAX_ATTEMPTS`, `ALADIN_INITIAL_BACKOFF_MS`, `ALADIN_MAX_BACKOFF_MS`로 조정할 수 있습니다.
 
 ## 기본 포트
 - http://localhost:25647
