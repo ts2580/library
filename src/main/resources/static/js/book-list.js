@@ -66,6 +66,7 @@
   let previewItemCount = 0;
   let previewTotalResults = 0;
   let previewLoading = false;
+  let previewRequestGeneration = 0;
   let selectedTargetBook = null;
   let manualTypeValue = typeInput?.value || '';
 
@@ -224,6 +225,7 @@
   const loadPreview = async () => {
     const query = nameInput?.value.trim() || '';
     if (!query || previewLoading) return;
+    const requestGeneration = ++previewRequestGeneration;
     previewLoading = true;
     if (submitButton) {
       submitButton.disabled = true;
@@ -243,15 +245,19 @@
       }
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || '알라딘 검색에 실패했습니다.');
+      if (requestGeneration !== previewRequestGeneration) return;
       renderPreview(payload, query);
     } catch (error) {
+      if (requestGeneration !== previewRequestGeneration) return;
       showPreviewError(error.message || '추가 예정 목록을 불러오지 못했습니다.');
     } finally {
-      previewLoading = false;
-      window.__sparkProgress?.hide?.(80);
-      if (submitButton && !previewedName) {
-        submitButton.disabled = false;
-        submitButton.textContent = '다시 확인';
+      if (requestGeneration === previewRequestGeneration) {
+        previewLoading = false;
+        window.__sparkProgress?.hide?.(80);
+        if (submitButton && !previewedName) {
+          submitButton.disabled = false;
+          submitButton.textContent = '다시 확인';
+        }
       }
     }
   };
@@ -410,6 +416,8 @@
   };
 
   const resetCreateForm = () => {
+    previewRequestGeneration += 1;
+    previewLoading = false;
     form?.reset();
     if (targetSearchTimer) clearTimeout(targetSearchTimer);
     targetSearchTimer = null;
