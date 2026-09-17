@@ -138,7 +138,11 @@ class FrontendPrinciplesTest {
                 .contains("let previewRequestGeneration = 0;")
                 .contains("const requestGeneration = ++previewRequestGeneration;")
                 .contains("if (requestGeneration !== previewRequestGeneration) return;")
-                .contains("previewRequestGeneration += 1;")
+                .contains("const invalidatePreviewRequest = () => {")
+                .contains("window.__sparkProgress?.hide?.(0);")
+                .contains("let targetSearchGeneration = 0;")
+                .contains("const targetRequestGeneration = ++targetSearchGeneration;")
+                .contains("if (targetRequestGeneration !== targetSearchGeneration) return;")
                 .contains("openButton?.addEventListener('click', () => {\n    resetCreateForm();");
         assertThat(css)
                 .contains(".bookshelf-book-create-preview-grid")

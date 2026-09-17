@@ -67,6 +67,7 @@
   let previewTotalResults = 0;
   let previewLoading = false;
   let previewRequestGeneration = 0;
+  let targetSearchGeneration = 0;
   let selectedTargetBook = null;
   let manualTypeValue = typeInput?.value || '';
 
@@ -262,6 +263,12 @@
     }
   };
 
+  const invalidatePreviewRequest = () => {
+    previewRequestGeneration += 1;
+    previewLoading = false;
+    window.__sparkProgress?.hide?.(0);
+  };
+
   let targetSearchTimer = null;
   let targetSearchItems = [];
   let targetHighlightedIndex = -1;
@@ -279,6 +286,12 @@
     targetHighlightedIndex = -1;
     targetBookSearch?.removeAttribute('aria-activedescendant');
     setTargetExpanded(false);
+  };
+
+  const invalidateTargetSearch = () => {
+    targetSearchGeneration += 1;
+    if (targetSearchTimer) clearTimeout(targetSearchTimer);
+    targetSearchTimer = null;
   };
 
   const updateTargetMeta = () => {
@@ -306,6 +319,7 @@
     const directRegistration = nonAladinCheckbox?.checked === true;
     resetPreview();
     if (directRegistration) {
+      invalidateTargetSearch();
       clearTargetBookSelection();
       if (targetBookSearch) targetBookSearch.value = '';
       hideTargetResults();
@@ -416,11 +430,9 @@
   };
 
   const resetCreateForm = () => {
-    previewRequestGeneration += 1;
-    previewLoading = false;
+    invalidatePreviewRequest();
+    invalidateTargetSearch();
     form?.reset();
-    if (targetSearchTimer) clearTimeout(targetSearchTimer);
-    targetSearchTimer = null;
     selectedTargetBook = null;
     manualTypeValue = '';
     if (targetBookIdInput) targetBookIdInput.value = '';
@@ -457,7 +469,8 @@
       clearTargetBookSelection();
     }
     const query = targetBookSearch.value.trim();
-    if (targetSearchTimer) clearTimeout(targetSearchTimer);
+    invalidateTargetSearch();
+    const targetRequestGeneration = ++targetSearchGeneration;
     if (!query) {
       hideTargetResults();
       return;
@@ -472,8 +485,10 @@
         });
         if (!response.ok) throw new Error(`autocomplete-failed:${response.status}`);
         const items = await response.json();
+        if (targetRequestGeneration !== targetSearchGeneration) return;
         if (targetBookSearch.value.trim() === query) renderTargetBooks(Array.isArray(items) ? items : []);
       } catch (error) {
+        if (targetRequestGeneration !== targetSearchGeneration) return;
         console.error('manual book target autocomplete failed', error);
         if (targetBookResults) {
           targetBookResults.innerHTML = '<div class="rounded-[14px] bookshelf-px-3 bookshelf-py-3 text-xs text-rose-600">기존 책을 불러오지 못했습니다.</div>';
