@@ -352,7 +352,7 @@ body.bookshelf-body.bookshelf-page-leaving { opacity: .78;  }
 }
 .bookshelf-book-create-fields {
   display: grid;
-  width: min(100%, 48rem);
+  width: 100%;
   gap: 1.25rem;
   align-content: start;
 }
