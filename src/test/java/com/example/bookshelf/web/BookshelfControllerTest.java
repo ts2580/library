@@ -246,6 +246,100 @@ class BookshelfControllerTest {
     }
 
     @Test
+    void createBook_rejectsSelectionsAcrossTooManyPreviewPagesBeforeSearching() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        java.util.List<String> selections = java.util.stream.IntStream.rangeClosed(1, 11)
+                .mapToObj(page -> page + "|isbn-" + page)
+                .toList();
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, selections, null, true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("알라딘 검색 결과는 최대 10개 페이지에서 선택할 수 있습니다.");
+        verifyNoInteractions(aladinSearchService);
+    }
+
+    @Test
+    void createBook_rejectsSelectedPageOutsideReportedResultRange() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(aladinSearchService.searchBookItems("시리즈", 2)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(), 20, 2, 20));
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of("2|9782121212121"), null,
+                true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("선택한 알라딘 검색 결과 페이지를 다시 확인해 주세요.");
+        verifyNoInteractions(bookDataRepository, bookVolumeRepository);
+    }
+
+    @Test
+    void createBook_rejectsWhenAnyConfirmedSelectionCannotBeRevalidated() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        AladinItem first = new AladinItem("시리즈 1권", "저자", "cover-1", "9781111111111", null, "10000", "12000", "2026-01-01", "설명", "item-1", "");
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(first), 21, 1, 20));
+        when(aladinSearchService.searchBookItems("시리즈", 2)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(), 21, 2, 20));
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of("1|9781111111111", "2|9782222222222"), null,
+                true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("선택한 알라딘 항목을 다시 확인해 주세요.");
+        verifyNoInteractions(bookDataRepository, bookVolumeRepository);
+    }
+
+    @Test
+    void createBook_rejectsWhenAllConfirmedSelectionsDisappear() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(), 1, 1, 20));
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of("1|9781111111111"), null,
+                true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("선택한 알라딘 항목을 다시 확인해 주세요.");
+        verifyNoInteractions(bookDataRepository, bookVolumeRepository);
+    }
+
+    @Test
+    void createBook_rejectsWhenAnyLegacySelectedIsbnCannotBeRevalidated() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        AladinItem first = new AladinItem("시리즈 1권", "저자", "cover-1", "9781111111111", null, "10000", "12000", "2026-01-01", "설명", "item-1", "");
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(first), 2, 1, 20));
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null,
+                null, java.util.List.of("9781111111111", "9782222222222"), null,
+                true, false, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("선택한 알라딘 항목을 다시 확인해 주세요.");
+        verifyNoInteractions(bookDataRepository, bookVolumeRepository);
+    }
+
+    @Test
     void createBook_deduplicatesAnIsbnReturnedFromMultipleSelectedPages() {
         BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();

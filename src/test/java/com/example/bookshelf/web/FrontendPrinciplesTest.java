@@ -123,6 +123,8 @@ class FrontendPrinciplesTest {
                 .contains("name=\"selectedPreviewEntry\"")
                 .contains("previewSelectedItems = new Map()")
                 .contains("const syncPreviewSelectionInputs = () =>")
+                .contains("const syncPreviewSubmitState = () =>")
+                .contains("if (previewedName) {\n          syncPreviewSubmitState();")
                 .contains("right.page - left.page || left.index - right.index")
                 .contains("item.page > page || (item.page === page && item.index < index)")
                 .contains("data-book-create-preview-page")
