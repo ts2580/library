@@ -43,9 +43,6 @@ public class AladinSearchService {
 
         int totalResults = response.totalResults() != null ? response.totalResults() : 0;
         java.util.List<AladinItem> items = response.item() != null ? new java.util.ArrayList<>(response.item()) : Collections.emptyList();
-        if (!items.isEmpty()) {
-            Collections.reverse(items);
-        }
 
         log.info("[aladin] parsed query='{}' totalResults={}, items.size={}", normalizedQuery, totalResults, items.size());
         return new AladinSearchResult(items, totalResults, currentPage, PAGE_SIZE);
@@ -84,9 +81,6 @@ public class AladinSearchService {
 
         int totalResults = response.totalResults() != null ? response.totalResults() : 0;
         java.util.List<AladinItem> items = response.item() != null ? new java.util.ArrayList<>(response.item()) : Collections.emptyList();
-        if (!items.isEmpty()) {
-            Collections.reverse(items);
-        }
         
         java.util.List<AladinSearchViewItem> viewItems = items.stream().map(item -> {
             String highResCover = item.cover();
