@@ -31,7 +31,7 @@ class AladinSearchServiceTest {
     }
 
     @Test
-    void searchBookItems_preservesApiOrderBeforeReturn() {
+    void searchBookItems_reversesApiOrderBeforeReturn() {
         when(aladinClient.getBookInfo("해리포터", 1, 20)).thenReturn(new AladinSearchResponse(
                 2,
                 List.of(
@@ -43,13 +43,12 @@ class AladinSearchServiceTest {
         var result = service.searchBookItems("해리포터", 1);
 
         assertThat(result.items()).hasSize(2);
-        assertThat(result.items().get(0).isbn13()).isEqualTo("978111");
-        assertThat(result.items().get(1).isbn13()).isEqualTo("978222");
+        assertThat(result.items().get(0).isbn13()).isEqualTo("978222");
+        assertThat(result.items().get(1).isbn13()).isEqualTo("978111");
     }
 
     @Test
     void searchBookView_convertsCoverAndFormatsPrice_withExistsAndOrder() {
-        when(bookVolumeRepository.existsVolumeByIsbn13("978111")).thenReturn(false);
         when(bookVolumeRepository.existsVolumeByIsbn13("978222")).thenReturn(true);
         when(aladinClient.getBookInfo(any(AladinSearchOptions.class))).thenReturn(new AladinSearchResponse(
                 2,
@@ -89,15 +88,15 @@ class AladinSearchServiceTest {
         assertThat(view.message()).isNull();
         assertThat(view.items()).hasSize(2);
         assertThat(view.items().get(0).cover())
-                .isEqualTo("https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg");
-        assertThat(view.items().get(0).priceSales()).isEqualTo("10,000");
-        assertThat(view.items().get(0).priceStandard()).isEqualTo("12,000");
-        assertThat(view.items().get(0).exists()).isFalse();
-        assertThat(view.items().get(1).cover())
                 .isEqualTo("https://example.com/cover.jpg");
-        assertThat(view.items().get(1).priceSales()).isEqualTo("-");
-        assertThat(view.items().get(1).priceStandard()).isEqualTo("20,000");
-        assertThat(view.items().get(1).exists()).isTrue();
+        assertThat(view.items().get(0).priceSales()).isEqualTo("-");
+        assertThat(view.items().get(0).priceStandard()).isEqualTo("20,000");
+        assertThat(view.items().get(0).exists()).isTrue();
+        assertThat(view.items().get(1).cover())
+                .isEqualTo("https://image.aladin.co.kr/product/35919/20/cover500/k862037699_1.jpg");
+        assertThat(view.items().get(1).priceSales()).isEqualTo("10,000");
+        assertThat(view.items().get(1).priceStandard()).isEqualTo("12,000");
+        assertThat(view.items().get(1).exists()).isFalse();
     }
 
     @Test
