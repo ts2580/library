@@ -38,7 +38,7 @@ public class AladinClient {
     public AladinClient(
             AladinUrlBuilder urlBuilder,
             RestClient.Builder restClientBuilder,
-            @Value("${aladin.request.min-interval-ms:500}") long minIntervalMs,
+            @Value("${aladin.request.min-interval-ms:100}") long minIntervalMs,
             @Value("${aladin.request.max-attempts:3}") int maxAttempts,
             @Value("${aladin.request.initial-backoff-ms:2000}") long initialBackoffMs,
             @Value("${aladin.request.max-backoff-ms:30000}") long maxBackoffMs

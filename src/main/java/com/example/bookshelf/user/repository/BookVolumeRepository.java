@@ -177,7 +177,7 @@ public class BookVolumeRepository {
     }
 
     public int nextVolumeSeq(int bookId) {
-        Integer seq = jdbcTemplate.queryForObject("SELECT COUNT(*) + 1 FROM book_volumes WHERE book = ?", Integer.class, bookId);
+        Integer seq = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(volume), 0) + 1 FROM book_volumes WHERE book = ? AND volume IS NOT NULL", Integer.class, bookId);
         return seq == null ? 1 : seq;
     }
 
