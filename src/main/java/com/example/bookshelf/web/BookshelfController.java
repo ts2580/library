@@ -88,21 +88,29 @@ public class BookshelfController {
 
     @GetMapping("/books/aladin-preview")
     @ResponseBody
-    public ResponseEntity<BookCreatePreviewResponse> previewBookCreate(@RequestParam("name") String name) {
+    public ResponseEntity<BookCreatePreviewResponse> previewBookCreate(@RequestParam("name") String name,
+                                                                       @RequestParam(value = "page", defaultValue = "1") Integer page) {
         String normalizedName = Texts.trimToNull(name);
         if (normalizedName == null) {
-            return ResponseEntity.badRequest().body(new BookCreatePreviewResponse(List.of(), 0, "책 제목을 입력해 주세요."));
+            return ResponseEntity.badRequest().body(new BookCreatePreviewResponse(List.of(), 0, 1, 20, 0, "책 제목을 입력해 주세요."));
         }
 
-        var result = aladinSearchService.searchBookItems(normalizedName, 1);
+        var result = aladinSearchService.searchBookItems(normalizedName, page == null ? 1 : page);
         List<AladinItem> items = result == null || result.items() == null ? List.of() : result.items();
         Integer ownerId = currentOwnerId();
         List<BookCreatePreviewItem> previewItems = items.stream()
                 .map(item -> toBookCreatePreviewItem(item, ownerId))
                 .toList();
         int totalResults = result == null ? 0 : result.totalResults();
+        int pageSize = result == null ? 20 : result.pageSize();
+        int currentPage = result == null ? 1 : result.page();
+        int totalPages = pageSize == 0 ? 0 : (int) Math.ceil((double) totalResults / pageSize);
         String message = previewItems.isEmpty() ? "알라딘 검색 결과가 없습니다. 책 정보만 추가할 수 있습니다." : null;
-        return ResponseEntity.ok(new BookCreatePreviewResponse(previewItems, totalResults, message));
+        return ResponseEntity.ok(new BookCreatePreviewResponse(previewItems, totalResults, currentPage, pageSize, totalPages, message));
+    }
+
+    public ResponseEntity<BookCreatePreviewResponse> previewBookCreate(String name) {
+        return previewBookCreate(name, 1);
     }
 
     @PostMapping("/books")
@@ -114,6 +122,7 @@ public class BookshelfController {
                              @RequestParam(value = "totalvolume", required = false) String totalVolume,
                              @RequestParam(value = "targetBookId", required = false) Integer targetBookId,
                              @RequestParam(value = "selectedIsbn", required = false) List<String> selectedIsbns,
+                             @RequestParam(value = "selectedPage", required = false) List<Integer> selectedPages,
                              @RequestParam(value = "sideStoryIsbn", required = false) List<String> sideStoryIsbns,
                              @RequestParam(value = "selectionConfirmed", defaultValue = "false") boolean selectionConfirmed,
                              @RequestParam(value = "nonAladinRegistration", defaultValue = "false") boolean nonAladinRegistration,
@@ -164,12 +173,11 @@ public class BookshelfController {
             return "redirect:/books/" + bookId;
         }
 
-        var aladinResult = aladinSearchService.searchBookItems(name, 1);
-        List<AladinItem> searchItems = aladinResult == null || aladinResult.items() == null ? List.of() : aladinResult.items();
         Set<String> selectedKeys = selectedIsbns == null ? Set.of() : selectedIsbns.stream()
                 .map(Texts::trimToNull)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        List<AladinItem> searchItems = searchSelectedPreviewPages(name, selectionConfirmed, selectedPages);
         Set<String> sideStoryKeys = sideStoryIsbns == null ? Set.of() : sideStoryIsbns.stream()
                 .map(Texts::trimToNull)
                 .filter(Objects::nonNull)
@@ -275,8 +283,28 @@ public class BookshelfController {
                              RedirectAttributes redirectAttributes) {
         return createBook(
                 name, author, description, cover, type, totalVolume, targetBookId,
-                selectedIsbns, sideStoryIsbns, selectionConfirmed, nonAladinRegistration,
+                selectedIsbns, null, sideStoryIsbns, selectionConfirmed, nonAladinRegistration,
                 null, redirectAttributes
+        );
+    }
+
+    public String createBook(String name,
+                             String author,
+                             String description,
+                             String cover,
+                             String type,
+                             String totalVolume,
+                             Integer targetBookId,
+                             List<String> selectedIsbns,
+                             List<String> sideStoryIsbns,
+                             boolean selectionConfirmed,
+                             boolean nonAladinRegistration,
+                             MultipartFile coverFile,
+                             RedirectAttributes redirectAttributes) {
+        return createBook(
+                name, author, description, cover, type, totalVolume, targetBookId,
+                selectedIsbns, null, sideStoryIsbns, selectionConfirmed, nonAladinRegistration,
+                coverFile, redirectAttributes
         );
     }
 
@@ -593,6 +621,24 @@ public class BookshelfController {
         return authSessionHelper == null ? null : authSessionHelper.getMemberId(null);
     }
 
+    private List<AladinItem> searchSelectedPreviewPages(String name, boolean selectionConfirmed, List<Integer> selectedPages) {
+        Set<Integer> pages = selectedPages == null ? Set.of() : selectedPages.stream()
+                .filter(Objects::nonNull)
+                .map(page -> Math.max(page, 1))
+                .collect(Collectors.toSet());
+        if (!selectionConfirmed || pages.isEmpty()) {
+            var result = aladinSearchService.searchBookItems(name, 1);
+            return result == null || result.items() == null ? List.of() : result.items();
+        }
+        return pages.stream()
+                .sorted()
+                .flatMap(page -> {
+                    var result = aladinSearchService.searchBookItems(name, page);
+                    return result == null || result.items() == null ? java.util.stream.Stream.<AladinItem>empty() : result.items().stream();
+                })
+                .toList();
+    }
+
     private BookCreatePreviewItem toBookCreatePreviewItem(AladinItem item, Integer ownerId) {
         String selectionKey = resolveAladinItemKey(item);
         boolean exists = selectionKey != null && isVolumeAlreadyOwned(ownerId, selectionKey);
@@ -825,6 +871,9 @@ public class BookshelfController {
     public record BookCreatePreviewResponse(
             List<BookCreatePreviewItem> items,
             int totalResults,
+            int page,
+            int pageSize,
+            int totalPages,
             String message
     ) {
     }
