@@ -132,6 +132,17 @@
     .filter((item) => !item.sideStory && (item.page > page || (item.page === page && item.index < index)))
     .length;
 
+  const syncPreviewSubmitState = () => {
+    if (!submitButton || !previewedName) return;
+    const selectedCount = previewSelectedItems.size;
+    const hasNoResults = previewItemCount === 0;
+    const targetHasNoItems = hasNoResults && selectedTargetBook !== null;
+    submitButton.disabled = targetHasNoItems || (!hasNoResults && selectedCount === 0);
+    submitButton.textContent = targetHasNoItems
+      ? '추가할 책 없음'
+      : (hasNoResults ? '책만 추가' : `${selectedCount}권 추가`);
+  };
+
   const syncSelectionState = () => {
     syncVisiblePreviewSelections();
     const selectable = selectableCheckboxes();
@@ -160,14 +171,7 @@
         : `검색 결과 ${previewTotalResults}건 중 ${previewItemCount}건 표시 · ${selectedCount}개 추가 예정`;
     }
 
-    if (submitButton && previewedName) {
-      const hasNoResults = previewItemCount === 0;
-      const targetHasNoItems = hasNoResults && selectedTargetBook !== null;
-      submitButton.disabled = targetHasNoItems || (!hasNoResults && selectedCount === 0);
-      submitButton.textContent = targetHasNoItems
-        ? '추가할 책 없음'
-        : (hasNoResults ? '책만 추가' : `${selectedCount}권 추가`);
-    }
+    syncPreviewSubmitState();
   };
 
   const resetPreview = () => {
@@ -328,7 +332,9 @@
       if (requestGeneration === previewRequestGeneration) {
         previewLoading = false;
         window.__sparkProgress?.hide?.(80);
-        if (submitButton && !previewedName) {
+        if (previewedName) {
+          syncPreviewSubmitState();
+        } else if (submitButton) {
           submitButton.disabled = false;
           submitButton.textContent = '다시 확인';
         }
