@@ -100,6 +100,7 @@ class FrontendPrinciplesTest {
                 .contains("id=\"bookCreatePreviewCards\"")
                 .contains("id=\"bookCreatePreviewPagination\"")
                 .contains("id=\"bookCreatePreviewSelections\"")
+                .contains("bookshelf-book-create-fields")
                 .contains("id=\"bookCreateSelectAll\"")
                 .contains("id=\"bookCreateExcludeAll\"")
                 .contains("name=\"selectionConfirmed\"")
@@ -152,7 +153,10 @@ class FrontendPrinciplesTest {
         assertThat(css)
                 .contains(".bookshelf-book-create-preview-grid")
                 .contains(".bookshelf-book-create-preview-card.is-excluded")
-                .contains(".bookshelf-book-create-preview-options");
+                .contains(".bookshelf-book-create-preview-options")
+                .contains(".bookshelf-book-create-fields")
+                .contains("min(96rem, calc(100vw - 4rem))")
+                .contains("repeat(5, minmax(0, 1fr))");
         assertThat(controller)
                 .contains("@GetMapping(\"/books/aladin-preview\")")
                 .contains("@RequestParam(value = \"targetBookId\", required = false)")
