@@ -201,7 +201,7 @@ class BookshelfControllerTest {
     }
 
     @Test
-    void createBook_usesSubmittedReversePageOrderForVolumeSequence() {
+    void createBook_usesLaterPageThenVisibleItemOrderForVolumeSequence() {
         BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
         AladinItem volume23 = new AladinItem("시리즈 23권", "저자", "cover-23", "9782300000001", null, "10000", "12000", "2026-01-23", "설명 23", "item-23", "");
@@ -218,15 +218,15 @@ class BookshelfControllerTest {
         String view = controller.createBook(
                 "시리즈", null, null, null, "만화", null, null,
                 null, java.util.List.of(
-                        "2|9780100000001", "2|9780200000001", "1|9782200000001", "1|9782300000001"
+                        "2|9780200000001", "2|9780100000001", "1|9782300000001", "1|9782200000001"
                 ), null, true, false, null, redirectAttributes
         );
 
         assertThat(view).isEqualTo("redirect:/books/42");
-        verify(bookVolumeRepository).insertVolume(42, 1, "9780100000001", "시리즈 1권", "cover-1", "10000", "설명 1");
-        verify(bookVolumeRepository).insertVolume(42, 2, "9780200000001", "시리즈 2권", "cover-2", "10000", "설명 2");
-        verify(bookVolumeRepository).insertVolume(42, 3, "9782200000001", "시리즈 22권", "cover-22", "10000", "설명 22");
-        verify(bookVolumeRepository).insertVolume(42, 4, "9782300000001", "시리즈 23권", "cover-23", "10000", "설명 23");
+        verify(bookVolumeRepository).insertVolume(42, 1, "9780200000001", "시리즈 2권", "cover-2", "10000", "설명 2");
+        verify(bookVolumeRepository).insertVolume(42, 2, "9780100000001", "시리즈 1권", "cover-1", "10000", "설명 1");
+        verify(bookVolumeRepository).insertVolume(42, 3, "9782300000001", "시리즈 23권", "cover-23", "10000", "설명 23");
+        verify(bookVolumeRepository).insertVolume(42, 4, "9782200000001", "시리즈 22권", "cover-22", "10000", "설명 22");
     }
 
     @Test
