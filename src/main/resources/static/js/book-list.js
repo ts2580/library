@@ -59,14 +59,20 @@
   const previewCount = document.getElementById('bookCreatePreviewCount');
   const previewMessage = document.getElementById('bookCreatePreviewMessage');
   const previewCards = document.getElementById('bookCreatePreviewCards');
+  const previewPagination = document.getElementById('bookCreatePreviewPagination');
+  const previewSelections = document.getElementById('bookCreatePreviewSelections');
   const selectAllButton = document.getElementById('bookCreateSelectAll');
   const excludeAllButton = document.getElementById('bookCreateExcludeAll');
 
   let previewedName = '';
   let previewItemCount = 0;
   let previewTotalResults = 0;
+  let previewPage = 1;
+  let previewTotalPages = 0;
   let previewLoading = false;
   let previewRequestGeneration = 0;
+  let previewSelectedItems = new Map();
+  let previewVisitedPages = new Set();
   let targetSearchGeneration = 0;
   let selectedTargetBook = null;
   let manualTypeValue = typeInput?.value || '';
@@ -90,25 +96,61 @@
     previewCards?.querySelectorAll('[data-book-create-exclude]:not(:disabled)') || []
   );
 
+  const selectedPreviewItems = () => Array.from(previewSelectedItems.values());
+
+  const syncPreviewSelectionInputs = () => {
+    if (!previewSelections) return;
+    previewSelections.innerHTML = selectedPreviewItems()
+      .sort((left, right) => left.page - right.page || left.index - right.index)
+      .map((item) => `
+        <input type="hidden" name="selectedIsbn" value="${escapeAttr(item.key)}">
+        <input type="hidden" name="selectedPage" value="${item.page}">
+        ${item.sideStory ? `<input type="hidden" name="sideStoryIsbn" value="${escapeAttr(item.key)}">` : ''}
+      `).join('');
+  };
+
+  const syncVisiblePreviewSelections = () => {
+    selectableCheckboxes().forEach((excludeCheckbox) => {
+      const card = excludeCheckbox.closest('[data-book-create-preview-card]');
+      const key = card?.dataset.bookCreateSelectionKey;
+      if (!key) return;
+      if (excludeCheckbox.checked) {
+        previewSelectedItems.delete(key);
+        return;
+      }
+      const sideStoryCheckbox = card?.querySelector('[data-book-create-side-story]');
+      previewSelectedItems.set(key, {
+        key,
+        page: Number(card.dataset.bookCreatePage),
+        index: Number(card.dataset.bookCreateIndex),
+        sideStory: sideStoryCheckbox?.checked === true
+      });
+    });
+    syncPreviewSelectionInputs();
+  };
+
+  const selectedNumberedItemsBefore = (page, index) => selectedPreviewItems()
+    .filter((item) => !item.sideStory && (item.page < page || (item.page === page && item.index < index)))
+    .length;
+
   const syncSelectionState = () => {
+    syncVisiblePreviewSelections();
     const selectable = selectableCheckboxes();
-    const selected = selectable.filter((checkbox) => !checkbox.checked);
-    let nextVolume = selectedTargetBook?.nextVolume || 1;
+    const selectedCount = previewSelectedItems.size;
+    const nextVolume = selectedTargetBook?.nextVolume || 1;
 
     selectable.forEach((excludeCheckbox) => {
       const card = excludeCheckbox.closest('[data-book-create-preview-card]');
       const volumeLabel = card?.querySelector('[data-book-create-volume-label]');
-      const selectionInput = card?.querySelector('[data-book-create-selection]');
       const sideStoryCheckbox = card?.querySelector('[data-book-create-side-story]');
       const included = !excludeCheckbox.checked;
       const sideStory = included && sideStoryCheckbox?.checked === true;
       card?.classList.toggle('is-selected', included);
       card?.classList.toggle('is-excluded', !included);
-      if (selectionInput) selectionInput.disabled = !included;
       if (sideStoryCheckbox) sideStoryCheckbox.disabled = !included;
       if (volumeLabel) {
         volumeLabel.textContent = included
-          ? (sideStory ? '외전' : `${nextVolume++}권 예정`)
+          ? (sideStory ? '외전' : `${nextVolume + selectedNumberedItemsBefore(Number(card?.dataset.bookCreatePage), Number(card?.dataset.bookCreateIndex))}권 예정`)
           : '제외됨';
       }
     });
@@ -116,16 +158,16 @@
     if (previewCount) {
       previewCount.textContent = previewItemCount === 0
         ? '추가할 알라딘 항목 없이 책 정보만 등록합니다.'
-        : `검색 결과 ${previewTotalResults}건 중 ${previewItemCount}건 표시 · ${selected.length}개 추가 예정`;
+        : `검색 결과 ${previewTotalResults}건 중 ${previewItemCount}건 표시 · ${selectedCount}개 추가 예정`;
     }
 
     if (submitButton && previewedName) {
       const hasNoResults = previewItemCount === 0;
       const targetHasNoItems = hasNoResults && selectedTargetBook !== null;
-      submitButton.disabled = targetHasNoItems || (!hasNoResults && selected.length === 0);
+      submitButton.disabled = targetHasNoItems || (!hasNoResults && selectedCount === 0);
       submitButton.textContent = targetHasNoItems
         ? '추가할 책 없음'
-        : (hasNoResults ? '책만 추가' : `${selected.length}권 추가`);
+        : (hasNoResults ? '책만 추가' : `${selectedCount}권 추가`);
     }
   };
 
@@ -133,9 +175,18 @@
     previewedName = '';
     previewItemCount = 0;
     previewTotalResults = 0;
+    previewPage = 1;
+    previewTotalPages = 0;
+    previewSelectedItems = new Map();
+    previewVisitedPages = new Set();
     if (selectionConfirmedInput) selectionConfirmedInput.value = 'false';
     if (previewSection) previewSection.hidden = true;
     if (previewCards) previewCards.innerHTML = '';
+    if (previewPagination) {
+      previewPagination.hidden = true;
+      previewPagination.innerHTML = '';
+    }
+    if (previewSelections) previewSelections.innerHTML = '';
     if (previewMessage) {
       previewMessage.hidden = true;
       previewMessage.textContent = '';
@@ -152,6 +203,10 @@
     previewedName = query;
     previewItemCount = items.length;
     previewTotalResults = Number(payload.totalResults || items.length);
+    previewPage = Math.max(1, Number(payload.page || 1));
+    previewTotalPages = Math.max(0, Number(payload.totalPages || 0));
+    const firstVisit = !previewVisitedPages.has(previewPage);
+    previewVisitedPages.add(previewPage);
     if (selectionConfirmedInput) selectionConfirmedInput.value = 'true';
     if (previewSection) previewSection.hidden = false;
     if (previewMessage) {
@@ -160,17 +215,19 @@
     }
 
     if (previewCards) {
-      previewCards.innerHTML = items.map((item) => {
+      previewCards.innerHTML = items.map((item, index) => {
         const title = item.title || '제목 없음';
         const selectionKey = item.selectionKey || '';
         const selectable = item.selectable === true;
+        const persistedSelection = previewSelectedItems.get(selectionKey);
+        const included = selectable && (firstVisit || persistedSelection !== undefined);
+        const sideStory = included && persistedSelection?.sideStory === true;
         const cover = String(item.cover || '').trim();
         const coverMarkup = cover
           ? `<img src="${escapeAttr(cover)}" alt="${escapeAttr(title)} 표지" class="h-full w-full object-cover" loading="lazy" decoding="async">`
           : '<div class="absolute inset-0 flex items-center justify-center bookshelf-empty-cover text-xs">NO COVER</div>';
         return `
-          <article class="bookshelf-card bookshelf-book-create-preview-card bookshelf-pad-card-sm ${selectable ? 'is-selected' : 'is-excluded'}" data-book-create-preview-card>
-            <input type="hidden" name="selectedIsbn" value="${escapeAttr(selectionKey)}" data-book-create-selection ${selectable ? '' : 'disabled'}>
+          <article class="bookshelf-card bookshelf-book-create-preview-card bookshelf-pad-card-sm ${included ? 'is-selected' : 'is-excluded'}" data-book-create-preview-card data-book-create-selection-key="${escapeAttr(selectionKey)}" data-book-create-page="${previewPage}" data-book-create-index="${index}">
             <div class="bookshelf-cover-hover bookshelf-book-create-preview-cover relative w-full overflow-hidden rounded-[16px] bg-slate-100">
               ${coverMarkup}
             </div>
@@ -186,11 +243,11 @@
               </div>
               <div class="bookshelf-book-create-preview-options">
                 <label class="bookshelf-dialog-check bookshelf-detail-label">
-                  <input type="checkbox" data-book-create-exclude ${selectable ? '' : 'disabled'} class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                  <input type="checkbox" data-book-create-exclude ${included ? '' : 'checked'} ${selectable ? '' : 'disabled'} class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
                   제외
                 </label>
                 <label class="bookshelf-dialog-check bookshelf-detail-label">
-                  <input type="checkbox" name="sideStoryIsbn" value="${escapeAttr(selectionKey)}" data-book-create-side-story ${selectable ? '' : 'disabled'} class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                  <input type="checkbox" data-book-create-side-story ${sideStory ? 'checked' : ''} ${selectable ? '' : 'disabled'} class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
                   외전으로 추가
                 </label>
               </div>
@@ -210,11 +267,27 @@
     if (selectAllButton) selectAllButton.disabled = !hasSelectableItems;
     if (excludeAllButton) excludeAllButton.disabled = !hasSelectableItems;
     syncSelectionState();
-    previewSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (previewPagination) {
+      const startPage = Math.max(1, Math.min(previewPage - 2, previewTotalPages - 4));
+      const endPage = Math.min(previewTotalPages, startPage + 4);
+      const pageButtons = Array.from({ length: Math.max(0, endPage - startPage + 1) }, (_, index) => {
+        const page = startPage + index;
+        return `<button type="button" class="bookshelf-pagination__page bookshelf-btn-ghost ${page === previewPage ? 'is-current-page' : ''}" data-book-create-preview-page="${page}" aria-current="${page === previewPage ? 'page' : 'false'}">${page}</button>`;
+      }).join('');
+      previewPagination.hidden = previewTotalPages <= 1;
+      previewPagination.innerHTML = previewTotalPages <= 1 ? '' : `
+        <button type="button" class="bookshelf-pagination__nav bookshelf-btn-ghost" data-book-create-preview-page="${previewPage - 1}" ${previewPage <= 1 ? 'disabled' : ''} aria-label="이전 페이지">‹</button>
+        ${pageButtons}
+        <button type="button" class="bookshelf-pagination__nav bookshelf-btn-ghost" data-book-create-preview-page="${previewPage + 1}" ${previewPage >= previewTotalPages ? 'disabled' : ''} aria-label="다음 페이지">›</button>
+      `;
+      previewPagination.querySelectorAll('[data-book-create-preview-page]').forEach((button) => {
+        button.addEventListener('click', () => loadPreview(Number(button.dataset.bookCreatePreviewPage)));
+      });
+    }
   };
 
   const showPreviewError = (message) => {
-    resetPreview();
+    if (!previewedName) resetPreview();
     if (previewSection) previewSection.hidden = false;
     if (previewMessage) {
       previewMessage.textContent = message;
@@ -223,9 +296,10 @@
     if (previewCount) previewCount.textContent = '추가 예정 목록을 불러오지 못했습니다.';
   };
 
-  const loadPreview = async () => {
+  const loadPreview = async (requestedPage = 1) => {
     const query = nameInput?.value.trim() || '';
     if (!query || previewLoading) return;
+    if (previewedName && previewedName !== query) resetPreview();
     const requestGeneration = ++previewRequestGeneration;
     previewLoading = true;
     if (submitButton) {
@@ -235,7 +309,7 @@
     window.__sparkProgress?.show?.();
 
     try {
-      const response = await fetch(`/books/aladin-preview?name=${encodeURIComponent(query)}`, {
+      const response = await fetch(`/books/aladin-preview?name=${encodeURIComponent(query)}&page=${Math.max(1, requestedPage)}`, {
         headers: { Accept: 'application/json' },
         credentials: 'same-origin',
         cache: 'no-store'
@@ -521,7 +595,10 @@
   targetBookSearch?.addEventListener('blur', () => setTimeout(hideTargetResults, 150));
 
   nameInput?.addEventListener('input', () => {
-    if (previewedName && nameInput.value.trim() !== previewedName) resetPreview();
+    if (previewedName && nameInput.value.trim() !== previewedName) {
+      invalidatePreviewRequest();
+      resetPreview();
+    }
   });
 
   nonAladinCheckbox?.addEventListener('change', syncNonAladinMode);
