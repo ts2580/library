@@ -101,10 +101,9 @@
   const syncPreviewSelectionInputs = () => {
     if (!previewSelections) return;
     previewSelections.innerHTML = selectedPreviewItems()
-      .sort((left, right) => left.page - right.page || left.index - right.index)
+      .sort((left, right) => right.page - left.page || left.index - right.index)
       .map((item) => `
-        <input type="hidden" name="selectedIsbn" value="${escapeAttr(item.key)}">
-        <input type="hidden" name="selectedPage" value="${item.page}">
+        <input type="hidden" name="selectedPreviewEntry" value="${item.page}|${escapeAttr(item.key)}">
         ${item.sideStory ? `<input type="hidden" name="sideStoryIsbn" value="${escapeAttr(item.key)}">` : ''}
       `).join('');
   };
@@ -130,7 +129,7 @@
   };
 
   const selectedNumberedItemsBefore = (page, index) => selectedPreviewItems()
-    .filter((item) => !item.sideStory && (item.page < page || (item.page === page && item.index < index)))
+    .filter((item) => !item.sideStory && (item.page > page || (item.page === page && item.index < index)))
     .length;
 
   const syncSelectionState = () => {

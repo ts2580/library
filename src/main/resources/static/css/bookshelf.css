@@ -344,10 +344,17 @@ body.bookshelf-body.bookshelf-page-leaving { opacity: .78;  }
 .bookshelf-book-create-form > :last-child { flex: 0 0 auto; }
 .bookshelf-book-create-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1 1 auto;
   gap: 1.25rem;
   min-height: 0;
   overflow-y: auto;
+}
+.bookshelf-book-create-fields {
+  display: grid;
+  width: 100%;
+  gap: 1.25rem;
+  align-content: start;
 }
 .bookshelf-book-create-preview {
   display: grid;
@@ -414,6 +421,13 @@ body.bookshelf-body.bookshelf-page-leaving { opacity: .78;  }
 }
 @media (min-width: 900px) {
   .bookshelf-book-create-preview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .bookshelf-book-create-dialog { max-width: min(96rem, calc(100vw - 4rem)); }
+  .bookshelf-book-create-preview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1600px) {
+  .bookshelf-book-create-preview-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .bookshelf-volume-edit-body { display: grid; gap: 1rem; padding: 1.25rem; }
 .bookshelf-volume-edit-cover { width: 8.75rem; max-width: 100%; justify-self: center; }

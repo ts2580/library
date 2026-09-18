@@ -64,13 +64,14 @@
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input id="bookCreateSelectionConfirmed" type="hidden" name="selectionConfirmed" value="false">
             <input id="bookCreateTargetBookId" type="hidden" name="targetBookId">
-            <label class="bookshelf-dialog-check bookshelf-detail-label sm:col-span-2">
-              <input id="bookCreateNonAladin" type="checkbox" name="nonAladinRegistration" value="true"
-                     class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
-              알라딘 외 등록
-              <span class="bookshelf-subtitle-xs">입력 정보만으로 새 책을 등록합니다.</span>
-            </label>
-            <div class="grid bookshelf-gap-3 sm:grid-cols-2">
+            <div class="bookshelf-book-create-fields">
+              <label class="bookshelf-dialog-check bookshelf-detail-label">
+                <input id="bookCreateNonAladin" type="checkbox" name="nonAladinRegistration" value="true"
+                       class="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                알라딘 외 등록
+                <span class="bookshelf-subtitle-xs">입력 정보만으로 새 책을 등록합니다.</span>
+              </label>
+              <div class="grid bookshelf-gap-3 sm:grid-cols-2">
               <div class="relative sm:col-span-2">
                 <label for="bookCreateTargetSearch" class="bookshelf-mb-1 block bookshelf-detail-label">기존 책 <span class="bookshelf-subtitle-xs">(선택 사항)</span></label>
                 <input id="bookCreateTargetSearch" type="text" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="기존 책 검색 · 비우면 새 책으로 등록" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
@@ -84,6 +85,7 @@
               <div class="sm:col-span-2"><label for="bookCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookCreateCover" name="cover" type="url" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="https://..."></div>
               <div id="bookCreateCoverFileField" class="sm:col-span-2" hidden><label for="bookCreateCoverFile" class="bookshelf-mb-1 block bookshelf-detail-label">표지 이미지 파일 <span class="bookshelf-subtitle-xs">(선택 · URL보다 우선)</span></label><input id="bookCreateCoverFile" name="coverFile" type="file" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif" class="bookshelf-input bookshelf-profile-file-input"></div>
               <div class="sm:col-span-2"><label for="bookCreateDescription" class="bookshelf-mb-1 block bookshelf-detail-label">설명</label><textarea id="bookCreateDescription" name="description" rows="3" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="책 설명"></textarea></div>
+              </div>
             </div>
 
             <section id="bookCreatePreview" class="bookshelf-book-create-preview" aria-live="polite" hidden>

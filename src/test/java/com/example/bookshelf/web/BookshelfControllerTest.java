@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -189,7 +190,7 @@ class BookshelfControllerTest {
 
         String view = controller.createBook(
                 "시리즈", null, null, null, "만화", null, null,
-                java.util.List.of("9782121212121"), java.util.List.of(2), null,
+                null, java.util.List.of("2|9782121212121"), null,
                 true, false, null, redirectAttributes
         );
 
@@ -197,6 +198,71 @@ class BookshelfControllerTest {
         verify(aladinSearchService).searchBookItems("시리즈", 2);
         verify(aladinSearchService, never()).searchBookItems("시리즈", 1);
         verify(bookVolumeRepository).insertVolume(42, 1, "9782121212121", "시리즈 21권", "cover-21", "12000", "설명 21");
+    }
+
+    @Test
+    void createBook_usesLaterPageThenVisibleItemOrderForVolumeSequence() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        AladinItem volume23 = new AladinItem("시리즈 23권", "저자", "cover-23", "9782300000001", null, "10000", "12000", "2026-01-23", "설명 23", "item-23", "");
+        AladinItem volume22 = new AladinItem("시리즈 22권", "저자", "cover-22", "9782200000001", null, "10000", "12000", "2026-01-22", "설명 22", "item-22", "");
+        AladinItem volume2 = new AladinItem("시리즈 2권", "저자", "cover-2", "9780200000001", null, "10000", "12000", "2026-01-02", "설명 2", "item-2", "");
+        AladinItem volume1 = new AladinItem("시리즈 1권", "저자", "cover-1", "9780100000001", null, "10000", "12000", "2026-01-01", "설명 1", "item-1", "");
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(volume23, volume22), 22, 1, 20));
+        when(aladinSearchService.searchBookItems("시리즈", 2)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(volume2, volume1), 22, 2, 20));
+        when(bookVolumeRepository.existsVolumeByIsbn13(any())).thenReturn(false);
+        when(bookDataRepository.insertBook("시리즈", "저자", "설명 1", "cover-1", "만화", null)).thenReturn(42);
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of(
+                        "2|9780200000001", "2|9780100000001", "1|9782300000001", "1|9782200000001"
+                ), null, true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/42");
+        verify(bookVolumeRepository).insertVolume(42, 1, "9780200000001", "시리즈 2권", "cover-2", "10000", "설명 2");
+        verify(bookVolumeRepository).insertVolume(42, 2, "9780100000001", "시리즈 1권", "cover-1", "10000", "설명 1");
+        verify(bookVolumeRepository).insertVolume(42, 3, "9782300000001", "시리즈 23권", "cover-23", "10000", "설명 23");
+        verify(bookVolumeRepository).insertVolume(42, 4, "9782200000001", "시리즈 22권", "cover-22", "10000", "설명 22");
+    }
+
+    @Test
+    void createBook_rejectsPreviewEntriesOutsideTheAllowedPageRange() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of("51|9782121212121"), null,
+                true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books");
+        assertThat(redirectAttributes.getFlashAttributes().get("error")).isEqualTo("알라딘 검색 결과는 최대 50페이지까지 선택할 수 있습니다.");
+        verifyNoInteractions(aladinSearchService);
+    }
+
+    @Test
+    void createBook_deduplicatesAnIsbnReturnedFromMultipleSelectedPages() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        AladinItem duplicate = new AladinItem("시리즈 1권", "저자", "cover-1", "9781111111111", null, "10000", "12000", "2026-01-01", "설명", "item-1", "");
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(java.util.List.of(duplicate), 21, 1, 20));
+        when(aladinSearchService.searchBookItems("시리즈", 2)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(java.util.List.of(duplicate), 21, 2, 20));
+        when(bookVolumeRepository.existsVolumeByIsbn13("9781111111111")).thenReturn(false);
+        when(bookDataRepository.insertBook("시리즈", "저자", "설명", "cover-1", "만화", null)).thenReturn(42);
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of("1|9781111111111", "2|9781111111111"), null,
+                true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/42");
+        verify(bookVolumeRepository, times(1)).insertVolume(42, 1, "9781111111111", "시리즈 1권", "cover-1", "10000", "설명");
     }
 
     @Test
