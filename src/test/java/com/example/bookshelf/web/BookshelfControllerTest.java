@@ -201,6 +201,35 @@ class BookshelfControllerTest {
     }
 
     @Test
+    void createBook_usesSubmittedReversePageOrderForVolumeSequence() {
+        BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+        AladinItem volume23 = new AladinItem("시리즈 23권", "저자", "cover-23", "9782300000001", null, "10000", "12000", "2026-01-23", "설명 23", "item-23", "");
+        AladinItem volume22 = new AladinItem("시리즈 22권", "저자", "cover-22", "9782200000001", null, "10000", "12000", "2026-01-22", "설명 22", "item-22", "");
+        AladinItem volume2 = new AladinItem("시리즈 2권", "저자", "cover-2", "9780200000001", null, "10000", "12000", "2026-01-02", "설명 2", "item-2", "");
+        AladinItem volume1 = new AladinItem("시리즈 1권", "저자", "cover-1", "9780100000001", null, "10000", "12000", "2026-01-01", "설명 1", "item-1", "");
+        when(aladinSearchService.searchBookItems("시리즈", 1)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(volume23, volume22), 22, 1, 20));
+        when(aladinSearchService.searchBookItems("시리즈", 2)).thenReturn(new com.example.bookshelf.integration.aladin.AladinSearchResult(
+                java.util.List.of(volume2, volume1), 22, 2, 20));
+        when(bookVolumeRepository.existsVolumeByIsbn13(any())).thenReturn(false);
+        when(bookDataRepository.insertBook("시리즈", "저자", "설명 1", "cover-1", "만화", null)).thenReturn(42);
+
+        String view = controller.createBook(
+                "시리즈", null, null, null, "만화", null, null,
+                null, java.util.List.of(
+                        "2|9780100000001", "2|9780200000001", "1|9782200000001", "1|9782300000001"
+                ), null, true, false, null, redirectAttributes
+        );
+
+        assertThat(view).isEqualTo("redirect:/books/42");
+        verify(bookVolumeRepository).insertVolume(42, 1, "9780100000001", "시리즈 1권", "cover-1", "10000", "설명 1");
+        verify(bookVolumeRepository).insertVolume(42, 2, "9780200000001", "시리즈 2권", "cover-2", "10000", "설명 2");
+        verify(bookVolumeRepository).insertVolume(42, 3, "9782200000001", "시리즈 22권", "cover-22", "10000", "설명 22");
+        verify(bookVolumeRepository).insertVolume(42, 4, "9782300000001", "시리즈 23권", "cover-23", "10000", "설명 23");
+    }
+
+    @Test
     void createBook_rejectsPreviewEntriesOutsideTheAllowedPageRange() {
         BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();

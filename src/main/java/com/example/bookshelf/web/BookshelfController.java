@@ -192,7 +192,7 @@ public class BookshelfController {
         Set<String> selectedKeys = previewSelection.selectionKeys().isEmpty()
                 ? fallbackSelectedKeys
                 : previewSelection.selectionKeys();
-        List<AladinItem> searchItems = searchSelectedPreviewPages(name, selectionConfirmed, previewSelection.selectionKeysByPage());
+        List<AladinItem> searchItems = searchSelectedPreviewPages(name, selectionConfirmed, previewSelection.entries());
         Set<String> sideStoryKeys = sideStoryIsbns == null ? Set.of() : sideStoryIsbns.stream()
                 .map(Texts::trimToNull)
                 .filter(Objects::nonNull)
@@ -636,20 +636,30 @@ public class BookshelfController {
         return authSessionHelper == null ? null : authSessionHelper.getMemberId(null);
     }
 
-    private List<AladinItem> searchSelectedPreviewPages(String name, boolean selectionConfirmed, Map<Integer, Set<String>> selectionKeysByPage) {
-        if (!selectionConfirmed || selectionKeysByPage.isEmpty()) {
+    private List<AladinItem> searchSelectedPreviewPages(String name, boolean selectionConfirmed, List<ManualPreviewEntry> selectionEntries) {
+        if (!selectionConfirmed || selectionEntries.isEmpty()) {
             var result = aladinSearchService.searchBookItems(name, 1);
             return result == null || result.items() == null ? List.of() : result.items();
         }
-        return selectionKeysByPage.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .flatMap(entry -> {
-                    int page = entry.getKey();
-                    var result = aladinSearchService.searchBookItems(name, page);
-                    return result == null || result.items() == null
-                            ? java.util.stream.Stream.<AladinItem>empty()
-                            : result.items().stream().filter(item -> entry.getValue().contains(resolveAladinItemKey(item)));
-                })
+        Map<Integer, Map<String, AladinItem>> itemsByPage = new LinkedHashMap<>();
+        for (ManualPreviewEntry entry : selectionEntries) {
+            itemsByPage.computeIfAbsent(entry.page(), page -> {
+                var result = aladinSearchService.searchBookItems(name, page);
+                Map<String, AladinItem> itemsByKey = new LinkedHashMap<>();
+                if (result != null && result.items() != null) {
+                    result.items().forEach(item -> {
+                        String key = resolveAladinItemKey(item);
+                        if (key != null) {
+                            itemsByKey.putIfAbsent(key, item);
+                        }
+                    });
+                }
+                return itemsByKey;
+            });
+        }
+        return selectionEntries.stream()
+                .map(entry -> itemsByPage.get(entry.page()).get(entry.selectionKey()))
+                .filter(Objects::nonNull)
                 .toList();
     }
 
@@ -661,6 +671,7 @@ public class BookshelfController {
             throw new IllegalArgumentException("알라딘 검색 결과는 최대 " + MAX_MANUAL_PREVIEW_SELECTION_COUNT + "권까지 선택할 수 있습니다.");
         }
         Map<Integer, Set<String>> selectionKeysByPage = new LinkedHashMap<>();
+        List<ManualPreviewEntry> selectionEntries = new ArrayList<>();
         for (String entry : entries) {
             String normalizedEntry = Texts.trimToNull(entry);
             int separatorIndex = normalizedEntry == null ? -1 : normalizedEntry.indexOf(MANUAL_PREVIEW_ENTRY_SEPARATOR);
@@ -680,12 +691,14 @@ public class BookshelfController {
             if (selectionKey == null) {
                 throw new IllegalArgumentException("선택한 알라딘 검색 결과를 다시 확인해 주세요.");
             }
-            selectionKeysByPage.computeIfAbsent(page, ignored -> new java.util.LinkedHashSet<>()).add(selectionKey);
+            if (selectionKeysByPage.computeIfAbsent(page, ignored -> new java.util.LinkedHashSet<>()).add(selectionKey)) {
+                selectionEntries.add(new ManualPreviewEntry(page, selectionKey));
+            }
             if (selectionKeysByPage.size() > MAX_MANUAL_PREVIEW_PAGE) {
                 throw new IllegalArgumentException("알라딘 검색 결과는 최대 " + MAX_MANUAL_PREVIEW_PAGE + "페이지까지 선택할 수 있습니다.");
             }
         }
-        return new ManualPreviewSelection(selectionKeysByPage);
+        return new ManualPreviewSelection(List.copyOf(selectionEntries), selectionKeysByPage);
     }
 
     private static int normalizeManualPreviewPage(Integer page) {
@@ -703,9 +716,12 @@ public class BookshelfController {
         return List.copyOf(distinctItems.values());
     }
 
-    private record ManualPreviewSelection(Map<Integer, Set<String>> selectionKeysByPage) {
+    private record ManualPreviewEntry(int page, String selectionKey) {
+    }
+
+    private record ManualPreviewSelection(List<ManualPreviewEntry> entries, Map<Integer, Set<String>> selectionKeysByPage) {
         static ManualPreviewSelection empty() {
-            return new ManualPreviewSelection(Map.of());
+            return new ManualPreviewSelection(List.of(), Map.of());
         }
 
         Set<String> selectionKeys() {
