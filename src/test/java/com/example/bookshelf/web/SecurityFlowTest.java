@@ -27,6 +27,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.mock.web.MockHttpSession;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @WebMvcTest(
         controllers = {LoginController.class, SignupController.class},
@@ -156,6 +162,84 @@ class SecurityFlowTest {
                         .param("email", "u@example.com"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/dashboard"));
+    }
+
+    @Test
+    void asyncLoginMissingCsrf_isRejectedBeforeCredentialsAreChecked() throws Exception {
+        mockMvc.perform(post("/user/login").header("X-Requested-With", "XMLHttpRequest")
+                        .param("username", "tester").param("password", "password123"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("csrf"))
+                .andExpect(header().doesNotExist("Location"));
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    void asyncLoginInvalidCsrf_isRejectedBeforeCredentialsAreChecked() throws Exception {
+        mockMvc.perform(post("/user/login").header("X-Requested-With", "XMLHttpRequest")
+                        .with(csrf().useInvalidToken())
+                        .param("username", "tester").param("password", "password123"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("csrf"));
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    void asyncLoginExpiredSession_canRefreshTokenAndAuthenticateWithSameCredentials() throws Exception {
+        var page = mockMvc.perform(get("/user/login")).andExpect(status().isOk()).andReturn();
+        var oldToken = (CsrfToken) page.getRequest().getAttribute("_csrf");
+        String value = oldToken.getToken();
+        ((MockHttpSession) page.getRequest().getSession(false)).invalidate();
+        mockMvc.perform(post("/user/login").header("X-Requested-With", "XMLHttpRequest")
+                        .param(oldToken.getParameterName(), value)
+                        .param("username", "tester").param("password", "password123"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("csrf"));
+        org.mockito.Mockito.verify(memberRepository, org.mockito.Mockito.never()).findByUsername("tester");
+
+        var refresh = mockMvc.perform(get("/user/login/csrf"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.token").isNotEmpty()).andReturn();
+        var token = new ObjectMapper().readTree(refresh.getResponse().getContentAsString());
+        when(memberRepository.findByUsername("tester"))
+                .thenReturn(new Member(1, "tester", passwordEncoder.encode("password123"), "t@example.com", "테스터", null));
+        var login = mockMvc.perform(post("/user/login").header("X-Requested-With", "XMLHttpRequest")
+                        .session((MockHttpSession) refresh.getRequest().getSession(false))
+                        .param(token.get("parameterName").asText(), token.get("token").asText())
+                        .param("username", "tester").param("password", "password123")
+                        .param("remember-me", "on"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(header().doesNotExist("Location")).andReturn();
+        assertThat(login.getRequest().getSession(false).getAttribute(SessionKeys.LOGIN_MEMBER_ID)).isEqualTo(1);
+        assertThat(login.getResponse().getCookie("remember-me")).isNotNull();
+        mockMvc.perform(get("/dashboard").session((MockHttpSession) login.getRequest().getSession(false)))
+                .andExpect(status().isNotFound()); // Passed security; dashboard is outside this MVC slice.
+    }
+
+    @Test
+    void asyncLoginBadCredentials_returnsDistinctErrorWithoutRedirect() throws Exception {
+        mockMvc.perform(post("/user/login").header("X-Requested-With", "XMLHttpRequest")
+                        .with(csrf()).param("username", "unknown").param("password", "wrong"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("credentials"))
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void ordinaryLoginBadCredentials_keepsFormFallback() throws Exception {
+        mockMvc.perform(post("/user/login").with(csrf())
+                        .param("username", "unknown").param("password", "wrong"))
+                .andExpect(status().isFound()).andExpect(redirectedUrl("/user/login?error"));
+    }
+
+    @Test
+    void asyncNonLoginRequest_keepsCsrfProtectionAndExistingResponse() throws Exception {
+        mockMvc.perform(post("/user/profile").header("X-Requested-With", "XMLHttpRequest")
+                        .with(user("tester")))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(""));
     }
 
     @Test
