@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
+import java.util.Map;
 
 @Controller
 @RequestMapping("/user")
@@ -57,6 +61,12 @@ public class LoginController {
     public String profile(Model model, HttpSession session) {
         applyProfileFormFromCurrentMember(model, session);
         return "user_profile";
+    }
+
+    @GetMapping("/login/csrf")
+    public ResponseEntity<Map<String, String>> loginCsrf(CsrfToken csrfToken) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Map.of("parameterName", csrfToken.getParameterName(), "token", csrfToken.getToken()));
     }
 
     @PostMapping("/profile")

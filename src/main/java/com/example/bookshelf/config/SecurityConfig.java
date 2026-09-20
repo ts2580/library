@@ -25,6 +25,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CsrfException;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
@@ -57,13 +59,17 @@ public class SecurityConfig {
                         ).hasRole("ADMIN")
                         .requestMatchers("/dashboard/branches/**").hasRole("ADMIN")
                         .requestMatchers(
-                                "/user/login", "/user/signup", "/error", "/css/**", "/js/**", "/images/**"
+                                "/user/login", "/user/login/csrf", "/user/signup", "/error", "/css/**", "/js/**", "/images/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint("/user/login"))
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            if (isAsyncLogin(request) && accessDeniedException instanceof CsrfException) {
+                                writeLoginResponse(response, HttpServletResponse.SC_FORBIDDEN, "{\"error\":\"csrf\"}");
+                                return;
+                            }
                             org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
                             if (auth == null || !auth.isAuthenticated() || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
                                 response.sendRedirect("/user/login");
@@ -76,7 +82,14 @@ public class SecurityConfig {
                         .loginPage("/user/login")
                         .loginProcessingUrl("/user/login")
                         .successHandler(authenticationSuccessHandler)
-                        .failureUrl("/user/login?error")
+                        .failureHandler((request, response, exception) -> {
+                            if (isAsyncLogin(request)) {
+                                writeLoginResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "{\"error\":\"credentials\"}");
+                            } else {
+                                new SimpleUrlAuthenticationFailureHandler("/user/login?error")
+                                        .onAuthenticationFailure(request, response, exception);
+                            }
+                        })
                         .permitAll()
                 )
                 .rememberMe(rememberMe -> rememberMe
@@ -155,8 +168,27 @@ public class SecurityConfig {
             if (member != null) {
                 session.setAttribute(SessionKeys.LOGIN_MEMBER_ID, member.id());
             }
-            response.sendRedirect("/dashboard");
+            if (isAsyncLogin(request)) {
+                writeLoginResponse(response, HttpServletResponse.SC_OK, "{\"authenticated\":true}");
+            } else {
+                response.sendRedirect("/dashboard");
+            }
         };
+    }
+
+    private static boolean isAsyncLogin(HttpServletRequest request) {
+        return "POST".equals(request.getMethod())
+                && (request.getContextPath() + "/user/login").equals(request.getRequestURI())
+                && "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
+    }
+
+    private static void writeLoginResponse(HttpServletResponse response, int status, String body)
+            throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setHeader("Cache-Control", "no-store");
+        response.getWriter().write(body);
     }
 
     private static class LegacyAwarePasswordEncoder implements PasswordEncoder {
