@@ -28,6 +28,44 @@
         </div>
       </section>
 
+      <section id="stockSearch" class="bookshelf-card bookshelf-pad-card-lg sm:bookshelf-p-6">
+        <h2 class="bookshelf-title-lg">재고 검색</h2>
+        <p id="stockSearchHelp" class="bookshelf-mt-1 bookshelf-subtitle-sm">저장된 지점 재고를 책 제목, ISBN 또는 지점명으로 검색합니다.</p>
+        <form action="/dashboard/branches#stockSearch" method="get" role="search" class="bookshelf-mt-4 flex flex-col bookshelf-gap-3 sm:flex-row sm:items-end">
+          <div class="flex-1 min-w-0">
+            <label for="stockSearchInput" class="bookshelf-mb-2 block bookshelf-form-label">검색어</label>
+            <input id="stockSearchInput" type="search" name="search" th:value="${search}" placeholder="책 제목 · ISBN · 지점명" aria-describedby="stockSearchHelp" class="bookshelf-input h-11 w-full bookshelf-px-4 text-sm">
+          </div>
+          <div class="flex bookshelf-gap-3">
+            <button type="submit" class="bookshelf-btn h-11 bookshelf-px-4 bookshelf-btn-size-sm">검색</button>
+            <a href="/dashboard/branches#stockSearch" class="bookshelf-btn-ghost h-11 bookshelf-px-4 bookshelf-btn-size-sm inline-flex items-center justify-center">초기화</a>
+          </div>
+        </form>
+        <div th:if="${not #strings.isEmpty(search)}" class="bookshelf-mt-4">
+          <p id="stockSearchCount" class="bookshelf-subtitle-sm">검색 결과 <span th:text="${stockCount}">0</span>건</p>
+          <p th:if="${#lists.isEmpty(stockSearchResults)}" class="bookshelf-py-5 text-center bookshelf-subtitle">검색 조건에 맞는 재고가 없습니다.</p>
+          <div th:if="${not #lists.isEmpty(stockSearchResults)}" class="bookshelf-card-list bookshelf-mt-3 sm:grid sm:grid-cols-2 lg:grid-cols-3">
+            <article th:each="s : ${stockSearchResults}" class="bookshelf-panel bookshelf-pad-card min-w-0" data-stock-result>
+              <h3 class="bookshelf-title-base break-words" th:text="${s.volumeTitle() != null ? s.volumeTitle() : s.bookTitle()}"></h3>
+              <p class="bookshelf-mt-1 bookshelf-subtitle-sm break-words" th:text="${s.bookTitle()}"></p>
+              <p class="bookshelf-mt-1 bookshelf-subtitle-xs" th:text="${s.isbn13()}"></p>
+              <div class="bookshelf-mt-3 flex flex-wrap items-center bookshelf-gap-3">
+                <a th:if="${s.branch() != null and not #strings.isEmpty(s.branch())}" th:href="@{/dashboard/branches/{branch}(branch=${s.branch()})}" class="bookshelf-link" th:text="${s.branchName()}"></a>
+                <span th:unless="${s.branch() != null and not #strings.isEmpty(s.branch())}" th:text="${s.branchName()}"></span>
+                <span class="bookshelf-chip bookshelf-chip-tag" th:if="${s.grade() != null}" th:text="${'등급 ' + s.grade()}"></span>
+                <span class="bookshelf-subtitle-sm" th:text="${s.price() != null and not #strings.isEmpty(s.price()) ? s.price() + '원' : '가격 미입력'}"></span>
+              </div>
+              <a th:if="${s.purchaseLink() != null and not #strings.isEmpty(s.purchaseLink())}" th:href="${s.purchaseLink()}" target="_blank" rel="noopener noreferrer" class="bookshelf-mt-3 bookshelf-btn-soft bookshelf-px-3 bookshelf-py-2 bookshelf-btn-size-xs inline-flex">바로 구매</a>
+            </article>
+          </div>
+          <nav class="bookshelf-pagination" th:if="${stockTotalPages > 1}" aria-label="재고 검색 결과 페이지">
+            <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${stockPage > 1}" th:href="@{/dashboard/branches(search=${search}, page=${stockPage - 1})} + '#stockSearch'" aria-label="이전 페이지">‹</a>
+            <span class="bookshelf-subtitle-sm" th:text="${stockPage + ' / ' + stockTotalPages}"></span>
+            <a class="bookshelf-pagination__nav bookshelf-btn-ghost" th:if="${stockPage < stockTotalPages}" th:href="@{/dashboard/branches(search=${search}, page=${stockPage + 1})} + '#stockSearch'" aria-label="다음 페이지">›</a>
+          </nav>
+        </div>
+      </section>
+
       <section class="bookshelf-card bookshelf-branch-mobile-compact bookshelf-pad-card-lg sm:bookshelf-p-6">
         <div class="bookshelf-mb-4 flex justify-end bookshelf-p-2 sm:bookshelf-p-3">
           <div class="bookshelf-branch-action-row flex flex-row justify-end bookshelf-gap-3 bookshelf-p-1 sm:bookshelf-p-2">
