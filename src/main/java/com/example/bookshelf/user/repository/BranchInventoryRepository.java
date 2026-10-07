@@ -5,13 +5,23 @@ import com.example.bookshelf.integration.aladin.AladinBranchStock;
 import com.example.bookshelf.user.model.BranchInventorySummary;
 import com.example.bookshelf.user.model.BranchStockItem;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowMapperResultSetExtractor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.sqlite.Function;
+import org.sqlite.SQLiteConnection;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Repository
@@ -88,12 +98,12 @@ public class BranchInventoryRepository {
     }
 
     private static final String STOCK_SEARCH_WHERE = """
-            WHERE INSTR(LOWER(COALESCE(b.name, '')), LOWER(?)) > 0
-               OR INSTR(LOWER(COALESCE(bb.name, '')), LOWER(?)) > 0
-               OR INSTR(LOWER(COALESCE(bv.name, '')), LOWER(?)) > 0
+            WHERE INSTR(bookshelf_search_normalize(b.name), ?) > 0
+               OR INSTR(bookshelf_search_normalize(bb.name), ?) > 0
+               OR INSTR(bookshelf_search_normalize(bv.name), ?) > 0
                OR INSTR(COALESCE(bv.isbn13, ''), ?) > 0
-               OR INSTR(LOWER(COALESCE(bb.branchname, '')), LOWER(?)) > 0
-               OR INSTR(LOWER(COALESCE(bb.branch, '')), LOWER(?)) > 0
+               OR INSTR(bookshelf_search_normalize(bb.branchname), ?) > 0
+               OR INSTR(bookshelf_search_normalize(bb.branch), ?) > 0
             """;
 
     public List<BranchStockItem> findStocksByBranch(String branch) {
@@ -103,16 +113,19 @@ public class BranchInventoryRepository {
     public int countStocksMatching(String search) {
         String keyword = Texts.trimToNull(search);
         if (keyword == null) return 0;
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) " + stockFromClause() + STOCK_SEARCH_WHERE,
-                Integer.class, keyword, keyword, keyword, keyword, keyword, keyword);
+        String normalized = normalizeSearchText(keyword);
+        Integer count = queryUnicodeSearch("SELECT COUNT(*) " + stockFromClause() + STOCK_SEARCH_WHERE,
+                rs -> rs.next() ? rs.getInt(1) : 0, normalized, normalized, normalized, keyword, normalized, normalized);
         return count == null ? 0 : count;
     }
 
     public List<BranchStockItem> searchStocks(String search, int limit, int offset) {
         String keyword = Texts.trimToNull(search);
         if (keyword == null) return List.of();
-        return queryStocks(STOCK_SEARCH_WHERE + " ORDER BY bv.name ASC, bb.branchname ASC, bb.id ASC LIMIT ? OFFSET ?",
-                keyword, keyword, keyword, keyword, keyword, keyword, limit, offset);
+        String normalized = normalizeSearchText(keyword);
+        return queryUnicodeSearch(stockSelectSql(STOCK_SEARCH_WHERE + " ORDER BY bv.name ASC, bb.branchname ASC, bb.id ASC LIMIT ? OFFSET ?"),
+                new RowMapperResultSetExtractor<>(this::mapStock),
+                normalized, normalized, normalized, keyword, normalized, normalized, limit, offset);
     }
 
     private String stockFromClause() {
@@ -122,16 +135,30 @@ public class BranchInventoryRepository {
                 LEFT JOIN book_volumes bv ON %s
                 """.formatted(branchBookVolumeReferenceColumnExists()
                 ? "bv.id = bb.book_volume_id"
-                : "bv.book = bb.book AND bv.volume = bb.volume");
+                // Legacy stock has no stable ID. Only attach metadata when its saved title
+                // identifies exactly one volume; otherwise retain the stock without guessing an ISBN.
+                : """
+                  bv.id = (SELECT MIN(legacy.id) FROM book_volumes legacy
+                           WHERE legacy.book = bb.book AND legacy.volume = bb.volume
+                             AND NULLIF(TRIM(legacy.name), '') = NULLIF(TRIM(bb.name), '')
+                           HAVING COUNT(*) = 1)
+                  """);
     }
 
     private List<BranchStockItem> queryStocks(String condition, Object... args) {
-        String sql = """
+        return jdbcTemplate.query(stockSelectSql(condition), this::mapStock, args);
+    }
+
+    private String stockSelectSql(String condition) {
+        return """
                 SELECT bb.id, bb.branch, bb.branchname, b.id AS bookId, bb.grade,
                        b.name AS bookName, COALESCE(NULLIF(bv.name, ''), bb.name) AS volumeName,
                        bv.isbn13, bv.cover, bb.price, bb.booklink, bb.purchaseurl
                 """ + stockFromClause() + condition;
-        return jdbcTemplate.query(sql, (rs, rowNum) -> new BranchStockItem(
+    }
+
+    private BranchStockItem mapStock(ResultSet rs, int rowNum) throws SQLException {
+        return new BranchStockItem(
                 rs.getInt("id"),
                 rs.getString("branch"),
                 displayBranchName(rs.getString("branch"), rs.getString("branchname")),
@@ -144,7 +171,31 @@ public class BranchInventoryRepository {
                 rs.getString("price"),
                 rs.getString("booklink"),
                 rs.getString("purchaseurl")
-        ), args);
+        );
+    }
+
+    private static String normalizeSearchText(String value) {
+        return value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+    }
+
+    private <T> T queryUnicodeSearch(String sql, ResultSetExtractor<T> extractor, Object... args) {
+        return jdbcTemplate.execute((ConnectionCallback<T>) connection -> {
+            // Register on the actual connection used for this query, including new pool connections.
+            Function.create(connection.unwrap(SQLiteConnection.class), "bookshelf_search_normalize", new Function() {
+                @Override
+                protected void xFunc() throws SQLException {
+                    result(normalizeSearchText(value_text(0)));
+                }
+            }, 1, Function.FLAG_DETERMINISTIC);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                for (int i = 0; i < args.length; i++) {
+                    statement.setObject(i + 1, args[i]);
+                }
+                try (ResultSet rs = statement.executeQuery()) {
+                    return extractor.extractData(rs);
+                }
+            }
+        });
     }
 
     public String findBranchDisplayName(String branch) {
