@@ -87,36 +87,54 @@ public class BranchInventoryRepository {
         jdbcTemplate.update("DELETE FROM branchbook");
     }
 
+    private static final String STOCK_SEARCH_WHERE = """
+            WHERE INSTR(LOWER(COALESCE(b.name, '')), LOWER(?)) > 0
+               OR INSTR(LOWER(COALESCE(bb.name, '')), LOWER(?)) > 0
+               OR INSTR(LOWER(COALESCE(bv.name, '')), LOWER(?)) > 0
+               OR INSTR(COALESCE(bv.isbn13, ''), ?) > 0
+               OR INSTR(LOWER(COALESCE(bb.branchname, '')), LOWER(?)) > 0
+               OR INSTR(LOWER(COALESCE(bb.branch, '')), LOWER(?)) > 0
+            """;
+
     public List<BranchStockItem> findStocksByBranch(String branch) {
-        String sql = """
-                SELECT
-                    bb.id,
-                    bb.branch,
-                    CASE
-                        WHEN LOWER(TRIM(COALESCE(bb.branchname, ''))) IN ('', 'branchname') THEN NULL
-                        ELSE NULLIF(TRIM(bb.branchname), '')
-                    END AS branchname,
-                    b.id AS bookId,
-                    bb.grade,
-                    b.name AS bookName,
-                    bb.name AS volumeName,
-                    bv.isbn13,
-                    bv.cover,
-                    bb.price,
-                    bb.booklink,
-                    bb.purchaseurl
+        return queryStocks("WHERE bb.branch = ? ORDER BY COALESCE(NULLIF(bb.grade, ''), 'ZZZ'), bv.name ASC", branch);
+    }
+
+    public int countStocksMatching(String search) {
+        String keyword = Texts.trimToNull(search);
+        if (keyword == null) return 0;
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) " + stockFromClause() + STOCK_SEARCH_WHERE,
+                Integer.class, keyword, keyword, keyword, keyword, keyword, keyword);
+        return count == null ? 0 : count;
+    }
+
+    public List<BranchStockItem> searchStocks(String search, int limit, int offset) {
+        String keyword = Texts.trimToNull(search);
+        if (keyword == null) return List.of();
+        return queryStocks(STOCK_SEARCH_WHERE + " ORDER BY bv.name ASC, bb.branchname ASC, bb.id ASC LIMIT ? OFFSET ?",
+                keyword, keyword, keyword, keyword, keyword, keyword, limit, offset);
+    }
+
+    private String stockFromClause() {
+        return """
                 FROM branchbook bb
                 LEFT JOIN books b ON b.id = bb.book
                 LEFT JOIN book_volumes bv ON %s
-                WHERE bb.branch = ?
-                ORDER BY COALESCE(NULLIF(bb.grade, ''), 'ZZZ'), bv.name ASC
                 """.formatted(branchBookVolumeReferenceColumnExists()
-                        ? "bv.id = bb.book_volume_id"
-                        : "bv.book = bb.book AND bv.volume = bb.volume");
+                ? "bv.id = bb.book_volume_id"
+                : "bv.book = bb.book AND bv.volume = bb.volume");
+    }
+
+    private List<BranchStockItem> queryStocks(String condition, Object... args) {
+        String sql = """
+                SELECT bb.id, bb.branch, bb.branchname, b.id AS bookId, bb.grade,
+                       b.name AS bookName, COALESCE(NULLIF(bv.name, ''), bb.name) AS volumeName,
+                       bv.isbn13, bv.cover, bb.price, bb.booklink, bb.purchaseurl
+                """ + stockFromClause() + condition;
         return jdbcTemplate.query(sql, (rs, rowNum) -> new BranchStockItem(
                 rs.getInt("id"),
                 rs.getString("branch"),
-                rs.getString("branchname"),
+                displayBranchName(rs.getString("branch"), rs.getString("branchname")),
                 rs.getInt("bookId"),
                 rs.getString("grade"),
                 rs.getString("bookName"),
@@ -126,7 +144,7 @@ public class BranchInventoryRepository {
                 rs.getString("price"),
                 rs.getString("booklink"),
                 rs.getString("purchaseurl")
-        ), branch);
+        ), args);
     }
 
     public String findBranchDisplayName(String branch) {

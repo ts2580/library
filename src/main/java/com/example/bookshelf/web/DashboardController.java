@@ -58,7 +58,9 @@ public class DashboardController {
     }
 
     @GetMapping("/dashboard/branches")
-    public String branchDashboard(Model model) {
+    public String branchDashboard(@RequestParam(value = "search", defaultValue = "") String search,
+                                  @RequestParam(value = "page", defaultValue = "1") int page,
+                                  Model model) {
         var branches = branchInventoryRepository.findBranchInventorySummaries();
         long totalAmount = branches.stream().mapToLong(s -> s.totalAmount()).sum();
         var updatedAt = branchInventoryRepository.findLatestBranchInventorySummaryUpdatedAt();
@@ -71,6 +73,16 @@ public class DashboardController {
         model.addAttribute("chartValues", branches.stream().mapToLong(s -> s.totalAmount()).boxed().toList());
         model.addAttribute("summaryUpdatedAt", updatedAt);
         model.addAttribute("refreshProgress", stockRefreshService.getStockRefreshProgress());
+        String keyword = search.trim();
+        int stockCount = keyword.isEmpty() ? 0 : branchInventoryRepository.countStocksMatching(keyword);
+        int stockTotalPages = Math.max(1, (int) Math.ceil(stockCount / 24.0));
+        int stockPage = Math.max(1, Math.min(page, stockTotalPages));
+        model.addAttribute("search", keyword);
+        model.addAttribute("stockCount", stockCount);
+        model.addAttribute("stockPage", stockPage);
+        model.addAttribute("stockTotalPages", stockTotalPages);
+        model.addAttribute("stockSearchResults", keyword.isEmpty() ? List.of()
+                : branchInventoryRepository.searchStocks(keyword, 24, (stockPage - 1) * 24));
         return "branch_inventory_dashboard";
     }
 
