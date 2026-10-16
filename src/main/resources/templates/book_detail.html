@@ -10,7 +10,7 @@
       <div th:replace="~{fragments/layout :: appTopbar('Book Detail', '도서 상세', '책 정보와 권별 목록을 한 화면에서 정리합니다.')}"></div>
       <div th:replace="~{fragments/layout :: flashMessages(${success}, ${error})}"></div>
 
-      <div class="grid bookshelf-p-5 sm:bookshelf-p-6 lg:grid-cols-[340px_1fr]">
+      <div class="grid bookshelf-detail-sections bookshelf-p-5 sm:bookshelf-p-6 lg:grid-cols-[340px_1fr]">
         <aside class="bookshelf-card bookshelf-pad-card sm:bookshelf-p-6" id="bookInfoCard"
             th:attr="data-book-name=${book.name},data-book-author=${book.author},data-book-description=${book.description},data-book-cover=${book.cover},data-book-type=${book.type},data-book-totalvolume=${book.totalvolume}">
           <div class="rounded-[22px] border border-slate-200 bg-slate-50 bookshelf-pad-card">

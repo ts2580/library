@@ -88,8 +88,9 @@ public class StockRefreshService {
 
         try {
             int total = bookVolumeRepository.countUnpurchasedVolumes();
+            branchInventoryRepository.deleteAllBranchInventoryData();
             if (total == 0) {
-                StockRefreshProgress idle = StockRefreshProgress.completed(0, 0, 0, 0, "조회할 미구매 항목이 없습니다. (ispurchased = false)");
+                StockRefreshProgress idle = StockRefreshProgress.completed(0, 0, 0, 0, "이전 지점 재고를 삭제했습니다. 조회할 구매 필요 항목이 없습니다.");
                 setProgress(idle);
                 refreshRunning.set(false);
                 return new JobStartResult(false, idle, idle.message());
@@ -167,7 +168,7 @@ public class StockRefreshService {
             var lookup = aladinUsedStockService.lookupUsedStocksByIsbn13(isbn13);
             if (!lookup.successful()) {
                 counters.fail.incrementAndGet();
-                log.warn("Stock lookup failed without deleting existing data for bookId={}, seq={}, isbn13={}: {}",
+                log.warn("Stock lookup failed after previous inventory was cleared for bookId={}, seq={}, isbn13={}: {}",
                         volume.bookId(), volume.seq(), isbn13, lookup.errorMessage());
             } else if (lookup.stocks().isEmpty()) {
                 branchInventoryRepository.deleteBranchBooksByBookVolumeId(volume.id(), volume.bookId(), volume.seq());

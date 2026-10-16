@@ -9,9 +9,8 @@
     <main class="bookshelf-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, ${branchName}, null)}"></div>
 
-      <section class="grid bookshelf-p-4 sm:grid-cols-3 bookshelf-dashboard-kpi-grid">
+      <section class="grid sm:grid-cols-2 bookshelf-dashboard-kpi-grid">
         <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">전체 재고</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${totalCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">이 지점에 등록된 전체 재고 수입니다.</div></div>
-        <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">가격 입력</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${pricedCount}">0</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">가격 정보가 채워진 재고만 따로 표시합니다.</div></div>
         <div class="bookshelf-kpi bookshelf-pad-card-lg"><div class="bookshelf-kpi-label">재고 합계</div><div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${#numbers.formatInteger(totalAmount, 0, 'COMMA') + '원'}">0원</div><div class="bookshelf-mt-1 bookshelf-subtitle-sm">입력된 가격 기준으로 계산한 합계입니다.</div></div>
       </section>
 
