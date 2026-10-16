@@ -9,7 +9,7 @@
     <main class="bookshelf-main bookshelf-dashboard-main">
       <div th:replace="~{fragments/layout :: appTopbar(null, 'Bookshelf 대시보드', null)}"></div>
 
-      <section class="bookshelf-dashboard-section grid bookshelf-dashboard-kpi-grid bookshelf-p-5 sm:grid-cols-3">
+      <section class="bookshelf-dashboard-section grid bookshelf-dashboard-kpi-grid sm:grid-cols-3">
         <div class="bookshelf-kpi bookshelf-pad-card-lg">
           <div class="bookshelf-kpi-label">Library Size</div>
           <div class="bookshelf-mt-2 bookshelf-title-2xl" th:text="${bookCount}">0</div>

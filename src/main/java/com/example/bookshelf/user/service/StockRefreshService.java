@@ -86,19 +86,18 @@ public class StockRefreshService {
             return new JobStartResult(false, refreshProgress.get(), "이미 일괄 갱신이 진행 중입니다.");
         }
 
+        int total = 0;
         try {
-            int total = bookVolumeRepository.countUnpurchasedVolumes();
-            if (total == 0) {
-                StockRefreshProgress idle = StockRefreshProgress.completed(0, 0, 0, 0, "조회할 미구매 항목이 없습니다. (ispurchased = false)");
-                setProgress(idle);
-                refreshRunning.set(false);
-                return new JobStartResult(false, idle, idle.message());
-            }
-
+            total = bookVolumeRepository.countUnpurchasedVolumes();
             setProgress(StockRefreshProgress.running(total));
-            refreshExecutor.execute(() -> runStockRefreshJob(total));
-            return new JobStartResult(true, refreshProgress.get(), "중고 재고 일괄 갱신을 시작했습니다.");
+            int targetCount = total;
+            refreshExecutor.execute(() -> runStockRefreshJob(targetCount));
+            StockRefreshProgress progress = refreshProgress.get();
+            return new JobStartResult(true, progress, progress.completed()
+                    ? progress.message() : "중고 재고 일괄 갱신을 시작했습니다.");
         } catch (RuntimeException e) {
+            setFailedProgress(StockRefreshProgress.failed(total, 0, 0, 0, 0,
+                    "일괄 갱신을 시작하지 못했습니다: " + e.getMessage()));
             refreshRunning.set(false);
             throw e;
         }
@@ -116,7 +115,16 @@ public class StockRefreshService {
     private void runStockRefreshJob(int total) {
         RefreshCounters counters = new RefreshCounters();
         int lastSeenId = 0;
+        boolean inventoryCleared = false;
         try {
+            // Clear only after the executor accepts and starts this task, including zero-target jobs.
+            branchInventoryRepository.deleteAllBranchInventoryData();
+            inventoryCleared = true;
+            if (total == 0) {
+                setProgress(StockRefreshProgress.completed(0, 0, 0, 0,
+                        "이전 지점 재고를 삭제했습니다. 조회할 구매 필요 항목이 없습니다."));
+                return;
+            }
             while (true) {
                 List<BookVolume> volumes = fetchRefreshBatch(lastSeenId);
                 if (volumes.isEmpty()) break;
@@ -125,19 +133,36 @@ public class StockRefreshService {
             rebuildSummaryAfterRefresh(total, counters);
         } catch (AladinRateLimitException e) {
             log.warn("Stock refresh stopped because the Aladin API rate limit persisted after retries", e);
-            setProgress(StockRefreshProgress.failed(
-                    total,
-                    counters.processed.get(),
-                    counters.success.get(),
-                    counters.empty.get(),
-                    counters.fail.get(),
-                    "알라딘 API 호출 제한(429)이 계속되어 갱신을 중단했습니다. 잠시 후 다시 실행해 주세요."
-            ));
+            finishFailedRefresh(total, counters, inventoryCleared,
+                    "알라딘 API 호출 제한(429)이 계속되어 갱신을 중단했습니다. 잠시 후 다시 실행해 주세요.");
         } catch (Exception e) {
             log.error("Stock refresh job failed", e);
-            setProgress(StockRefreshProgress.failed(total, counters.processed.get(), counters.success.get(), counters.empty.get(), counters.fail.get(), "일괄 갱신 중 오류가 발생했습니다: " + e.getMessage()));
+            finishFailedRefresh(total, counters, inventoryCleared, "일괄 갱신 중 오류가 발생했습니다: " + e.getMessage());
         } finally {
             refreshRunning.set(false);
+        }
+    }
+
+    private void finishFailedRefresh(int total, RefreshCounters counters, boolean inventoryCleared, String message) {
+        if (inventoryCleared) {
+            try {
+                branchInventoryRepository.rebuildBranchInventorySummary();
+            } catch (RuntimeException e) {
+                log.error("Failed to rebuild inventory summary after refresh failure", e);
+                message += " 재고 집계 갱신에도 실패했습니다.";
+            }
+        }
+        setFailedProgress(StockRefreshProgress.failed(total, counters.processed.get(), counters.success.get(),
+                counters.empty.get(), counters.fail.get(), message));
+    }
+
+    private void setFailedProgress(StockRefreshProgress progress) {
+        try {
+            setProgress(progress);
+        } catch (RuntimeException e) {
+            // setProgress updates the in-memory state before persistence; keep failure visible
+            // even if storage is unavailable, and preserve the original startup exception.
+            log.error("Failed to persist stock refresh failure progress", e);
         }
     }
 
@@ -167,7 +192,7 @@ public class StockRefreshService {
             var lookup = aladinUsedStockService.lookupUsedStocksByIsbn13(isbn13);
             if (!lookup.successful()) {
                 counters.fail.incrementAndGet();
-                log.warn("Stock lookup failed without deleting existing data for bookId={}, seq={}, isbn13={}: {}",
+                log.warn("Stock lookup failed after previous inventory was cleared for bookId={}, seq={}, isbn13={}: {}",
                         volume.bookId(), volume.seq(), isbn13, lookup.errorMessage());
             } else if (lookup.stocks().isEmpty()) {
                 branchInventoryRepository.deleteBranchBooksByBookVolumeId(volume.id(), volume.bookId(), volume.seq());
