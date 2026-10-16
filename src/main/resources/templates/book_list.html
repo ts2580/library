@@ -80,7 +80,21 @@
               </div>
               <div><label for="bookCreateName" class="bookshelf-mb-1 block bookshelf-detail-label">책 제목</label><input id="bookCreateName" name="name" type="text" required autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="책 제목"></div>
               <div><label for="bookCreateAuthor" class="bookshelf-mb-1 block bookshelf-detail-label">저자</label><input id="bookCreateAuthor" name="author" type="text" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="저자"></div>
-              <div><label for="bookCreateType" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label><input id="bookCreateType" name="type" type="text" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="카테고리"></div>
+              <div>
+                <label for="bookCreateCategory" class="bookshelf-mb-1 block bookshelf-detail-label">카테고리</label>
+                <input id="bookCreateType" name="type" type="hidden">
+                <select id="bookCreateCategory" class="bookshelf-input bookshelf-px-4 bookshelf-py-3">
+                  <option value="">미분류</option>
+                  <option th:each="category : ${manualCategories}" th:value="${'saved:' + category}" th:text="${category}"></option>
+                  <option value="add">카테고리 추가</option>
+                </select>
+                <div id="bookCreateNewCategoryField" class="bookshelf-mt-2" hidden>
+                  <label for="bookCreateNewCategory" class="bookshelf-mb-1 block bookshelf-detail-label">새 카테고리 이름</label>
+                  <input id="bookCreateNewCategory" type="text" maxlength="120" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="새 카테고리 이름">
+                  <button id="bookCreateAddCategory" type="button" class="bookshelf-btn-soft bookshelf-mt-2 bookshelf-px-4 bookshelf-py-2">추가</button>
+                </div>
+                <p id="bookCreateCategoryStatus" class="bookshelf-mt-1 bookshelf-subtitle-xs" role="status" aria-live="polite"></p>
+              </div>
               <div><label for="bookCreateTotalVolume" class="bookshelf-mb-1 block bookshelf-detail-label">총 권수</label><input id="bookCreateTotalVolume" name="totalvolume" type="text" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="예: 12"></div>
               <div class="sm:col-span-2"><label for="bookCreateCover" class="bookshelf-mb-1 block bookshelf-detail-label">표지 URL</label><input id="bookCreateCover" name="cover" type="url" autocomplete="off" class="bookshelf-input bookshelf-px-4 bookshelf-py-3" placeholder="https://..."></div>
               <div id="bookCreateCoverFileField" class="sm:col-span-2" hidden><label for="bookCreateCoverFile" class="bookshelf-mb-1 block bookshelf-detail-label">표지 이미지 파일 <span class="bookshelf-subtitle-xs">(선택 · URL보다 우선)</span></label><input id="bookCreateCoverFile" name="coverFile" type="file" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif" class="bookshelf-input bookshelf-profile-file-input"></div>

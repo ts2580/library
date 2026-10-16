@@ -18,6 +18,11 @@ spring:
       max-request-size: 501MB
 
 app:
+  next-migration:
+    app-dir: ${BOOKSHELF_NEXT_APP_DIR:./next}
+    node: ${BOOKSHELF_NEXT_NODE:node}
+    port: ${BOOKSHELF_NEXT_PORT:25648}
+    public-url: ${BOOKSHELF_NEXT_PUBLIC_URL:}
   covers:
     storage-dir: ${BOOKSHELF_COVER_DIR:./data/covers}
   registration:

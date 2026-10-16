@@ -45,6 +45,11 @@
   const cancelButton = document.getElementById('bookCreateCancel');
   const nameInput = document.getElementById('bookCreateName');
   const typeInput = document.getElementById('bookCreateType');
+  const categorySelect = document.getElementById('bookCreateCategory');
+  const categoryField = document.getElementById('bookCreateNewCategoryField');
+  const categoryName = document.getElementById('bookCreateNewCategory');
+  const categoryAdd = document.getElementById('bookCreateAddCategory');
+  const categoryStatus = document.getElementById('bookCreateCategoryStatus');
   const targetBookSearch = document.getElementById('bookCreateTargetSearch');
   const targetBookIdInput = document.getElementById('bookCreateTargetBookId');
   const targetBookResults = document.getElementById('bookCreateTargetResults');
@@ -76,6 +81,48 @@
   let targetSearchGeneration = 0;
   let selectedTargetBook = null;
   let manualTypeValue = typeInput?.value || '';
+
+  const addCategoryOption = (name) => {
+    if (!name || Array.from(categorySelect.options).some((option) => option.value === `saved:${name}`)) return;
+    categorySelect.add(new Option(name, `saved:${name}`), categorySelect.options.length - 1);
+  };
+  const renderCategory = () => {
+    if (!categorySelect) return;
+    addCategoryOption(typeInput.value);
+    categorySelect.value = typeInput.value ? `saved:${typeInput.value}` : '';
+    categorySelect.disabled = typeInput.readOnly;
+    categoryField.hidden = true;
+    categoryName.required = false;
+  };
+  categorySelect?.addEventListener('change', () => {
+    const adding = categorySelect.value === 'add';
+    categoryField.hidden = !adding;
+    categoryName.required = adding;
+    categoryStatus.textContent = '';
+    typeInput.value = adding ? categoryName.value.trim() : categorySelect.value.replace(/^saved:/, '');
+    manualTypeValue = typeInput.value;
+    if (adding) categoryName.focus();
+  });
+  categoryName?.addEventListener('input', () => { typeInput.value = categoryName.value.trim(); manualTypeValue = typeInput.value; });
+  categoryAdd?.addEventListener('click', async () => {
+    const name = categoryName.value.trim();
+    if (!name || !categoryName.reportValidity()) { categoryName.focus(); return; }
+    categoryAdd.disabled = true;
+    try {
+      const body = new FormData();
+      body.set('name', name);
+      const csrf = form.querySelector('input[name="_csrf"]');
+      if (csrf) body.set(csrf.name, csrf.value);
+      const response = await fetch('/books/categories', { method: 'POST', body, headers: { Accept: 'application/json' } });
+      if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('다시 로그인한 뒤 추가해 주세요.');
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || '카테고리를 추가하지 못했습니다.');
+      typeInput.value = value.name; manualTypeValue = value.name;
+      renderCategory(); categoryStatus.textContent = '카테고리를 추가했습니다.';
+    } catch (error) { categoryStatus.textContent = error.message; }
+    finally { categoryAdd.disabled = false; }
+  });
+  renderCategory();
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -390,6 +437,7 @@
     if (typeInput) {
       typeInput.readOnly = false;
       typeInput.value = manualTypeValue;
+      renderCategory();
     }
     updateTargetMeta();
   };
@@ -440,6 +488,7 @@
     if (typeInput) {
       typeInput.value = item.type || '';
       typeInput.readOnly = true;
+      renderCategory();
     }
     updateTargetMeta();
     hideTargetResults();
@@ -519,6 +568,7 @@
     if (typeInput) {
       typeInput.readOnly = false;
       typeInput.value = '';
+      renderCategory();
     }
     if (coverFileInput) {
       coverFileInput.value = '';

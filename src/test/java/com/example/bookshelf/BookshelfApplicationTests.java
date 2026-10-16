@@ -9,7 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.StreamUtils;
 
-@SpringBootTest
+// Context tests must never open or depend on the user's real SQLite file.
+@SpringBootTest(properties = "spring.datasource.url=jdbc:sqlite::memory:")
 class BookshelfApplicationTests {
 
     @Test

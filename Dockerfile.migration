@@ -1,0 +1,43 @@
+# Temporary bridge: the existing Spring UI plus a prepared Next.js runtime.
+FROM eclipse-temurin:21-jdk-alpine AS spring-build
+WORKDIR /workspace
+RUN apk add --no-cache nodejs npm
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY gradlew build.gradle settings.gradle ./
+COPY gradle ./gradle
+COPY src ./src
+RUN npm run css:build && ./gradlew bootJar --no-daemon -x test
+
+FROM node:22-bookworm-slim AS next-build
+WORKDIR /app/next
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV npm_config_nodedir=/usr/local
+COPY next/package.json next/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY next/ ./
+RUN npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+
+FROM eclipse-temurin:21-jre-jammy AS java-runtime
+FROM node:22-bookworm-slim AS bridge
+RUN apt-get update && apt-get install -y --no-install-recommends gosu ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1001 bookshelf && useradd --uid 1001 --gid bookshelf --create-home bookshelf
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+ENV SPRING_DATASOURCE_URL="jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000"
+ENV BOOKSHELF_COVER_DIR=/data/covers
+ENV BOOKSHELF_APP_LOG_FILE=/data/logs/bookshelf.log
+ENV BOOKSHELF_NEXT_APP_DIR=/app/next
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
+COPY --from=spring-build /workspace/build/libs/bookshelf-*.jar /app/app.jar
+COPY --from=next-build /app/next /app/next
+COPY scripts/migration-entrypoint.sh /usr/local/bin/migration-entrypoint.sh
+RUN chmod +x /usr/local/bin/migration-entrypoint.sh \
+    && mkdir -p /data /app/data /app/next/data /app/next/.next/cache \
+    && chown -R bookshelf:bookshelf /data /app/data /app/next/data /app/next/.next/cache
+EXPOSE 25647 25648
+ENTRYPOINT ["/usr/local/bin/migration-entrypoint.sh"]

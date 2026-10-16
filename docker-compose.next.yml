@@ -1,0 +1,35 @@
+# Run after the bridge has completed migration. Reuses its persisted data.
+services:
+  web:
+    build: ./next
+    init: true
+    restart: unless-stopped
+    command: npm run start
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: ./data
+      BOOKSHELF_LEGACY_DATA_DIR: /data
+      REGISTRATION: "false"
+    ports:
+      - "25647:25647"
+    volumes:
+      - ./next/data:/app/data
+      - ./data:/data
+  worker:
+    build: ./next
+    init: true
+    restart: unless-stopped
+    command: npm run worker
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: ./data
+      REGISTRATION: "false"
+    healthcheck:
+      disable: true
+    volumes:
+      - ./next/data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy

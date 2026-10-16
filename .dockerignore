@@ -3,6 +3,14 @@
 .gradle-user-home
 build
 node_modules
+next/node_modules
+next/.next
+next/data
+next/test-results
+next/playwright-report
+next/coverage
+temp
+data
 
 .agents
 .codex

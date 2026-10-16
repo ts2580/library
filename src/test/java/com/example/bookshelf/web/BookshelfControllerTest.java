@@ -36,6 +36,16 @@ class BookshelfControllerTest {
     @Mock private ProductService productService;
 
     @Test
+    void categoryCanBeSavedBeforeCreatingABookAndBlankNamesAreRejected() {
+        var controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
+        assertThat(controller.addCategory("  새 분류  ").getBody()).containsEntry("name", "새 분류");
+        verify(bookDataRepository).saveCategory("새 분류");
+        assertThat(controller.addCategory(" ").getStatusCode().value()).isEqualTo(400);
+        assertThat(controller.addCategory("x".repeat(121)).getStatusCode().value()).isEqualTo(400);
+        verify(bookDataRepository, times(1)).saveCategory(any());
+    }
+
+    @Test
     void createBook_insertsManualBookAndRedirectsToDetail() {
         BookshelfController controller = new BookshelfController(bookCatalogService, bookDataRepository, bookVolumeRepository, aladinSearchService, productService);
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();

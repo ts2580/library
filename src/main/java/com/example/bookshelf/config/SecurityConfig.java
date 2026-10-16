@@ -52,6 +52,7 @@ public class SecurityConfig {
         validateRememberMeKey(environment, rememberMeKey);
         http
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/user/profile/next-migration/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST,
                                 "/api/migration/**",
                                 "/dashboard/branches/delete-all",
