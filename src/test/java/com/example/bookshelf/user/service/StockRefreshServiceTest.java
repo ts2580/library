@@ -133,7 +133,7 @@ class StockRefreshServiceTest {
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyInt()
         );
-        verify(branchInventoryRepository, never()).rebuildBranchInventorySummary();
+        verify(branchInventoryRepository).rebuildBranchInventorySummary();
     }
 
     @Test
@@ -171,9 +171,10 @@ class StockRefreshServiceTest {
         assertThat(second.started()).isFalse();
         assertThat(second.message()).contains("이미");
         verify(bookVolumeRepository, times(1)).countUnpurchasedVolumes();
-        verify(branchInventoryRepository, times(1)).deleteAllBranchInventoryData();
+        verify(branchInventoryRepository, never()).deleteAllBranchInventoryData();
 
         queuedJob.get().run();
+        verify(branchInventoryRepository, times(1)).deleteAllBranchInventoryData();
         assertThat(service.getStockRefreshProgress().completed()).isTrue();
     }
 
@@ -184,7 +185,7 @@ class StockRefreshServiceTest {
 
         var result = stockRefreshService.startStockRefreshJob();
 
-        assertThat(result.started()).isFalse();
+        assertThat(result.started()).isTrue();
         assertThat(result.progress().completed()).isTrue();
         assertThat(result.message()).contains("이전 지점 재고를 삭제", "구매 필요 항목이 없습니다");
         verify(branchInventoryRepository).deleteAllBranchInventoryData();
@@ -192,7 +193,7 @@ class StockRefreshServiceTest {
     }
 
     @Test
-    void startStockRefreshJob_removesStoredPurchasedStocksAndSummariesBeforeQueuedLookups() {
+    void startStockRefreshJob_removesStoredPurchasedStocksAndSummariesWhenQueuedJobRuns() {
         SingleConnectionDataSource dataSource = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
         try {
             new ResourceDatabasePopulator(new ClassPathResource("schema.sql")).execute(dataSource);
@@ -215,10 +216,12 @@ class StockRefreshServiceTest {
 
             assertThat(result.started()).isTrue();
             assertThat(result.progress().total()).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM branchbook", Integer.class)).isEqualTo(3);
+            assertThat(stocks.countBranchInventorySummaries()).isEqualTo(2);
+            queued.get().run();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM branchbook", Integer.class)).isZero();
             assertThat(stocks.countBranchInventorySummaries()).isZero();
             assertThat(stocks.searchStocks("죄의 끝", 24, 0)).isEmpty();
-            queued.get().run();
             assertThat(service.getStockRefreshProgress().fail()).isEqualTo(1);
             assertThat(stocks.findStocksByBranch("B1")).isEmpty();
             assertThat(stocks.findBranchInventorySummaries()).isEmpty();
