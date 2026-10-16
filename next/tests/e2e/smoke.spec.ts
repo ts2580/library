@@ -11,6 +11,7 @@ async function login(page: Page, username = "fixture-admin") {
 test("anonymous, expired-cookie, and disabled-signup requests remain safe", async ({ page, context }) => {
   await page.goto("/books"); await expect(page).toHaveURL(/\/login/);
   expect((await page.request.get("/api/stock-refresh")).status()).toBe(401);
+  expect((await page.request.post("/api/books/manual", { multipart: { payload: "{}" } })).status()).toBe(401);
   await context.addCookies([{ name: "bookshelf_session", value: "expired-fixture", url: "http://127.0.0.1:25648" }]);
   await page.goto("/books"); await expect(page).toHaveURL(/\/login/);
   await page.goto("/signup"); await expect(page).toHaveURL(/\/login/);
@@ -56,11 +57,14 @@ test("other-owner books, covers, and administrator actions are isolated", async 
   expect((await page.request.get("/api/migration/legacy-cleanup")).status()).toBe(403);
   expect((await page.request.post("/api/migration/legacy-cleanup")).status()).toBe(403);
   expect((await page.request.delete("/api/stock-refresh")).status()).toBe(403);
+  const payload = { book: { name: "변경 차단", author: "", description: "", type: "", totalVolume: "", coverUrl: "" }, direct: false, targetBookId: 1, selection: [] };
+  expect((await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify(payload) } })).status()).toBe(404);
 });
 
-test("book and volume forms submit through real Server Actions", async ({ page }, testInfo) => {
+test("manual registration and volume Server Actions persist actual records", async ({ page }, testInfo) => {
   await login(page); await page.goto("/books");
   await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
   const create = page.locator("form").filter({ has: page.getByRole("button", { name: "책 추가", exact: true }) });
   const name = `직접 등록 ${testInfo.project.name}`;
   await create.getByLabel("제목", { exact: true }).fill(name);
@@ -83,6 +87,7 @@ test("book and volume forms submit through real Server Actions", async ({ page }
 test("manual categories can be created, selected, and reused without a book", async ({ page }, testInfo) => {
   await login(page); await page.goto("/books");
   await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "책 추가", exact: true }) });
   const category = `저장한 분류 ${testInfo.project.name}`;
   const select = form.getByRole("combobox", { name: "카테고리", exact: true });
@@ -92,6 +97,7 @@ test("manual categories can be created, selected, and reused without a book", as
   await form.getByRole("button", { name: "추가", exact: true }).click();
   await expect(select).toHaveValue(`saved:${category}`);
   await page.reload(); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
   await expect(select.locator("option", { hasText: category })).toHaveCount(1);
   await select.selectOption(`saved:${category}`);
   const name = `카테고리 확인 ${testInfo.project.name}`;
@@ -148,5 +154,136 @@ test("foreign-origin mutation requests are rejected", async ({ page }) => {
   await login(page);
   const response = await page.request.post("/api/stock-refresh", { headers: { origin: "https://untrusted.example" } });
   expect(response.status()).toBe(403);
+  expect((await page.request.post("/api/books/manual", { headers: { origin: "https://untrusted.example" }, multipart: { payload: "{}" } })).status()).toBe(403);
   expect((await page.request.post("/api/migration/legacy-cleanup", { headers: { origin: "https://untrusted.example" } })).status()).toBe(403);
+});
+
+async function deleteCurrentBook(page: Page) {
+  await page.getByText("책 정보 수정", { exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "책 삭제", exact: true }).click();
+  await expect(page).toHaveURL(/\/books(?:\?|$)/);
+}
+
+test("manual Aladin preview keeps metadata, multi-page selections, and individual side stories", async ({ page }, testInfo) => {
+  await login(page); await page.goto("/books");
+  await page.getByText("책 직접 추가", { exact: true }).click();
+  const form = page.getByRole("region", { name: "책 직접 추가", exact: true });
+  const name = `직접 검색 등록 ${testInfo.project.name}`;
+  await form.getByLabel("제목", { exact: true }).fill(name);
+  await form.getByLabel("저자", { exact: true }).fill("내가 입력한 저자");
+  await form.getByLabel("총 권수 메모", { exact: true }).fill("전 30권");
+  await form.getByLabel("카테고리", { exact: true }).selectOption("add");
+  await form.getByLabel("새 카테고리 이름", { exact: true }).fill(`직접 검색 분류 ${testInfo.project.name}`);
+  await form.getByRole("button", { name: "추가", exact: true }).click();
+  await form.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
+  await expect(form.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+  await form.getByRole("button", { name: "다음 페이지", exact: true }).click();
+  await form.getByLabel("외전 선택 샘플 2-2", { exact: true }).check();
+  await expect(form.getByRole("button", { name: "4권 추가", exact: true })).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath("manual-preview.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await form.getByRole("button", { name: "4권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+  await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 1-1", "3권 · 선택 샘플 1-2", "외전 · 선택 샘플 2-2"]);
+  await page.getByText("책 정보 수정", { exact: true }).click();
+  const editor = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
+  await expect(editor.getByLabel("저자", { exact: true })).toHaveValue("내가 입력한 저자");
+  await expect(editor.getByLabel("총 권수 메모", { exact: true })).toHaveValue("전 30권");
+  await expect(editor.getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:직접 검색 분류 ${testInfo.project.name}`);
+  page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "책 삭제", exact: true }).click();
+  await expect(page).toHaveURL(/\/books(?:\?|$)/);
+});
+
+test("search page and manual preview both append to an existing series and exclude owned ISBNs", async ({ page }, testInfo) => {
+  await login(page); await page.goto("/books");
+  await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
+  const name = `기존 시리즈 ${testInfo.project.name}`;
+  await page.getByLabel("제목", { exact: true }).last().fill(name);
+  await page.getByRole("button", { name: "책 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+  const bookId = page.url().match(/books\/(\d+)/)![1];
+  await page.getByText("권 직접 추가", { exact: true }).click();
+  await page.getByLabel("권 제목", { exact: true }).fill("기존 4권");
+  await page.getByLabel("권차", { exact: true }).fill("4");
+  await page.getByRole("button", { name: "권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "4권 · 기존 4권", exact: true })).toBeVisible();
+  await page.goto(`/aladin/search?query=${encodeURIComponent(name)}&bookId=${bookId}`);
+  await expect(page.getByLabel("등록 위치", { exact: true })).toHaveValue(bookId);
+  await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
+  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "5권 · 선택 샘플 1-1", exact: true })).toBeVisible();
+  await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("기존 책 검색", { exact: true }).fill(name);
+  await page.getByLabel("등록 위치", { exact: true }).selectOption(bookId);
+  await expect(page.getByText("다음 정규 권차 6권부터 추가", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
+  await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("선택 선택 샘플 1-2", { exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "6권 · 선택 샘플 1-2", exact: true })).toBeVisible();
+  await deleteCurrentBook(page);
+});
+
+test("manual form resets after closing and supports empty-search fallback", async ({ page }, testInfo) => {
+  await login(page); await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByLabel("기존 책 검색", { exact: true }).fill("마이그레이션");
+  await page.getByLabel("등록 위치", { exact: true }).selectOption("1");
+  await page.getByText("책 직접 추가", { exact: true }).click();
+  await expect(page.getByRole("region", { name: "책 직접 추가", exact: true })).toHaveCount(0);
+  await page.getByText("책 직접 추가", { exact: true }).click();
+  await expect(page.getByLabel("기존 책 검색", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("등록 위치", { exact: true })).toHaveValue("");
+  const form = page.getByRole("region", { name: "책 직접 추가", exact: true });
+  await expect(form.getByLabel("제목", { exact: true })).toHaveValue("");
+  const name = `검색결과없음 ${testInfo.project.name}`;
+  await form.getByLabel("제목", { exact: true }).fill(name);
+  await form.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
+  await form.getByRole("button", { name: "책만 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+  await deleteCurrentBook(page);
+});
+
+test("all search forms and inline lookups show spinners while a request is pending", async ({ page }) => {
+  await login(page);
+  for (const [url, label, value, button] of [
+    ["/books", "통합 검색", "spinner-books", "검색"],
+    ["/products", "권 제목·ISBN", "spinner-volumes", "권 검색"],
+    ["/aladin/search", "제목", "spinner-aladin", "검색"],
+    ["/aladin/used", "ISBN10 또는 ISBN13", "9780000000001", "조회"],
+    ["/inventory", "제목·ISBN·지점 검색", "spinner-inventory", "재고 검색"],
+    ["/inventory/branches/SEOUL", "제목·ISBN·지점 검색", "spinner-branch", "재고 검색"]
+  ]) {
+    await page.goto(url);
+    await page.route(`**${url}?**`, async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
+    await page.getByLabel(label, { exact: true }).fill(value);
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "검색 중" }).first(), url).toBeVisible();
+    await expect(page.locator("form[aria-busy=true]")).toHaveCount(0);
+    await page.unroute(`**${url}?**`);
+  }
+  await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.route("**/api/books/options?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
+  await page.getByLabel("기존 책 검색", { exact: true }).fill("마이그레이션");
+  await expect(page.getByRole("status").filter({ hasText: "기존 책 검색 중" })).toBeVisible();
+  await page.unroute("**/api/books/options?**");
+  await page.route("**/api/aladin/search?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
+  await page.getByRole("region", { name: "책 직접 추가", exact: true }).getByLabel("제목", { exact: true }).fill("spinner");
+  await page.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "알라딘 검색 중" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+});
+
+test("real stock worker refreshes inventory, progress, and visible results without a reload", async ({ page }, testInfo) => {
+  await login(page, "fixture-stock"); await page.goto("/inventory");
+  await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /워커 처리 대기 중|재고 갱신 중/ })).toBeVisible();
+  await expect(page.getByText("재고 일괄 조회 완료:", { exact: false })).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".stock-card")).toHaveCount(2);
+  await expect(page.getByText("갱신 서울점", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
+  const progress = await (await page.request.get("/api/stock-refresh")).json();
+  expect(progress).toMatchObject({ status: "COMPLETED", processed: 1, total: 1, success: 1, empty: 0, fail: 0, percent: 100 });
+  await page.screenshot({ path: testInfo.outputPath("stock-completed.png"), fullPage: true });
 });

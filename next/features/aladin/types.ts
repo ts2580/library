@@ -1,4 +1,5 @@
 export interface AladinBookItem {
+  owned?: boolean;
   title: string;
   author: string | null;
   description: string | null;

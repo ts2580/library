@@ -30,6 +30,8 @@ const jobs = await import("@/features/inventory/service");
 const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/service");
 const { AladinRateLimitError } = await import("@/features/aladin/client");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
+const { createManualBook } = await import("@/features/books/manual-create");
+const { withOwnership } = await import("@/features/aladin/ownership");
 const { exportExcelBackup, importExcelBackup } = await import("@/features/backup/excel");
 const { getCurrentUser } = await import("@/features/auth/session");
 const { signupAction } = await import("@/features/auth/actions");
@@ -225,5 +227,59 @@ describe("auth and backup compatibility", () => {
     expect(imported.volumesCreated).toBe(1);
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE owner_id=1").get()).toEqual({ n: 1 });
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM book_volumes bv JOIN books b ON b.id=bv.book WHERE b.owner_id=2").get()).toEqual({ n: 2 });
+  });
+});
+
+
+describe("Java-compatible manual book registration", () => {
+  const book = { name: "직접 정한 제목", author: "직접 정한 저자", description: "직접 쓴 설명", type: "내 분류", totalVolume: "전 30권", coverUrl: "" };
+  const selected = [{ page: 1, key: "9781111111111" }, { page: 1, key: "9781111111112", sideStory: true }, { page: 1, key: "9781111111113" }];
+  function search() {
+    vi.mocked(searchAladinBooks).mockResolvedValue({ page: 1, pageSize: 20, totalResults: 3, items: selected.map((entry) => ({ ...item(entry.key), author: "검색 저자", categoryName: "검색 분류" })) });
+  }
+  it("preserves entered metadata and numbers each selected side story independently", async () => {
+    search();
+    const result = await createManualBook(1, { book, direct: false, targetBookId: null, selection: selected });
+    expect(sqlite.prepare("SELECT name,author,description,type,totalvolume FROM books WHERE id=?").get(result.bookId))
+      .toEqual({ name: book.name, author: book.author, description: book.description, type: book.type, totalvolume: book.totalVolume });
+    expect(sqlite.prepare("SELECT volume FROM book_volumes WHERE book=? ORDER BY id").all(result.bookId)).toEqual([{ volume: 1 }, { volume: null }, { volume: 2 }]);
+    expect(getManualBookCategories()).toContain(book.type);
+  });
+  it("appends after MAX(volume), ignoring seq and specials, without changing existing metadata", async () => {
+    volume(1, 1, 4); volume(2, 1, null);
+    sqlite.prepare("UPDATE books SET type='기존 분류' WHERE id=1").run();
+    expect(getOwnedBookOptions(1)[0]).toMatchObject({ id: 1, nextVolume: 5, type: "기존 분류" });
+    search();
+    await createManualBook(1, { book, direct: false, targetBookId: 1, selection: selected });
+    expect(sqlite.prepare("SELECT volume FROM book_volumes WHERE book=1 ORDER BY id").all()).toEqual([{ volume: 4 }, { volume: null }, { volume: 5 }, { volume: null }, { volume: 6 }]);
+    expect(sqlite.prepare("SELECT name,type,totalvolume FROM books WHERE id=1").get()).toEqual({ name: "가나 100%_!\\", type: "기존 분류", totalvolume: "5" });
+  });
+  it("allows explicit direct registration without Aladin configuration or calls", async () => {
+    configured.mockReturnValue(false);
+    const result = await createManualBook(1, { book, direct: true, targetBookId: null, selection: [] });
+    expect(result.count).toBe(0); expect(searchAladinBooks).not.toHaveBeenCalled();
+    await expect(createManualBook(1, { book, direct: true, targetBookId: 1, selection: [] })).rejects.toThrow("새 책");
+  });
+  it("allows a series-only fallback only after a fresh empty search and only for a new book", async () => {
+    vi.mocked(searchAladinBooks).mockResolvedValue({ page: 1, pageSize: 20, totalResults: 0, items: [] });
+    expect((await createManualBook(1, { book, direct: false, targetBookId: null, selection: [] })).count).toBe(0);
+    await expect(createManualBook(1, { book, direct: false, targetBookId: 1, selection: [] })).rejects.toThrow("항목");
+    search();
+    await expect(createManualBook(1, { book, direct: false, targetBookId: null, selection: [] })).rejects.toThrow("항목");
+  });
+  it("rejects a foreign target and an unavailable Aladin search before writing", async () => {
+    await expect(createManualBook(1, { book, direct: false, targetBookId: 2, selection: selected })).rejects.toThrow();
+    expect(searchAladinBooks).not.toHaveBeenCalled();
+    configured.mockReturnValue(false);
+    await expect(createManualBook(1, { book, direct: false, targetBookId: null, selection: [] })).rejects.toThrow("설정");
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });
+  });
+  it("marks only the current owner's ISBNs and rejects duplicates at registration", async () => {
+    volume(1); volume(2, 2);
+    const result = { page: 1, pageSize: 20, totalResults: 2, items: [item("9780000000001"), item("9780000000002")] };
+    expect(withOwnership(1, result).items.map((entry) => entry.owned)).toEqual([true, false]);
+    vi.mocked(searchAladinBooks).mockResolvedValue(result);
+    await expect(createManualBook(1, { book, direct: false, targetBookId: null, selection: [{ page: 1, key: "9780000000001" }] })).rejects.toThrow("이미 등록");
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });
   });
 });

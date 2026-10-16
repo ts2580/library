@@ -125,9 +125,11 @@ try {
   await nextPage.getByLabel("아이디", { exact: true }).fill("trstyq"); await nextPage.getByLabel("비밀번호", { exact: true }).fill(dummyPassword);
   await nextPage.getByRole("button", { name: "로그인", exact: true }).click(); await nextPage.waitForURL("**/dashboard");
   await nextPage.goto(`http://127.0.0.1:${nextPort}/books`); await nextPage.getByText("책 직접 추가", { exact: true }).click();
-  const nextSelect = nextPage.locator("#book-type-new");
+  const nextSelect = nextPage.locator("#manual-category");
+  await nextSelect.waitFor({ state: "visible" });
   assert.equal(await nextSelect.locator('option[value="saved:새로 만든 분류"]').count(), 1);
   assert.equal(await nextSelect.locator('option[value="saved:책 없이 저장한 분류"]').count(), 1);
+  await nextPage.getByLabel("알라딘 외 등록", { exact: false }).check();
   const form = nextPage.locator("form").filter({ has: nextPage.getByRole("button", { name: "책 추가", exact: true }) });
   await form.getByLabel("제목", { exact: true }).fill("이전 후 새로 저장한 도서"); await nextSelect.selectOption("saved:새로 만든 분류");
   await form.getByRole("button", { name: "책 추가", exact: true }).click(); await nextPage.waitForURL(/\/books\/\d+/);

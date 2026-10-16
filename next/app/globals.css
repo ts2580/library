@@ -229,3 +229,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .search-result-card { grid-template-columns: 82px minmax(0, 1fr); }
   .search-result-cover { width: 82px; }
 }
+
+/* Shared search progress, including GET navigation and inline Aladin lookups. */
+.search-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.category-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.loading-status { display: inline-flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .875rem; }
+.spinner { display: inline-block; width: 1em; height: 1em; flex-shrink: 0; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: search-spin .75s linear infinite; }
+@keyframes search-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }

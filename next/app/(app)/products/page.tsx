@@ -1,3 +1,4 @@
+import { SearchForm } from "@/components/ui/search-form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
@@ -18,11 +19,11 @@ export default async function ProductsPage({ searchParams }: {
   }
   return <div className="page"><header className="page-header"><div><h1 className="page-title">보유 권 검색</h1>
     <p className="page-subtitle">등록한 권의 제목과 ISBN으로 검색합니다.</p></div><Link className="button button-outline" href="/aladin/search">알라딘 검색</Link></header>
-    <form className="panel search-form" action="/products"><div className="field"><label htmlFor="owned-query">권 제목·ISBN</label>
+    <SearchForm className="panel search-form" action="/products"><div className="field"><label htmlFor="owned-query">권 제목·ISBN</label>
       <input className="input" id="owned-query" name="ownedQ" defaultValue={result.query} maxLength={200}/></div>
       <div className="field"><label htmlFor="owned-sort">정렬</label><select className="select" id="owned-sort" name="ownedSort" defaultValue={params.ownedSort ?? "id"}>
         <option value="id">최근 등록</option><option value="name">제목</option><option value="price">가격</option><option value="volume">권차</option>
-      </select></div><button className="button" type="submit">권 검색</button></form>
+      </select></div><button className="button" type="submit">권 검색</button></SearchForm>
     <p className="muted">{result.total}권 · {result.page}/{result.totalPages}페이지</p>
     <div className="stock-list">{result.items.map((item) => <article className="stock-card" key={item.id}>
       <div className="stock-cover"><CoverImage cover={item.cover} alt={item.name ?? "책"}/></div>

@@ -137,15 +137,16 @@ export function getBookDetail(ownerId: number, bookId: number): BookDetail | nul
   };
 }
 
-export function getOwnedBookOptions(ownerId: number, query = "", selectedBookId?: number | null): Array<{ id: number; name: string; author: string | null }> {
+export function getOwnedBookOptions(ownerId: number, query = "", selectedBookId?: number | null): Array<{ id: number; name: string; author: string | null; type: string | null; nextVolume: number }> {
   const like = `%${escapeLike(query.trim())}%`;
   return sqlite.prepare(`
-    SELECT id, COALESCE(name, '') AS name, author
+    SELECT id, COALESCE(name, '') AS name, author, type,
+      (SELECT COALESCE(MAX(volume), 0) + 1 FROM book_volumes WHERE book = books.id) AS nextVolume
     FROM books
     WHERE owner_id = ? AND (? = '%%' OR normalize_nfc(name) LIKE ? ESCAPE '!' OR normalize_nfc(author) LIKE ? ESCAPE '!')
     ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, id DESC
     LIMIT 20
-  `).all(ownerId, like, like, like, selectedBookId ?? null) as Array<{ id: number; name: string; author: string | null }>;
+  `).all(ownerId, like, like, like, selectedBookId ?? null) as Array<{ id: number; name: string; author: string | null; type: string | null; nextVolume: number }>;
 }
 
 export function searchOwnedVolumes(ownerId: number, input: { query?: string; page?: number; sort?: string }) {

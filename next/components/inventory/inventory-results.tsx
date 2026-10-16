@@ -1,3 +1,4 @@
+import { SearchForm } from "@/components/ui/search-form";
 import Link from "next/link";
 import { CoverImage } from "@/components/ui/cover-image";
 import { ExternalLink } from "@/components/ui/external-link";
@@ -12,11 +13,11 @@ export function InventoryResults({ result, branch }: { result: ReturnType<typeof
     return `${base}?${params}`;
   }
   return <section className="stack-md" aria-label="재고 검색">
-    <form className="search-form" action={base} method="get">
+    <SearchForm className="search-form" action={base}>
       <div className="field"><label htmlFor="inventory-query">제목·ISBN·지점 검색</label>
         <input className="input" id="inventory-query" name="q" maxLength={200} defaultValue={result.query}/></div>
       <button className="button" type="submit">재고 검색</button>
-    </form>
+    </SearchForm>
     <p className="muted small">{result.total.toLocaleString("ko-KR")}건 · {result.page}/{result.totalPages}페이지</p>
     <div className="stock-list">{result.items.map((item) => <article className="stock-card" key={item.id}>
       <div className="stock-cover"><CoverImage cover={item.cover} alt={item.volumeName ?? item.bookName ?? "책"}/></div>

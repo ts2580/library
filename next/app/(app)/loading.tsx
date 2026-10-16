@@ -1,3 +1,5 @@
+import { Spinner } from "@/components/ui/spinner";
+
 export default function Loading() {
-  return <div className="page"><div className="panel muted" role="status">화면을 불러오는 중입니다.</div></div>;
+  return <div className="page"><Spinner label="화면 불러오는 중"/></div>;
 }
