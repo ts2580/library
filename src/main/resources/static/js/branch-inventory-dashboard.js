@@ -138,6 +138,11 @@
           if (payload.message && view.message) {
             view.message.textContent = payload.message;
           }
+          if (payload.progress?.completed) {
+            sessionStorage.setItem('branchRefreshToast', payload.message || buildRefreshDoneMessage(payload.progress));
+            window.location.reload();
+            return;
+          }
           if (!payload.started) {
             if (payload.progress?.failed) {
               showRefreshToast(payload.message || payload.progress.message || '일괄 갱신을 시작할 수 없습니다.', 'error');
