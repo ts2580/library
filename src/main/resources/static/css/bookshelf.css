@@ -431,6 +431,7 @@ body.bookshelf-body.bookshelf-page-leaving { opacity: .78;  }
 }
 .bookshelf-volume-edit-body { display: grid; gap: 1rem; padding: 1.25rem; }
 .bookshelf-volume-edit-cover { width: 8.75rem; max-width: 100%; justify-self: center; }
+.bookshelf-detail-sections { gap: var(--bk-space-6); }
 .bookshelf-detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: 1rem; }
 .bookshelf-detail-action-btn { width: auto !important; min-width: 4.75rem; padding: 0.5rem 0.875rem; }
 .bookshelf-detail-back-btn { min-width: 6rem; }
