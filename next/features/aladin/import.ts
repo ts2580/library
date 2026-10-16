@@ -1,7 +1,8 @@
 import "server-only";
 import { sqlite } from "@/db";
 import { AppError, NotFoundError } from "@/lib/errors";
-import { persistCover, deleteCoverIfUnused } from "@/features/covers/service";
+import { deleteCoverIfUnused } from "@/features/covers/service";
+import { persistAladinCover } from "@/features/aladin/covers";
 import { z } from "zod";
 import { isHttpUrl } from "@/lib/urls";
 
@@ -25,7 +26,7 @@ export const aladinImportSchema = z.object({
 
 function categoryLeaf(value: string | null): string | null {
   if (!value) return null;
-  const leaf = value.split(">>").at(-1)?.trim() ?? value;
+  const leaf = value.split(/>+/).at(-1)?.trim() ?? value;
   return leaf.slice(0, 120) || null;
 }
 
@@ -43,7 +44,7 @@ export async function importAladinItem(ownerId: number, raw: unknown): Promise<{
     if (duplicate) throw new AppError("같은 ISBN13의 권이 이미 등록되어 있습니다.");
   }
 
-  const cover = await persistCover({ ownerId, key: input.isbn13 ?? input.title, remoteUrl: input.cover });
+  const cover = await persistAladinCover(ownerId, input.isbn13 ?? input.title, input.cover);
   try {
     const transaction = sqlite.transaction(() => {
       let bookId = input.targetBookId;
@@ -66,8 +67,6 @@ export async function importAladinItem(ownerId: number, raw: unknown): Promise<{
       `).run(bookId, nextSeq, nextSeq, input.title, input.author, input.isbn13,
         input.price == null ? null : String(input.price), input.description, input.link,
         input.pubDate, cover, input.cover, cover ? 1 : 0);
-      sqlite.prepare(`UPDATE books SET totalvolume = (SELECT CAST(COUNT(*) AS TEXT) FROM book_volumes WHERE book = ?) WHERE id = ? AND owner_id = ?`)
-        .run(bookId, bookId, ownerId);
       return { bookId, volumeId: Number(volume.lastInsertRowid) };
     });
     return transaction.immediate();

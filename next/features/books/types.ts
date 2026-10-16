@@ -9,6 +9,15 @@ export interface BookListItem {
   volumeCount: number;
 }
 
+export interface BookOption {
+  id: number;
+  name: string;
+  author: string | null;
+  cover: string | null;
+  type: string | null;
+  nextVolume: number;
+}
+
 export interface VolumeDetail {
   id: number;
   seq: number | null;

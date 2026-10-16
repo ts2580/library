@@ -117,8 +117,14 @@ function stockUuid(target: RefreshTarget, stock: AladinBranchStock): string {
   ].join("|")).digest("hex");
 }
 
-function saveStocks(target: RefreshTarget, stocks: AladinBranchStock[]): void {
+function saveStocks(ownerId: number, target: RefreshTarget, stocks: AladinBranchStock[]): void {
   const transaction = sqlite.transaction(() => {
+    const current = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, bv.volume AS seq, bv.isbn13, bv.name
+      FROM book_volumes bv JOIN books b ON b.id=bv.book
+      WHERE bv.id=? AND b.owner_id=? AND COALESCE(bv.ispurchased,0)=0 AND COALESCE(bv.noneedtobuy,0)=0`)
+      .get(target.id, ownerId) as RefreshTarget | undefined;
+    if (!current || current.isbn13 !== target.isbn13) return;
+    target = current;
     sqlite.prepare("DELETE FROM branchbook WHERE book_volume_id = ?")
       .run(target.id);
     const insert = sqlite.prepare(`
@@ -199,7 +205,7 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
           } else if (lookup.stocks.length === 0) {
             empty += 1;
           } else {
-            saveStocks(target, lookup.stocks);
+            saveStocks(claimed.ownerId, target, lookup.stocks);
             success += 1;
           }
         }

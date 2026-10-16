@@ -13,12 +13,15 @@ interface PendingVolume {
   name: string | null;
   isbn13: string | null;
   cover: string | null;
+  originalUrl: string | null;
+  generated: number;
 }
 
 interface PendingBook {
   id: number;
   name: string | null;
   cover: string | null;
+  generated: number;
 }
 
 interface CoverCandidate {
@@ -53,7 +56,7 @@ async function lookupCoverByIsbn(isbn13: string): Promise<string | null> {
   try {
     const raw = object(await aladinJson("ItemLookUp.aspx", {
       ItemId: isbn13,
-      itemIdType: "ISBN13",
+      itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
       Cover: "Big"
     }));
     const first = Array.isArray(raw?.item) ? object(raw.item[0]) : null;
@@ -81,8 +84,8 @@ async function lookupCoverByTitle(title: string): Promise<string | null> {
   }
 }
 
-async function candidateCover(input: { current: string | null; isbn13?: string | null; title?: string | null }): Promise<string | null> {
-  const external = normalizeHttpUrl(input.current);
+async function candidateCover(input: { current: string | null; originalUrl?: string | null; isbn13?: string | null; title?: string | null }): Promise<string | null> {
+  const external = normalizeHttpUrl(input.current) ?? normalizeHttpUrl(input.originalUrl ?? null);
   if (external) return external;
   if (input.isbn13) {
     const byIsbn = await lookupCoverByIsbn(input.isbn13);
@@ -105,22 +108,24 @@ function updateBookCover(ownerId: number, bookId: number, reference: string): bo
 
 export async function regeneratePendingCovers(ownerId: number): Promise<CoverRegenerationResult> {
   const pendingVolumes = sqlite.prepare(`
-    SELECT bv.id, bv.book AS bookId, bv.name, bv.isbn13, bv.cover
+    SELECT bv.id, bv.book AS bookId, bv.name, COALESCE(bv.isbn13, bv.isbn) AS isbn13, bv.cover, bv.originalUrl, bv.cover_generated AS generated
     FROM book_volumes bv JOIN books b ON b.id = bv.book
-    WHERE b.owner_id = ? AND COALESCE(bv.cover_generated, 0) = 0
+    WHERE b.owner_id = ?
     ORDER BY bv.id
   `).all(ownerId) as PendingVolume[];
   const pendingBooks = sqlite.prepare(`
-    SELECT id, name, cover FROM books
-    WHERE owner_id = ? AND COALESCE(cover_generated, 0) = 0
+    SELECT id, name, cover, cover_generated AS generated FROM books
+    WHERE owner_id = ?
     ORDER BY id
   `).all(ownerId) as PendingBook[];
+  const volumesToRestore = pendingVolumes.filter((item) => !item.generated || !localCoverExists(item.cover));
+  const booksToRestore = pendingBooks.filter((item) => !item.generated || !localCoverExists(item.cover));
 
   const generatedVolumeReferences = new Map<number, string>();
   let generatedVolumes = 0;
   let generatedBooks = 0;
 
-  for (const volume of pendingVolumes) {
+  for (const volume of volumesToRestore) {
     if (localCoverExists(volume.cover)) {
       if (updateVolumeCover(ownerId, volume.id, volume.cover!)) {
         generatedVolumes += 1;
@@ -129,7 +134,7 @@ export async function regeneratePendingCovers(ownerId: number): Promise<CoverReg
       continue;
     }
     try {
-      const source = await candidateCover({ current: volume.cover, isbn13: volume.isbn13, title: volume.name });
+      const source = await candidateCover({ current: volume.cover, originalUrl: volume.originalUrl, isbn13: volume.isbn13, title: volume.name });
       if (!source) continue;
       const next = await persistCover({ ownerId, key: volume.isbn13 ?? `volume-${volume.id}`, remoteUrl: source });
       if (!next) continue;
@@ -149,7 +154,7 @@ export async function regeneratePendingCovers(ownerId: number): Promise<CoverReg
     }
   }
 
-  for (const book of pendingBooks) {
+  for (const book of booksToRestore) {
     if (localCoverExists(book.cover)) {
       if (updateBookCover(ownerId, book.id, book.cover!)) generatedBooks += 1;
       continue;
@@ -162,9 +167,8 @@ export async function regeneratePendingCovers(ownerId: number): Promise<CoverReg
           FROM book_volumes bv
           WHERE bv.book = ? AND bv.cover IS NOT NULL AND COALESCE(bv.cover_generated, 0) = 1
           ORDER BY CASE WHEN bv.volume IS NULL THEN 1 ELSE 0 END, bv.volume, bv.id
-          LIMIT 1
-        `).get(book.id) as CoverCandidate | undefined;
-        if (existing?.cover && localCoverExists(existing.cover)) next = existing.cover;
+        `).all(book.id) as CoverCandidate[];
+        next = existing.find((candidate) => localCoverExists(candidate.cover))?.cover ?? null;
       }
       if (!next) {
         const primary = sqlite.prepare(`
@@ -194,13 +198,13 @@ export async function regeneratePendingCovers(ownerId: number): Promise<CoverReg
     }
   }
 
-  const failed = (pendingBooks.length - generatedBooks) + (pendingVolumes.length - generatedVolumes);
+  const failed = (booksToRestore.length - generatedBooks) + (volumesToRestore.length - generatedVolumes);
   return {
-    pendingBooks: pendingBooks.length,
+    pendingBooks: booksToRestore.length,
     generatedBooks,
-    pendingVolumes: pendingVolumes.length,
+    pendingVolumes: volumesToRestore.length,
     generatedVolumes,
     failed,
-    summary: `커버 재생성 완료: 도서 ${generatedBooks}/${pendingBooks.length}건, 권 ${generatedVolumes}/${pendingVolumes.length}건${failed ? ` (실패 ${failed}건은 다음 실행에서 재시도)` : ""}`
+    summary: `커버 재생성 완료: 도서 ${generatedBooks}/${booksToRestore.length}건, 권 ${generatedVolumes}/${volumesToRestore.length}건${failed ? ` (실패 ${failed}건은 다음 실행에서 재시도)` : ""}`
   };
 }

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
-import { addVolume, createBook, deleteBook, deleteVolume, updateBook, updateVolume } from "@/features/books/service";
+import { addVolume, createBook, deleteBook, deleteVolume, deleteVolumes, updateBook, updateVolume } from "@/features/books/service";
+import { enrichMissingBookInfo } from "@/features/books/enrichment";
 import { errorMessage } from "@/lib/errors";
 import { entityIdSchema } from "@/features/books/validation";
 
@@ -41,6 +42,7 @@ function bookPayload(formData: FormData) {
 
 function volumePayload(formData: FormData) {
   return {
+    type: formData.has("type") ? text(formData, "type") : undefined,
     name: text(formData, "name"),
     seq: text(formData, "seq"),
     isbn13: text(formData, "isbn13"),
@@ -120,6 +122,8 @@ export async function updateVolumeAction(formData: FormData): Promise<never> {
   }
   revalidatePath(`/books/${bookId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/books");
+  revalidatePath("/products");
   revalidatePath("/inventory");
   redirect(`/books/${bookId}?message=${encodeURIComponent("권 정보를 저장했습니다.")}`);
 }
@@ -138,4 +142,24 @@ export async function deleteVolumeAction(formData: FormData): Promise<never> {
   revalidatePath("/dashboard");
   revalidatePath("/inventory");
   redirect(`/books/${bookId}?message=${encodeURIComponent("권을 삭제했습니다.")}`);
+}
+
+export async function deleteVolumesAction(formData: FormData): Promise<never> {
+  const user = await requireUser();
+  const bookId = entityIdOrRedirect(formData, "bookId", "/books");
+  let count: number;
+  try { count = deleteVolumes(user.id, bookId, formData.getAll("volumeIds")); }
+  catch (error) { redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`); }
+  for (const route of [`/books/${bookId}`, "/books", "/products", "/dashboard", "/inventory"]) revalidatePath(route);
+  redirect(`/books/${bookId}?message=${encodeURIComponent(`${count}개 권을 삭제했습니다.`)}`);
+}
+
+export async function enrichBookInfoAction(formData: FormData): Promise<never> {
+  const user = await requireUser();
+  const bookId = entityIdOrRedirect(formData, "bookId", "/books");
+  let summary: string;
+  try { summary = (await enrichMissingBookInfo(user.id, bookId)).summary; }
+  catch (error) { redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`); }
+  revalidatePath(`/books/${bookId}`); revalidatePath("/books");
+  redirect(`/books/${bookId}?message=${encodeURIComponent(summary)}`);
 }

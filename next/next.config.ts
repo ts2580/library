@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["book.sfdcinsight.xyz"],
   serverExternalPackages: ["better-sqlite3", "sharp", "unzipper", "archiver", "exceljs"],
   turbopack: { root: process.cwd() },
   outputFileTracingRoot: process.cwd(),
@@ -16,6 +17,15 @@ const nextConfig: NextConfig = {
   },
   images: {
     unoptimized: true
+  },
+  async redirects() {
+    return [
+      { source: "/user/signup", destination: "/signup", permanent: false },
+      { source: "/dashboard/branches/detail", has: [{ type: "query", key: "branch", value: "(?<branch>[^/]+)" }], destination: "/inventory/branches/:branch", permanent: false },
+      { source: "/dashboard/branches/:branch", destination: "/inventory/branches/:branch", permanent: false },
+      { source: "/dashboard/branches", has: [{ type: "query", key: "search", value: "(?<query>.*)" }], destination: "/inventory?q=:query", permanent: false },
+      { source: "/dashboard/branches", destination: "/inventory", permanent: false }
+    ];
   },
   async headers() {
     return [

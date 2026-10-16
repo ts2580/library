@@ -2,7 +2,7 @@ import "server-only";
 import { load } from "cheerio";
 import { AladinRateLimitError, aladinHtml, aladinJson, isAladinConfigured } from "@/features/aladin/client";
 import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
-import { aladinSearchSchema, isbn13Schema } from "@/features/aladin/validation";
+import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
 import { logger } from "@/lib/logger";
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -102,16 +102,19 @@ async function branchStocks(input: {
 }
 
 export async function searchAladinBooks(input: unknown): Promise<AladinSearchResult> {
-  const { query, page } = aladinSearchSchema.parse(input);
-  if (!isAladinConfigured()) return { items: [], totalResults: 0, page, pageSize: 20 };
+  const { query, page, ...options } = aladinSearchSchema.parse(input);
+  if (!isAladinConfigured()) return { items: [], totalResults: 0, page, pageSize: options.maxResults };
   const raw = object(await aladinJson("ItemSearch.aspx", {
     Query: query,
-    QueryType: "Title",
-    MaxResults: 20,
+    QueryType: options.queryType,
+    MaxResults: options.maxResults,
     start: page,
-    Cover: "Big",
-    SearchTarget: "Book",
-    Sort: "Accuracy"
+    Cover: options.cover,
+    SearchTarget: options.searchTarget,
+    Sort: options.sort,
+    CategoryId: options.categoryId,
+    RecentPublishFilter: options.recentPublishFilter,
+    outofStockfilter: options.outOfStockFilter
   })) ?? {};
   const items = array(raw.item).map(object).filter((item): item is Record<string, unknown> => Boolean(item)).map((item): AladinBookItem => ({
     title: text(item.title) ?? "제목 없음",
@@ -129,31 +132,33 @@ export async function searchAladinBooks(input: unknown): Promise<AladinSearchRes
     items,
     totalResults: number(raw.totalResults) ?? items.length,
     page: number(raw.startIndex) ?? page,
-    pageSize: number(raw.itemsPerPage) ?? 20
+    pageSize: number(raw.itemsPerPage) ?? options.maxResults
   };
 }
 
-export async function lookupUsedStocks(isbnInput: string): Promise<StockLookupResult> {
+export async function lookupUsedStocks(isbnInput: string, sourceInput?: string): Promise<StockLookupResult> {
   const isbn13 = isbn13Schema.parse(isbnInput);
+  const source = usedSourceSchema.parse(sourceInput);
   if (!isAladinConfigured()) return { successful: false, stocks: [], errorMessage: "알라딘 API 키가 없습니다." };
   try {
     const lookupRaw = await aladinJson("ItemLookUp.aspx", {
       ItemId: isbn13,
-      itemIdType: "ISBN13",
+      itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
       Cover: "Big",
       OptResult: "usedList"
     });
     const lookup = object(lookupRaw) ?? {};
     const first = object(array(lookup.item)[0]);
-    if (!first) return { successful: true, stocks: [], raw: lookupRaw };
-    const subInfo = object(first.subInfo);
+    if (!first && source !== "offstore") return { successful: true, stocks: [], raw: lookupRaw };
+    const subInfo = object(first?.subInfo);
     const usedList = object(subInfo?.usedList);
     const aladinUsed = object(usedList?.aladinUsed);
     const spaceUsed = object(usedList?.spaceUsed);
-    const title = text(first.title);
+    const title = text(first?.title);
     const stocks: AladinBranchStock[] = [];
+    let raw = lookupRaw;
 
-    if ((number(aladinUsed?.itemCount) ?? 0) > 0) {
+    if (source !== "offstore" && (number(aladinUsed?.itemCount) ?? 0) > 0) {
       const link = text(aladinUsed?.link)?.replaceAll("amp;", "") ?? null;
       stocks.push({
         branch: "ALADIN_DROPSHIPPING",
@@ -166,13 +171,14 @@ export async function lookupUsedStocks(isbnInput: string): Promise<StockLookupRe
       });
     }
 
-    if ((number(spaceUsed?.itemCount) ?? 0) > 0) {
+    if (source === "offstore" || (source === "all" && (number(spaceUsed?.itemCount) ?? 0) > 0)) {
       const offRaw = await aladinJson("ItemOffStoreList.aspx", {
         ItemId: isbn13,
-        itemIdType: "ISBN13",
+        itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
         Cover: "Big"
       });
       const off = object(offRaw) ?? {};
+      raw = source === "offstore" ? offRaw : { lookup: lookupRaw, offStores: offRaw };
       const branches = array(off.itemOffStoreList).map(object).filter((item): item is Record<string, unknown> => Boolean(item));
       const minPrice = number(spaceUsed?.minPrice)?.toString() ?? null;
       for (const branch of branches) {
@@ -189,7 +195,7 @@ export async function lookupUsedStocks(isbnInput: string): Promise<StockLookupRe
       }
     }
 
-    return { successful: true, stocks, raw: lookupRaw };
+    return { successful: true, stocks, raw };
   } catch (error) {
     const rateLimited = error instanceof AladinRateLimitError;
     logger.warn("Aladin used stock lookup failed", {

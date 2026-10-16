@@ -247,12 +247,12 @@ describe("Java-compatible manual book registration", () => {
   });
   it("appends after MAX(volume), ignoring seq and specials, without changing existing metadata", async () => {
     volume(1, 1, 4); volume(2, 1, null);
-    sqlite.prepare("UPDATE books SET type='기존 분류' WHERE id=1").run();
+    sqlite.prepare("UPDATE books SET type='기존 분류',totalvolume='전 12권' WHERE id=1").run();
     expect(getOwnedBookOptions(1)[0]).toMatchObject({ id: 1, nextVolume: 5, type: "기존 분류" });
     search();
     await createManualBook(1, { book, direct: false, targetBookId: 1, selection: selected });
     expect(sqlite.prepare("SELECT volume FROM book_volumes WHERE book=1 ORDER BY id").all()).toEqual([{ volume: 4 }, { volume: null }, { volume: 5 }, { volume: null }, { volume: 6 }]);
-    expect(sqlite.prepare("SELECT name,type,totalvolume FROM books WHERE id=1").get()).toEqual({ name: "가나 100%_!\\", type: "기존 분류", totalvolume: "5" });
+    expect(sqlite.prepare("SELECT name,type,totalvolume FROM books WHERE id=1").get()).toEqual({ name: "가나 100%_!\\", type: "기존 분류", totalvolume: "전 12권" });
   });
   it("allows explicit direct registration without Aladin configuration or calls", async () => {
     configured.mockReturnValue(false);

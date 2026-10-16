@@ -72,6 +72,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .field { display: grid; gap: 7px; }
 .field label { font-size: .82rem; font-weight: 750; color: #344054; }
+.book-autocomplete { min-width: 0; }
+.book-autocomplete-anchor { position: relative; }
+.book-autocomplete-results { position: absolute; top: calc(100% + 4px); inset-inline: 0; z-index: 20; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.book-autocomplete-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; }
+.book-autocomplete-option:hover, .book-autocomplete-option[aria-selected="true"] { border-color: #a9c5bb; background: var(--accent-soft); }
+.book-autocomplete-cover { flex: 0 0 36px; height: 48px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.book-autocomplete-cover > * { width: 100%; height: 100%; object-fit: cover; font-size: 8px; }
+.book-autocomplete-copy { display: grid; gap: 4px; min-width: 0; }
+.book-autocomplete-copy > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-autocomplete-results.book-autocomplete-above { top: auto; bottom: calc(100% + 4px); }
+.quick-add-heading { display: flex; gap: 16px; align-items: flex-start; }
+.quick-add-heading .stock-cover { flex: 0 0 72px; }
+.quick-add-heading > .stack-xs { min-width: 0; overflow-wrap: anywhere; }
+.quick-add-heading h3 { margin: 0; }
+.raw-response { max-height: 420px; max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
 .input, .textarea, .select { width: 100%; min-height: 44px; border: 1px solid #cfd7e1; border-radius: 14px; padding: 10px 13px; color: var(--text); background: white; transition: border .15s ease, box-shadow .15s ease; }
 .input:focus, .textarea:focus, .select:focus { border-color: #6d9a8c; box-shadow: 0 0 0 4px rgba(49,95,82,.10); outline: none; }
 .textarea { min-height: 120px; resize: vertical; }

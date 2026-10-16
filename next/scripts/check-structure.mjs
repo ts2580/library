@@ -59,6 +59,8 @@ const failures = [];
 for (const [file, source] of sources) {
   const edges = [];
   for (const specifier of importsOf(source)) {
+    // Next generates these declarations on dev/build; a source-only checkout has none.
+    if (relative(file) === "next-env.d.ts" && specifier.startsWith("./.next/")) continue;
     if (specifier.startsWith("@/") || specifier.startsWith(".")) {
       const resolved = resolveLocal(file, specifier);
       if (resolved === undefined) failures.push(`${relative(file)}: resolve할 수 없는 로컬 import '${specifier}'`);

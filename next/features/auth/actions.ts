@@ -47,7 +47,8 @@ export async function signupAction(formData: FormData): Promise<never> {
     password: value(formData, "password"),
     confirmPassword: value(formData, "confirmPassword"),
     email: value(formData, "email"),
-    name: value(formData, "name")
+    name: value(formData, "name"),
+    description: value(formData, "description")
   });
   if (!parsed.success) withError("/signup", parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.");
 
@@ -63,6 +64,7 @@ export async function signupAction(formData: FormData): Promise<never> {
         passwordHash,
         email: parsed.data.email || null,
         name: parsed.data.name || null,
+        description: parsed.data.description || null,
         role: count === 0 ? "ADMIN" : "USER"
       }).run();
       return Number(result.lastInsertRowid);

@@ -79,8 +79,9 @@ async function resolveRemoteHost(url: URL): Promise<ResolvedHost> {
 
 function requestRemote(url: URL, resolved: ResolvedHost): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
-    const lookup: LookupFunction = (_hostname, _options, callback) => {
-      callback(null, resolved.address, resolved.family);
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+      if (options.all) callback(null, [resolved]);
+      else callback(null, resolved.address, resolved.family);
     };
     const requester = url.protocol === "https:" ? https.request : http.request;
     const request = requester(url, {
@@ -191,6 +192,7 @@ export function normalizeImportedCoverReference(ownerId: number, value: string |
   const reference = trimToNull(value);
   if (!reference) return null;
   if (/^https?:\/\//i.test(reference)) return reference;
+  if (isCoverOwnedBy([reference], ownerId)) return reference;
   let rawName: string | null = null;
   if (reference.startsWith("cover://")) rawName = reference.slice("cover://".length).replaceAll("\\", "/");
   else if (reference.startsWith("/covers/")) rawName = reference.slice("/covers/".length).replaceAll("\\", "/");

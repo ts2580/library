@@ -1,5 +1,7 @@
 # Next.js 마이그레이션 검증 기록
 
+후속 전체 기능 대조 및 실제 알라딘 표지 오류 수정 결과는 [기능 대조 점검](FEATURE_PARITY_AUDIT.md)을 참고하세요. 아래 수치는 이전 검증 시점의 기록입니다.
+
 2026-10-17 KST, `feat/nextjs-migration`의 로컬 작업 기준입니다. `temp/bookshelf-next-source.zip`을 `next/`에 가져와 실제 의존성 설치와 실행으로 검증했습니다. 초안에 적힌 과거 업로드 DB 검증 수치는 이번 결과에 사용하지 않았습니다.
 
 ## 실행 결과

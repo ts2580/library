@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { VolumeDetail } from "@/features/books/types";
 import { SubmitButton } from "@/components/ui/submit-button";
 
@@ -5,20 +8,32 @@ export function VolumeForm({
   action,
   bookId,
   volume,
-  submitLabel = "권 저장"
+  submitLabel = "권 저장",
+  nextVolume = 1,
+  bookType = "",
+  categories = []
 }: {
   action: (formData: FormData) => void | Promise<void>;
   bookId: number;
   volume?: VolumeDetail | null;
   submitLabel?: string;
+  nextVolume?: number;
+  bookType?: string | null;
+  categories?: string[];
 }) {
   const key = volume?.id ?? "new";
+  const [sideStory, setSideStory] = useState(Boolean(volume && volume.seq == null));
   return (
     <form action={action} className="form-grid" encType="multipart/form-data">
       <input type="hidden" name="bookId" value={bookId}/>
       {volume && <input type="hidden" name="volumeId" value={volume.id}/>}
+      {volume && <div className="field span-2"><label htmlFor={`volume-type-${key}`}>책 카테고리</label>
+        <input className="input" id={`volume-type-${key}`} name="type" defaultValue={bookType ?? ""} maxLength={120} list={`volume-types-${key}`}/>
+        <datalist id={`volume-types-${key}`}>{categories.map((type) => <option key={type} value={type}/>)}</datalist>
+        <span className="muted small">이 권이 속한 책 전체의 카테고리입니다.</span></div>}
       <div className="field"><label htmlFor={`volume-name-${key}`}>권 제목</label><input className="input" id={`volume-name-${key}`} name="name" defaultValue={volume?.name ?? ""} maxLength={500} required/></div>
-      <div className="field"><label htmlFor={`volume-seq-${key}`}>권차</label><input className="input" id={`volume-seq-${key}`} name="seq" type="number" min={0} max={100000} defaultValue={volume?.seq ?? ""}/></div>
+      <div className="field"><label htmlFor={`volume-seq-${key}`}>권차</label><input className="input" id={`volume-seq-${key}`} name="seq" type="number" min={0} max={100000} defaultValue={volume?.seq ?? nextVolume} disabled={sideStory} required={!sideStory}/>
+        <label className="check"><input type="checkbox" checked={sideStory} onChange={(event) => setSideStory(event.target.checked)}/> 외전·특별판</label></div>
       <div className="field"><label htmlFor={`volume-isbn-${key}`}>ISBN13</label><input className="input" id={`volume-isbn-${key}`} name="isbn13" defaultValue={volume?.isbn13 ?? ""} maxLength={32}/></div>
       <div className="field"><label htmlFor={`volume-author-${key}`}>저자</label><input className="input" id={`volume-author-${key}`} name="author" defaultValue={volume?.author ?? ""} maxLength={300}/></div>
       <div className="field"><label htmlFor={`volume-price-${key}`}>가격</label><input className="input" id={`volume-price-${key}`} name="price" inputMode="numeric" defaultValue={volume?.price ?? ""} maxLength={30}/></div>

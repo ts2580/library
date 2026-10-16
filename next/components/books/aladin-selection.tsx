@@ -8,12 +8,14 @@ import { CategorySelect } from "@/components/books/category-select";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
 import { formatWon } from "@/lib/format";
 import type { AladinSearchResult } from "@/features/aladin/types";
+import type { AladinSearchOptions } from "@/features/aladin/validation";
 
 type Selection = { page: number; key: string; sideStory?: boolean };
 
-export function AladinSelection({ query, initial, initialOptions, selectedBookId, manual = false, categories = [] }: {
+export function AladinSelection({ query, initial, initialOptions, selectedBookId, manual = false, categories = [], searchOptions }: {
   query: string; initial: AladinSearchResult | null; initialOptions: BookOption[]; selectedBookId: number | null;
   manual?: boolean; categories?: string[];
+  searchOptions?: AladinSearchOptions;
 }) {
   const router = useRouter();
   const [result, setResult] = useState(initial);
@@ -41,7 +43,9 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     const controller = new AbortController(); pageRequest.current = controller;
     setLoading(true); setError("");
     try {
-      const response = await fetch(`/api/aladin/search?query=${encodeURIComponent(searchQuery)}&page=${page}`, { signal: controller.signal });
+      const params = new URLSearchParams({ query: searchQuery, page: String(page) });
+      for (const [key, value] of Object.entries(searchOptions ?? {})) if (value != null) params.set(key, String(value));
+      const response = await fetch(`/api/aladin/search?${params}`, { signal: controller.signal });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "검색에 실패했습니다.");
       if (body.page !== page || !Array.isArray(body.items)) throw new Error("검색 결과 페이지를 확인할 수 없습니다.");
@@ -84,11 +88,13 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
         response = await fetch("/api/books/manual", { method: "POST", body: form });
       } else {
         response = await fetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ query, targetBookId: target?.id ?? null, seriesName, sideStory, selection }) });
+          body: JSON.stringify({ query, targetBookId: target?.id ?? null, seriesName, sideStory, selection, searchOptions }) });
       }
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "등록에 실패했습니다.");
-      router.push(`/books/${body.bookId}?message=${encodeURIComponent(body.count ? `${body.count}권을 등록했습니다.` : "책을 추가했습니다.")}`);
+      const message = (body.count ? `${body.count}권을 등록했습니다.` : "책을 추가했습니다.")
+        + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 프로필에서 표지 재생성을 실행해 주세요.` : "");
+      router.push(`/books/${body.bookId}?message=${encodeURIComponent(message)}`);
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "등록에 실패했습니다."); }
     finally { setSaving(false); }
@@ -109,11 +115,11 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
   const submitLabel = saving ? "등록 중" : manual && direct ? "책 추가" : manual && !result ? "추가 예정 확인"
     : ready && !result?.items.length && !target ? "책만 추가" : `${selection.length}권 추가`;
   return <section className="stack-md" aria-label={manual ? "책 직접 추가" : "알라딘 선택 등록"}>
-    <form className="form-grid" onSubmit={submit} encType="multipart/form-data">
+    <form className="form-grid" autoComplete="off" onSubmit={submit} encType="multipart/form-data">
       {manual && <label className="check span-2"><input type="checkbox" checked={direct} disabled={saving}
         onChange={(event) => { setDirect(event.target.checked); setTarget(null); resetPreview(); }}/> 알라딘 외 등록 (입력 정보로 새 책 만들기)</label>}
       {!direct && <ExistingBookSelect initialOptions={initialOptions} selected={target} disabled={saving} onChange={(value) => {
-        setTarget(value); if (manual && !seriesName.trim() && value) { setSeriesName(value.name); resetPreview(); }
+        setTarget(value); if (manual) { resetPreview(); if (!seriesName.trim() && value) setSeriesName(value.name); }
       }}/>}
       {(manual || !target) && <div className="field span-2"><label htmlFor="series-name">{manual ? "제목" : "새 책 제목"}</label>
         <input id="series-name" name="name" className="input" value={seriesName} required maxLength={manual ? 200 : 300} disabled={saving}

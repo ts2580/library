@@ -6,6 +6,7 @@ export interface CategorySummary {
   volumeCount: number;
   purchasedAmount: number;
   plannedAmount: number;
+  totalAmount: number;
 }
 
 export interface DashboardData {
@@ -31,17 +32,19 @@ export function getDashboardData(ownerId: number): DashboardData {
   const categories = sqlite.prepare(`
     SELECT COALESCE(NULLIF(TRIM(b.type), ''), '미분류') AS category,
       COUNT(bv.id) AS volumeCount,
+      COALESCE(SUM(CASE WHEN REPLACE(TRIM(COALESCE(bv.price, '')), ',', '') NOT GLOB '*[^0-9]*' THEN CAST(REPLACE(TRIM(bv.price), ',', '') AS INTEGER) ELSE 0 END), 0) AS totalAmount,
       COALESCE(SUM(CASE WHEN COALESCE(bv.ispurchased, 0) = 1 AND REPLACE(COALESCE(bv.price, ''), ',', '') NOT GLOB '*[^0-9]*' THEN CAST(REPLACE(bv.price, ',', '') AS INTEGER) ELSE 0 END), 0) AS purchasedAmount,
       COALESCE(SUM(CASE WHEN COALESCE(bv.ispurchased, 0) = 0 AND COALESCE(bv.noneedtobuy, 0) = 0 AND REPLACE(COALESCE(bv.price, ''), ',', '') NOT GLOB '*[^0-9]*' THEN CAST(REPLACE(bv.price, ',', '') AS INTEGER) ELSE 0 END), 0) AS plannedAmount
     FROM books b LEFT JOIN book_volumes bv ON bv.book = b.id
     WHERE b.owner_id = ?
     GROUP BY category
+    HAVING COUNT(bv.id) > 0
     ORDER BY volumeCount DESC, category COLLATE NOCASE
   `).all(ownerId).map((row) => {
     const item = row as Record<string, unknown>;
     return {
       category: String(item.category), volumeCount: Number(item.volumeCount),
-      purchasedAmount: Number(item.purchasedAmount), plannedAmount: Number(item.plannedAmount)
+      purchasedAmount: Number(item.purchasedAmount), plannedAmount: Number(item.plannedAmount), totalAmount: Number(item.totalAmount)
     };
   });
 

@@ -6,6 +6,7 @@ import { searchAladinBooks } from "@/features/aladin/service";
 import { bulkSelectionSchema } from "@/features/aladin/selection";
 import type { AladinBookItem } from "@/features/aladin/types";
 import { bookInputSchema } from "@/features/books/validation";
+import { persistAladinCover } from "@/features/aladin/covers";
 
 export async function importAladinSelection(ownerId: number, raw: unknown, manual?: { book: unknown; coverFile?: File | null }) {
   const input = bulkSelectionSchema.parse(raw);
@@ -19,7 +20,7 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
   const seen = new Set<string>();
   const pages = [...new Set(input.selection.map((item) => item.page))].sort((a, b) => b - a);
   for (const page of pages) {
-    const result = await searchAladinBooks({ query: input.query, page });
+    const result = await searchAladinBooks({ ...input.searchOptions, query: input.query, page });
     if (result.page !== page || result.pageSize <= 0 || page > Math.min(50, Math.ceil(result.totalResults / result.pageSize))) {
       throw new AppError("선택한 검색 결과 페이지를 다시 확인해 주세요.", "STALE_SELECTION");
     }
@@ -38,14 +39,16 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
     const duplicate = sqlite.prepare(`SELECT 1 FROM book_volumes bv JOIN books b ON b.id = bv.book
       WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ?) LIMIT 1`);
     for (const item of selected) {
-      const key = item.isbn13 ?? item.isbn;
-      if (key && duplicate.get(ownerId, key, key)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
+      for (const key of [item.isbn13, item.isbn].filter(Boolean)) {
+        if (duplicate.get(ownerId, key, key)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
+      }
     }
   }
   assertNoDuplicates();
   const covers: Array<string | null> = [];
   try {
-    for (const item of selected) covers.push(await persistCover({ ownerId, key: item.isbn13 ?? item.title, remoteUrl: item.cover }));
+    for (const item of selected) covers.push(await persistAladinCover(ownerId, item.isbn13 ?? item.title, item.cover));
+    const coverFailures = selected.filter((item, index) => item.cover && !covers[index]).length;
     const bookCover = input.targetBookId == null && (manual?.coverFile?.size || metadata?.coverUrl)
       ? await persistCover({ ownerId, key: `book-${input.seriesName}`, remoteUrl: metadata?.coverUrl, file: manual?.coverFile })
       : covers[0];
@@ -56,13 +59,13 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
       let bookId = input.targetBookId;
       const first = selected[0]!;
       if (bookId == null) {
-        const category = metadata ? metadata.type : first.categoryName?.split(">>").at(-1)?.trim().slice(0, 120) || null;
+        const category = metadata ? metadata.type : input.category !== undefined ? input.category || null : first.categoryName?.split(/>+/).at(-1)?.trim().slice(0, 120) || null;
         bookId = Number(sqlite.prepare(`INSERT INTO books(name, author, description, type, totalvolume, cover, owner_id, cover_generated)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(metadata?.name ?? input.seriesName, metadata?.author ?? first.author,
-            metadata?.description ?? first.description, category, metadata?.totalVolume ?? null, bookCover, ownerId, bookCover ? 1 : 0).lastInsertRowid);
+            metadata?.description ?? first.description, category, metadata?.totalVolume ?? input.totalVolume ?? null, bookCover, ownerId, bookCover ? 1 : 0).lastInsertRowid);
         if (category) sqlite.prepare("INSERT OR IGNORE INTO book_categories(name) VALUES (?)").run(category);
       }
-      let next = (sqlite.prepare("SELECT COALESCE(MAX(volume), 0) + 1 AS value FROM book_volumes WHERE book = ? AND volume IS NOT NULL")
+      let next = input.startVolume ?? (sqlite.prepare("SELECT COALESCE(MAX(volume), 0) + 1 AS value FROM book_volumes WHERE book = ? AND volume IS NOT NULL")
         .get(bookId) as { value: number }).value;
       const insert = sqlite.prepare(`INSERT INTO book_volumes(book, seq, volume, name, author, isbn13, isbn, price,
         description, link, pubdate, cover, originalUrl, cover_generated, ispurchased, noneedtobuy, createddate)
@@ -75,11 +78,8 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
           item.priceSales == null ? null : String(item.priceSales), item.description, item.link, item.pubDate,
           covers[index], item.cover, covers[index] ? 1 : 0);
       });
-      if (!metadata || input.targetBookId != null) {
-        sqlite.prepare("UPDATE books SET totalvolume = (SELECT CAST(COUNT(*) AS TEXT) FROM book_volumes WHERE book = ?) WHERE id = ? AND owner_id = ?")
-          .run(bookId, bookId, ownerId);
-      }
-      return { bookId, count: selected.length };
+      if (bookCover) sqlite.prepare("UPDATE books SET cover=?, cover_generated=1 WHERE id=? AND owner_id=? AND (cover IS NULL OR TRIM(cover)='')").run(bookCover, bookId, ownerId);
+      return { bookId, count: selected.length, coverFailures };
     }).immediate();
   } catch (error) {
     for (const cover of covers) deleteCoverIfUnused(cover);

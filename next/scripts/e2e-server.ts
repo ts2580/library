@@ -13,6 +13,7 @@ if (path.dirname(env.dataDir) !== tmpdir() || !path.basename(env.dataDir).starts
   throw new Error("E2E server requires an isolated temporary database.");
 }
 
+if (process.env.BOOKSHELF_E2E_SIGNUP !== "true") {
 const passwordHash = await hashPassword("fixture-only-password");
 sqlite.prepare("INSERT INTO member(id,username,password_hash,role) VALUES (1,'fixture-admin',?,'ADMIN'),(2,'fixture-user',?,'USER'),(3,'fixture-stock',?,'ADMIN')")
   .run(passwordHash, passwordHash, passwordHash);
@@ -27,9 +28,10 @@ for (const ownerId of [1, 2]) {
   mkdirSync(directory, { recursive: true });
   await sharp({ create: { width: 40, height: 60, channels: 3, background: "#586fce" } }).webp().toFile(path.join(directory, "fixture.webp"));
 }
+}
 sqlite.close();
 
-const web = spawn(process.execPath, ["--import", "./tests/fixtures/mock-aladin.mjs", "node_modules/next/dist/bin/next", "start", "--port", "25648", "--hostname", "127.0.0.1"], { stdio: "inherit", env: process.env });
+const web = spawn(process.execPath, ["--import", "./tests/fixtures/mock-aladin.mjs", "node_modules/next/dist/bin/next", process.env.BOOKSHELF_E2E_DEV === "true" ? "dev" : "start", "--port", "25648", "--hostname", "127.0.0.1"], { stdio: "inherit", env: process.env });
 const worker = spawn(process.execPath, ["--conditions=react-server", "--import", "./tests/fixtures/mock-aladin.mjs", "--import", "tsx", "worker/worker.ts"], { stdio: "inherit", env: process.env });
 let stopping = false;
 function stop() { if (!stopping) { stopping = true; web.kill("SIGTERM"); worker.kill("SIGTERM"); } }

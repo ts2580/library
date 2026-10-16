@@ -5,6 +5,7 @@ import path from "node:path";
 import net from "node:net";
 import { spawn, type ChildProcess } from "node:child_process";
 import { prepareHandover } from "@/features/migration/handover";
+import { waitForChildExit } from "@/features/migration/processes";
 
 async function main() {
   const cwd = process.cwd();
@@ -29,6 +30,7 @@ async function main() {
   const port = Number(process.env.NEXT_HANDOVER_PORT ?? "25648");
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("잘못된 Next 포트입니다.");
   const children: ChildProcess[] = [];
+  const childExits: Promise<void>[] = [];
   let stopping = false;
   const stop = () => { stopping = true; for (const child of children) if (child.exitCode === null) child.kill("SIGTERM"); };
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
@@ -58,10 +60,13 @@ async function main() {
     }
     function launch(args: string[]) {
       const child = spawn(process.execPath, args, { cwd, env: process.env, stdio: "inherit" });
-      children.push(child); child.on("error", () => stop()); return child;
+      children.push(child);
+      child.on("error", () => stop());
+      childExits.push(waitForChildExit(child));
+      return child;
     }
-    const web = launch(["node_modules/next/dist/bin/next", "start", "--port", String(port), "--hostname", "0.0.0.0"]);
-    const worker = launch(["--conditions=react-server", "--import", "tsx", "worker/worker.ts"]);
+    launch(["node_modules/next/dist/bin/next", "start", "--port", String(port), "--hostname", "0.0.0.0"]);
+    launch(["--conditions=react-server", "--import", "tsx", "worker/worker.ts"]);
     let healthy = false;
     for (let i = 0; i < 90 && !stopping; i++) {
       if (children.some((child) => child.exitCode !== null || child.signalCode !== null)) throw new Error("새 웹 또는 워커가 시작 중 종료되었습니다.");
@@ -70,10 +75,10 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     if (!healthy || stopping) throw new Error("새 앱의 시작을 확인하지 못했습니다.");
+    if (children.some((child) => child.exitCode !== null || child.signalCode !== null)) throw new Error("새 웹 또는 워커가 시작 중 종료되었습니다.");
     await progress("COMPLETED", 100, "이전이 완료되었습니다. 기존 계정으로 새 책장에 로그인하세요.");
-    await new Promise<void>((resolve) => {
-      for (const child of [web, worker]) child.once("exit", () => { stop(); resolve(); });
-    });
+    await Promise.race(childExits);
+    stop();
     await progress("INTERRUPTED", 100, "새 앱이 종료되었습니다. 이전된 데이터로 다시 시작할 수 있습니다.");
   } catch (error) {
     stop();

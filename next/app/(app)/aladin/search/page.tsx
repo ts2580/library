@@ -8,22 +8,26 @@ import { isAladinConfigured } from "@/features/aladin/client";
 import { AladinSelection } from "@/components/books/aladin-selection";
 import { FlashMessage } from "@/components/ui/flash-message";
 import { errorMessage } from "@/lib/errors";
+import { aladinSearchOptionsSchema } from "@/features/aladin/validation";
+import { AladinSearchFilters } from "@/components/books/aladin-search-filters";
 import type { AladinSearchResult } from "@/features/aladin/types";
 
 export const metadata = { title: "알라딘 검색" };
-type Query = { query?: string; page?: string; bookId?: string; error?: string; message?: string };
+type Query = Record<string, string | undefined>;
 
 export default async function AladinSearchPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await requireUser();
   const params = await searchParams;
   const query = params.query?.trim().slice(0, 200) ?? "";
-  const page = Math.max(1, Math.min(50, Math.floor(Number(params.page) || 1)));
+  const page = Math.max(1, Math.min(50, Math.floor(Number(params.page ?? params.start) || 1)));
   const selectedBookId = Number(params.bookId) || null;
   const options = getOwnedBookOptions(user.id, "", selectedBookId);
+  const parsedOptions = aladinSearchOptionsSchema.safeParse(params);
+  const searchOptions = parsedOptions.success ? parsedOptions.data : aladinSearchOptionsSchema.parse({});
   let result: AladinSearchResult | null = null;
-  let searchError: string | null = null;
-  if (query) {
-    try { result = withOwnership(user.id, await searchAladinBooks({ query, page })); }
+  let searchError: string | null = parsedOptions.success ? null : "검색 조건을 확인해 주세요.";
+  if (query && !searchError) {
+    try { result = withOwnership(user.id, await searchAladinBooks({ ...searchOptions, query, page })); }
     catch (error) { searchError = errorMessage(error, "알라딘 검색 요청에 실패했습니다. 잠시 후 다시 시도해 주세요."); }
   }
   return <div className="page">
@@ -36,7 +40,8 @@ export default async function AladinSearchPage({ searchParams }: { searchParams:
       <div className="field"><label htmlFor="aladin-query">제목</label><input className="input" id="aladin-query" name="query" defaultValue={query} maxLength={200} required autoFocus/></div>
       {selectedBookId && <input type="hidden" name="bookId" value={selectedBookId}/>}
       <button className="button" type="submit">검색</button>
+      <AladinSearchFilters options={searchOptions} page={page}/>
     </SearchForm></section>
-    {result && <AladinSelection key={`${query}:${selectedBookId}`} query={query} initial={result} initialOptions={options} selectedBookId={selectedBookId}/>}
+    {result && <AladinSelection key={`${query}:${selectedBookId}:${JSON.stringify(searchOptions)}`} query={query} initial={result} searchOptions={searchOptions} initialOptions={options} selectedBookId={selectedBookId}/>}
   </div>;
 }

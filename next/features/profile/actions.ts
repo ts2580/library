@@ -57,12 +57,14 @@ export async function changePasswordAction(formData: FormData): Promise<never> {
 
 export async function regenerateCoversAction(): Promise<never> {
   const user = await requireUser();
+  let summary: string;
   try {
     const result = await regeneratePendingCovers(user.id);
-    revalidatePath("/books");
-    revalidatePath("/dashboard");
-    redirect(`/profile?message=${encodeURIComponent(result.summary)}`);
+    summary = result.summary;
   } catch (error) {
     redirect(`/profile?error=${encodeURIComponent(errorMessage(error, "커버를 재생성하지 못했습니다."))}`);
   }
+  revalidatePath("/books", "layout");
+  revalidatePath("/dashboard");
+  redirect(`/profile?message=${encodeURIComponent(summary)}`);
 }

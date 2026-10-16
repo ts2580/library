@@ -9,6 +9,8 @@ const baseURL = "http://127.0.0.1:25648";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testMatch: process.env.BOOKSHELF_E2E_SIGNUP === "true" ? "**/signup.spec.ts" : "**/*.spec.ts",
+  testIgnore: process.env.BOOKSHELF_E2E_SIGNUP === "true" ? [] : ["**/signup.spec.ts"],
   globalTeardown: "./tests/e2e/cleanup.ts",
   workers: 1,
   use: { baseURL, trace: "retain-on-failure" },
@@ -21,7 +23,7 @@ export default defineConfig({
       BOOKSHELF_DB_PATH: path.join(fixtureDirectory, "bookshelf.sqlite"),
       BOOKSHELF_DATA_DIR: fixtureDirectory,
       BOOKSHELF_LEGACY_OWNER_USERNAME: "fixture-admin",
-      REGISTRATION: "false",
+      REGISTRATION: process.env.BOOKSHELF_E2E_SIGNUP === "true" ? "true" : "false",
       ALADIN_TTB_KEY: "fixture-only-api-key",
       NEXT_TELEMETRY_DISABLED: "1"
     }
