@@ -194,6 +194,18 @@
           </div>
         </section>
 
+        <section th:if="${#strings.equalsIgnoreCase(member.username(), 'trstyq')}" class="bookshelf-card bookshelf-p-4 sm:bookshelf-p-6" aria-labelledby="nextMigrationTitle" data-next-migration>
+          <h2 id="nextMigrationTitle" class="bookshelf-title-lg">Next.js 책장으로 이전</h2>
+          <p class="bookshelf-mt-2 bookshelf-subtitle-sm">DB와 표지를 복사하고 검사한 뒤 새 책장을 시작합니다. 이전 중에는 저장이 잠시 중단되고, 완료 후 기존 책장은 읽기 전용으로 남습니다.</p>
+          <form method="post" action="/user/profile/next-migration/start" class="bookshelf-mt-4" data-next-migration-form data-top-progress-ignore>
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button type="submit" class="bookshelf-btn bookshelf-px-4 bookshelf-py-2" data-next-migration-start disabled>새 책장으로 이전</button>
+          </form>
+          <p class="bookshelf-mt-3 bookshelf-subtitle-sm" role="status" aria-live="polite" data-next-migration-status>이전 환경을 확인하고 있습니다.</p>
+          <progress class="bookshelf-mt-2 w-full" max="100" value="0" aria-label="이전 진행률" data-next-migration-progress></progress>
+          <p class="bookshelf-mt-2 bookshelf-subtitle-sm" data-next-migration-result hidden></p>
+          <a class="bookshelf-btn-soft bookshelf-mt-3 bookshelf-px-4 bookshelf-py-2" data-next-migration-link style="display:none" hidden>새 책장 열기</a>
+        </section>
       </div>
 
       <section th:if="${member == null}" class="bookshelf-card bookshelf-profile-signed-out text-center">
@@ -205,6 +217,7 @@
 
       <div th:replace="~{fragments/layout :: appFooter()}"></div>
       <script src="/js/user-profile.js" defer></script>
+      <script src="/js/next-migration.js" defer></script>
       <script th:replace="~{fragments/layout :: toastScript()}" defer></script>
     </main>
   </div>

@@ -1,5 +1,23 @@
 # bookshelf
 
+기존 프로필의 **새 책장으로 이전** 버튼으로 Next.js 이전을 진행할 수 있습니다. 수동 추가 카테고리는 저장된 목록 선택과 새 이름 추가를 지원합니다. 최초 설치·Docker 전환은 [원클릭 이전 안내](next/docs/ONE_CLICK_MIGRATION.md)를 참고하세요.
+
+## Next.js 마이그레이션
+
+새 애플리케이션은 [`next/`](next/)에 있습니다. Next.js App Router가 UI·서버·API를 제공하고, Drizzle + SQLite와 별도 워커를 사용합니다.
+
+```bash
+cd next
+npm ci
+npm run dev        # http://localhost:25647
+# 다른 터미널에서 cd next 후:
+npm run worker:dev
+```
+
+기존 DB 복사본 실행, 최초 계정 생성, 전환·롤백은 [Next README](next/README.md)와 [마이그레이션 절차](next/docs/MIGRATION.md)를 참고하세요. 실제 확인 결과는 [검증 기록](next/docs/VALIDATION.md)에 있습니다. Spring 소스는 이전용으로 유지하고, 이전 후 원본 DB·표지는 Next 프로필의 삭제 버튼으로 정리할 수 있습니다.
+
+아래는 기존 Spring 애플리케이션의 실행 안내입니다.
+
 책장/재고 조회용 Spring Boot 프로젝트예요 📚
 
 ## 실행

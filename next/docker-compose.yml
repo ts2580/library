@@ -1,0 +1,26 @@
+services:
+  web:
+    build: .
+    init: true
+    restart: unless-stopped
+    command: npm run start
+    env_file: [.env]
+    ports:
+      - "25647:25647"
+    volumes:
+      - bookshelf-data:/app/data
+  worker:
+    build: .
+    init: true
+    restart: unless-stopped
+    command: npm run worker
+    healthcheck:
+      disable: true
+    env_file: [.env]
+    volumes:
+      - bookshelf-data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  bookshelf-data:

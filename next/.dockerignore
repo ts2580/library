@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+data
+coverage
+playwright-report
+test-results
+legacy-java
+*.zip

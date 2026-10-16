@@ -82,7 +82,19 @@ public class BookshelfController {
                        @RequestParam(value = "author", required = false) String author,
                        Model model) {
         applyBookListModel(model, bookCatalogService.findBookList(search, type, title, author, page, currentOwnerId()));
+        model.addAttribute("manualCategories", bookDataRepository.findAllBookTypes());
         return "book_list";
+    }
+
+    @PostMapping("/books/categories")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> addCategory(@RequestParam("name") String name) {
+        String category = Texts.trimToNull(name);
+        if (category == null || category.length() > 120) {
+            return ResponseEntity.badRequest().body(Map.of("error", "카테고리 이름은 1~120자로 입력하세요."));
+        }
+        bookDataRepository.saveCategory(category);
+        return ResponseEntity.ok(Map.of("name", category));
     }
 
     @PostMapping("/api/migration/covers")

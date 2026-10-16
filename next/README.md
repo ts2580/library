@@ -1,0 +1,141 @@
+# Bookshelf Next
+
+Spring Boot/Thymeleaf Bookshelf를 **Next.js App Router + React + TypeScript + Tailwind CSS + Drizzle ORM + SQLite**로 재구현한 버전입니다. 웹과 백그라운드 워커는 같은 저장소·같은 패키지를 사용하지만 별도 프로세스로 실행합니다.
+
+## 구현 범위
+
+- 계정별 도서·권 CRUD와 SQL 수준 `owner_id` 소유권 검사
+- 기존 BCrypt 및 레거시 SHA-256 로그인 호환, 로그인 성공 시 BCrypt 승격
+- SQLite 기반 서버 세션, 전체 세션 폐기형 비밀번호 변경
+- 알라딘 도서 검색·등록, ISBN 중고 재고 조회, 지점 상품 등급별 가격 파싱
+- 최대 10개 페이지 선택, 서버 재조회 검증, 뒤 페이지부터 화면 순서대로 일괄 권 등록
+- 보유 권의 제목·ISBN 검색, 지점 재고의 제목·ISBN·지점 검색 및 페이지 이동
+- 별도 워커 기반 중고 재고 일괄 갱신과 SQLite 진행 상태
+- 지점별 재고 집계·상세 화면
+- 런타임 표지를 `data/covers`에 저장하고 인증된 Route Handler로 제공
+- 원격 표지 SSRF 방어, MIME·크기·픽셀 제한, WebP 정규화
+- 미생성·유실 표지 재생성
+- Excel 백업 내보내기/병합 가져오기와 XLSX 압축 폭탄 제한
+- 표지 ZIP 스트리밍 백업, 8MiB 청크·최대 2GiB 업로드, 워커 복원
+- 기존 SQLite 조건부 부트스트랩과 최초 전환 전 자동 DB 백업
+- 반응형 사이드바/모바일 하단 내비게이션, 키보드 포커스, reduced-motion 대응
+
+## 계층 규칙
+
+| 파일 | 역할 |
+|---|---|
+| `queries.ts` | 소유권 조건을 포함한 읽기 전용 조회와 화면용 결과 반환 |
+| `actions.ts` | Server Action 진입점: 인증, 입력 추출·검증, 서비스 호출, 화면 갱신·이동 |
+| `service.ts` | 비즈니스 규칙, 변경 작업, 짧은 트랜잭션, 외부 I/O 조율 |
+| `validation.ts` | 신뢰할 수 없는 입력의 Zod 검증 |
+| `types.ts` | 여러 계층에서 공유하는 타입만 정의. Drizzle 추론 타입은 중복 선언하지 않음 |
+
+Server Component는 `queries.ts`를 직접 호출합니다. 자기 애플리케이션의 `/api`를 다시 HTTP로 호출하지 않습니다. Route Handler는 polling, 파일 전송, 원시 청크 업로드, JSON 응답이 필요한 경계에만 사용합니다.
+
+## 로컬 실행
+
+Node.js 22 이상이 필요합니다. SQLite 네이티브 모듈을 소스에서 빌드하는 환경에는 Python 3·make·g++도 필요하며 Dockerfile은 이를 설치합니다.
+
+```bash
+cp .env.example .env
+npm ci
+npm run db:migrate
+npm run db:verify
+npm run dev
+```
+
+다른 터미널에서 워커를 실행합니다.
+
+```bash
+npm run worker:dev
+```
+
+개발·프로덕션 기본 주소는 모두 `http://localhost:25647`입니다. 같은 포트의 기존 Spring을 종료한 뒤 실행합니다. Spring 프로필의 이전 버튼으로 동시에 띄우는 새 앱은 충돌을 피하려고 `25648`을 사용합니다. `.env`는 웹·워커·DB CLI가 같은 규칙으로 읽습니다. 알라딘 기능은 `.env`의 `ALADIN_TTB_KEY`가 있을 때 동작합니다.
+
+Next는 `next/` 안의 환경변수 파일을 읽으며 저장소 루트의 `.env`를 자동으로 가져오지 않습니다. 알라딘 검색 설정은 `next/.env.local`에 아래 값을 저장하고 웹·워커를 모두 재시작합니다. 실제 키는 Git에 올리지 않습니다.
+
+```dotenv
+ALADIN_TTB_KEY=발급받은_TTB_키
+```
+
+`REGISTRATION=false`가 기본이며 페이지와 Server Action 모두 회원가입을 차단합니다. 비어 있는 신규 DB에서는 최초 실행에만 `REGISTRATION=true npm run dev`로 회원가입을 활성화해 첫 관리자 계정을 만든 뒤, 비활성 설정으로 재시작합니다. 기존 데이터 이전에서는 기존 계정과 비밀번호를 사용합니다.
+
+npm 12에서 `EALLOWREMOTE`가 발생하면 해당 프로젝트의 설치 명령에만 `npm ci --allow-remote=all`을 사용합니다. 네이티브 설치 스크립트는 `package.json`의 이름 기반 `allowScripts` 목록으로 제한합니다.
+
+`BOOKSHELF_COOKIE_SECURE=auto`는 프록시의 `X-Forwarded-Proto`/`Forwarded` 값을 기준으로 Secure 쿠키를 선택합니다. HTTPS 프록시가 관련 헤더를 전달하지 않는 환경에서는 `true`, 내부 HTTP 환경에서는 `false`를 명시하세요.
+
+## 기존 데이터 사용
+
+기존 Spring 프로필의 **새 책장으로 이전** 버튼으로 DB·표지 복사부터 새 앱 실행까지 자동 처리할 수 있습니다. 최초 패치 설치와 Docker 이전용 패키지는 [원클릭 이전 안내](docs/ONE_CLICK_MIGRATION.md)를 참고하세요. 수동 절차는 아래와 같습니다.
+
+이전 후에는 Next **프로필 → 기존 데이터 정리 → 기존 DB·표지 삭제**를 사용할 수 있습니다. 관리자만 실행할 수 있고, 실제 이전본·이전 전 DB 백업·원본 표지를 검증합니다. 기존 Spring이 원본을 열고 있으면 차단합니다. 새 데이터·수동 백업·로그는 유지합니다. 원본 디렉터리는 `BOOKSHELF_LEGACY_DATA_DIR`로 지정하며 기본값은 `../data`입니다.
+
+1. Java 애플리케이션을 완전히 종료합니다.
+2. 기존 `bookshelf.sqlite`를 `data/bookshelf.sqlite`로 복사합니다.
+3. 기존 표지를 `data/covers/`로 복사합니다.
+4. `.env`의 `BOOKSHELF_LEGACY_OWNER_USERNAME`에 기존 공유 데이터를 소유할 계정을 지정합니다.
+5. `npm run db:migrate`와 `npm run db:verify`를 실행합니다.
+
+자세한 절차와 롤백 포인트는 [`docs/MIGRATION.md`](docs/MIGRATION.md)를 참고하세요.
+
+현재 저장소의 검증용 복사본은 `data/migration-check/`에 있습니다. 기존 Java와 함께 확인할 때는 복사본만 지정합니다.
+
+```bash
+BOOKSHELF_DB_PATH=./data/migration-check/bookshelf.sqlite \
+BOOKSHELF_DATA_DIR=./data/migration-check npm run dev
+```
+
+워커도 같은 두 환경변수로 실행합니다. 검증용 DB와 표지는 Git에서 제외됩니다.
+
+## Docker 실행
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+`web`과 `worker`는 같은 이미지와 `bookshelf-data:/app/data` 볼륨을 사용합니다. 기존 호스트 데이터를 직접 마운트하려면 두 서비스의 volume을 모두 다음처럼 바꿉니다.
+
+```yaml
+volumes:
+  - ./data:/app/data
+```
+
+호스트의 `data/`는 컨테이너 UID/GID `1001:1001`이 읽고 쓸 수 있어야 합니다.
+
+## 검증
+
+```bash
+npm run check:syntax
+npm run check:structure
+npm run typecheck
+npm test
+npm run build
+npm run db:verify
+```
+
+Playwright는 임시 DB·테스트 계정·별도 웹과 워커를 자동 생성하며 테스트 포트 `25648`을 사용합니다. 해당 포트에서 이전용 새 앱을 실행 중이라면 종료한 뒤 검사합니다. 알라딘은 테스트 프로세스에서만 목업을 사용합니다.
+
+```bash
+npx playwright install chromium
+npm run build
+npm run test:e2e
+```
+
+Docker를 직접 검증하려면 `docker build -t bookshelf-next:migration-local .` 후 `npm run test:docker`를 실행합니다. 전용 임시 볼륨과 컨테이너를 사용하고 종료 시 정리합니다.
+
+이미지 처리·CSS·테스트 의존성의 보안 수정 버전을 사용합니다. `exceljs`의 UUID와 Drizzle 도구의 esbuild는 수정 버전으로 override하며, 실제 엑셀 왕복과 DB CLI 검증을 함께 수행합니다.
+
+## 디렉터리
+
+```text
+app/          URL, 페이지, Route Handler
+components/   UI 컴포넌트
+features/     기능별 queries/actions/service/validation/types
+db/           Drizzle schema, SQLite bootstrap, migration baseline
+worker/       별도 백그라운드 프로세스
+lib/          환경변수, 오류, 로깅 등 공통 서버 인프라
+data/         Git 제외 런타임 DB·표지·업로드·백업
+public/       배포 시 포함되는 정적 파일만 저장
+tests/        Vitest 단위 테스트와 Playwright E2E
+```
