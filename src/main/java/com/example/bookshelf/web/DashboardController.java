@@ -120,14 +120,12 @@ public class DashboardController {
         String branchSummaryName = branchInventoryRepository.findBranchDisplayName(branch);
         String branchName = resolveBranchDisplayName(stocks, branch, branchSummaryName);
         int totalCount = stocks.size();
-        long pricedCount = stocks.stream().filter(s -> s.price() != null && !s.price().isBlank()).count();
         long totalAmount = stocks.stream().mapToLong(s -> parsePriceSafe(s.price())).sum();
 
         model.addAttribute("branch", branch);
         model.addAttribute("branchName", branchName);
         model.addAttribute("stocks", stocks);
         model.addAttribute("totalCount", totalCount);
-        model.addAttribute("pricedCount", pricedCount);
         model.addAttribute("totalAmount", totalAmount);
         return "branch_stock_list";
     }
