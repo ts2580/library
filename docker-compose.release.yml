@@ -35,7 +35,7 @@ services:
 volumes:
   bookshelf-data:
     external: true
-    name: ${BOOKSHELF_DATA_VOLUME:-Bookshelf-next}
+    name: ${BOOKSHELF_DATA_VOLUME:-${BOOKSHELF_NEXT_VOLUME:-Bookshelf-next}}
   legacy-data:
     external: true
     name: ${BOOKSHELF_LEGACY_VOLUME:-Bookshelf}

@@ -19,6 +19,8 @@ Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next
 
 루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. ca3 발행 전 로컬 이미지로 검증하는 명령은 [README](../README.md)에 있습니다.
 
+ca2의 `BOOKSHELF_NEXT_VOLUME`도 계속 지원합니다. 새 데이터 볼륨은 비어 있지 않은 `BOOKSHELF_DATA_VOLUME`을 우선하고, 없으면 `BOOKSHELF_NEXT_VOLUME`, 둘 다 없거나 비어 있으면 `Bookshelf-next`를 사용합니다.
+
 컨테이너 내부 경로를 `/app/next/data`에 그대로 두면 새 앱은 이전본을 읽지 못하고 빈 DB로 시작할 수 있습니다. 이미지나 마운트 변경 후에는 컨테이너를 재생성합니다. 이전 Java·Next 워커가 동시에 원본이나 새 DB에 쓰지 않도록 먼저 종료합니다.
 
 ## 이전 완료한 로컬 실행
