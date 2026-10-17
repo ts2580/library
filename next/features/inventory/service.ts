@@ -1,11 +1,11 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { sqlite } from "@/db";
-import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { AladinRateLimitError, isAladinConfigured } from "@/features/aladin/client";
 import { lookupUsedStocks } from "@/features/aladin/service";
+import { stockIdentity, uniqueStocks } from "@/features/inventory/stock-identity";
 import type { AladinBranchStock } from "@/features/aladin/types";
 
 interface RefreshTarget {
@@ -104,26 +104,32 @@ function claimStockJob(): { ownerId: number; total: number; lockToken: string } 
 
 function updateProgress(lockToken: string, values: { processed: number; success: number; empty: number; fail: number; total: number; message: string }): void {
   const percent = values.total <= 0 ? 0 : Math.min(100, Math.round(values.processed * 100 / values.total));
-  sqlite.prepare(`
+  const result = sqlite.prepare(`
     UPDATE stock_refresh_job SET processed = ?, success = ?, empty = ?, fail = ?, percent = ?,
       message = ?, updated_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP
-    WHERE id = 1 AND lock_token = ?
+    WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?
   `).run(values.processed, values.success, values.empty, values.fail, percent, values.message, lockToken);
+  if (result.changes !== 1) throw new LostStockJobError();
 }
 
-function stockUuid(target: RefreshTarget, stock: AladinBranchStock): string {
-  return createHash("sha256").update([
-    target.id, stock.branch, stock.branchName, stock.grade ?? "", target.seq ?? 0, stock.bookLink ?? ""
-  ].join("|")).digest("hex");
+class LostStockJobError extends Error {
+  constructor() { super("재고 작업 소유권을 잃었습니다."); this.name = "LostStockJobError"; }
 }
 
-function saveStocks(ownerId: number, target: RefreshTarget, stocks: AladinBranchStock[]): void {
+function assertRunningJob(lockToken: string): void {
+  if (!sqlite.prepare("SELECT 1 FROM stock_refresh_job WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?").get(lockToken)) {
+    throw new LostStockJobError();
+  }
+}
+
+function saveStocks(lockToken: string, ownerId: number, target: RefreshTarget, stocks: AladinBranchStock[]): boolean {
   const transaction = sqlite.transaction(() => {
+    assertRunningJob(lockToken);
     const current = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, bv.volume AS seq, bv.isbn13, bv.name
       FROM book_volumes bv JOIN books b ON b.id=bv.book
       WHERE bv.id=? AND b.owner_id=? AND COALESCE(bv.ispurchased,0)=0 AND COALESCE(bv.noneedtobuy,0)=0`)
       .get(target.id, ownerId) as RefreshTarget | undefined;
-    if (!current || current.isbn13 !== target.isbn13) return;
+    if (!current || current.isbn13 !== target.isbn13) return false;
     target = current;
     sqlite.prepare("DELETE FROM branchbook WHERE book_volume_id = ?")
       .run(target.id);
@@ -136,36 +142,43 @@ function saveStocks(ownerId: number, target: RefreshTarget, stocks: AladinBranch
         volume = excluded.volume, book_volume_id = excluded.book_volume_id,
         systemmodstamp = CURRENT_TIMESTAMP
     `);
-    for (const stock of stocks) {
-      insert.run(stock.bookLink, stock.purchaseLink, stock.branch, stockUuid(target, stock), target.seq ?? 0,
+    for (const stock of uniqueStocks(target.id, stocks)) {
+      insert.run(stock.bookLink, stock.purchaseLink, stock.branch, stockIdentity(target.id, stock), target.seq ?? 0,
         target.name ?? stock.title ?? "", stock.price, stock.branchName, stock.grade, target.bookId, target.id);
     }
+    return true;
   });
-  transaction.immediate();
+  return transaction.immediate();
 }
 
 function completeJob(lockToken: string, total: number, processed: number, success: number, empty: number, fail: number): void {
-  rebuildSummary();
-  sqlite.prepare(`
-    UPDATE stock_refresh_job SET running = 0, completed = 1, failed = 0, status = 'COMPLETED',
-      processed = ?, success = ?, empty = ?, fail = ?, percent = 100,
-      message = ?, updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP,
-      heartbeat_at = CURRENT_TIMESTAMP, lock_token = NULL
-    WHERE id = 1 AND lock_token = ?
-  `).run(processed, success, empty, fail,
-    `재고 일괄 조회 완료: 총 ${total}권 중 ${success}권 성공, ${empty}권 재고없음, ${fail}권 실패`, lockToken);
+  sqlite.transaction(() => {
+    assertRunningJob(lockToken);
+    rebuildSummaryStatements();
+    sqlite.prepare(`
+      UPDATE stock_refresh_job SET running = 0, completed = 1, failed = 0, status = 'COMPLETED',
+        processed = ?, success = ?, empty = ?, fail = ?, percent = 100,
+        message = ?, updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP,
+        heartbeat_at = CURRENT_TIMESTAMP, lock_token = NULL
+      WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?
+    `).run(processed, success, empty, fail,
+      `재고 일괄 조회 완료: 총 ${total}권 중 ${success}권 성공, ${empty}권 재고없음, ${fail}권 실패`, lockToken);
+  }).immediate();
 }
 
 function failJob(lockToken: string, total: number, processed: number, success: number, empty: number, fail: number, message: string): void {
-  try { rebuildSummary(); } catch (error) { logger.error("Inventory summary rebuild failed", { error: String(error) }); }
-  const percent = total <= 0 ? 0 : Math.min(100, Math.round(processed * 100 / total));
-  sqlite.prepare(`
-    UPDATE stock_refresh_job SET running = 0, completed = 0, failed = 1, status = 'FAILED',
-      processed = ?, success = ?, empty = ?, fail = ?, percent = ?, message = ?,
-      updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP,
-      heartbeat_at = CURRENT_TIMESTAMP, lock_token = NULL
-    WHERE id = 1 AND lock_token = ?
-  `).run(processed, success, empty, fail, percent, message, lockToken);
+  sqlite.transaction(() => {
+    assertRunningJob(lockToken);
+    rebuildSummaryStatements();
+    const percent = total <= 0 ? 0 : Math.min(100, Math.round(processed * 100 / total));
+    sqlite.prepare(`
+      UPDATE stock_refresh_job SET running = 0, completed = 0, failed = 1, status = 'FAILED',
+        processed = ?, success = ?, empty = ?, fail = ?, percent = ?, message = ?,
+        updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP,
+        heartbeat_at = CURRENT_TIMESTAMP, lock_token = NULL
+      WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?
+    `).run(processed, success, empty, fail, percent, message, lockToken);
+  }).immediate();
 }
 
 export async function processNextStockRefreshJob(): Promise<boolean> {
@@ -176,6 +189,7 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
     // A queued job can survive a restart with a different environment.
     if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.");
     const clear = sqlite.transaction(() => {
+      assertRunningJob(claimed.lockToken);
       sqlite.prepare("DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id = ?)").run(claimed.ownerId);
       sqlite.prepare("DELETE FROM branch_inventory_summary").run();
     });
@@ -194,22 +208,29 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
     `).all(claimed.ownerId) as RefreshTarget[];
 
     for (const target of targets) {
+      assertRunningJob(claimed.lockToken);
       try {
         if (!target.isbn13) {
           fail += 1;
         } else {
           const lookup = await lookupUsedStocks(target.isbn13);
+          assertRunningJob(claimed.lockToken);
           if (!lookup.successful) {
             if (/429|호출 제한/.test(lookup.errorMessage)) throw new AladinRateLimitError(lookup.errorMessage);
             fail += 1;
+          } else if (lookup.partial || lookup.stocks.some((stock) => stock.verified === false)) {
+            // Branch existence is not proof of individual prices or available offers.
+            fail += 1;
+            logger.warn("Incomplete branch inventory was not saved", { volumeId: target.id });
           } else if (lookup.stocks.length === 0) {
             empty += 1;
           } else {
-            saveStocks(claimed.ownerId, target, lookup.stocks);
-            success += 1;
+            if (saveStocks(claimed.lockToken, claimed.ownerId, target, lookup.stocks)) success += 1;
+            else fail += 1;
           }
         }
       } catch (error) {
+        if (error instanceof LostStockJobError) throw error;
         fail += 1;
         if (error instanceof AladinRateLimitError) {
           processed += 1;
@@ -226,12 +247,19 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
     }
     completeJob(claimed.lockToken, claimed.total, processed, success, empty, fail);
   } catch (error) {
+    if (error instanceof LostStockJobError) {
+      logger.warn("Stopped a superseded stock worker without writing results");
+      return true;
+    }
     const message = error instanceof AladinRateLimitError
       ? "알라딘 API 호출 제한(429)이 계속되어 갱신을 중단했습니다. 잠시 후 다시 실행해 주세요."
       : error instanceof AppError
         ? error.message
         : "일괄 갱신 중 내부 오류가 발생했습니다. 서버 로그를 확인해 주세요.";
-    failJob(claimed.lockToken, claimed.total, processed, success, empty, fail, message);
+    try { failJob(claimed.lockToken, claimed.total, processed, success, empty, fail, message); }
+    catch (failure) {
+      if (!(failure instanceof LostStockJobError)) throw failure;
+    }
     logger.error("Stock refresh failed", { ownerId: claimed.ownerId, error: String(error) });
   }
   return true;

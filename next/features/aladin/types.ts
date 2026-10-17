@@ -20,6 +20,8 @@ export interface AladinSearchResult {
 }
 
 export interface AladinBranchStock {
+  /** false means API branch presence only; no individual offer was verified. */
+  verified?: boolean;
   branch: string;
   branchName: string;
   grade: string | null;
@@ -30,5 +32,5 @@ export interface AladinBranchStock {
 }
 
 export type StockLookupResult =
-  | { successful: true; stocks: AladinBranchStock[]; raw: unknown }
+  | { successful: true; stocks: AladinBranchStock[]; raw: unknown; partial?: boolean; warning?: string }
   | { successful: false; stocks: []; errorMessage: string; raw?: unknown };

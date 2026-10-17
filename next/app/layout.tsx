@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "@/app/globals.css";
+import "@/app/volume-layout.css";
 
 export const metadata: Metadata = {
   title: { default: "Bookshelf", template: "%s · Bookshelf" },

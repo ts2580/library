@@ -1,0 +1,12 @@
+/* Keep mobile editing usable without changing the desktop volume layout. */
+@media (max-width: 560px) {
+  .volume-card { grid-template-columns: 74px minmax(0, 1fr); }
+  .volume-card > .stack-sm { display: contents; }
+  .volume-card > .stack-sm > * { grid-column: 1 / -1; min-width: 0; }
+  .volume-card > .stack-sm > .volume-title {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: column;
+    overflow-wrap: anywhere;
+  }
+}

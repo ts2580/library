@@ -125,13 +125,19 @@ export async function updateVolume(ownerId: number, bookId: number, volumeId: nu
   try {
     const transaction = sqlite.transaction(() => {
       assertUniqueIsbn(ownerId, input.isbn13, volumeId);
-      // Resolve legacy stock links before changing the canonical volume number.
+      // Re-read under the write transaction: cover downloads above may have yielded.
+      const previous = sqlite.prepare(`SELECT bv.volume AS seq, bv.isbn13, bv.isbn
+        FROM book_volumes bv JOIN books b ON b.id = bv.book
+        WHERE bv.id = ? AND bv.book = ? AND b.owner_id = ?`)
+        .get(volumeId, bookId, ownerId) as { seq: number | null; isbn13: string | null; isbn: string | null } | undefined;
+      if (!previous) throw new NotFoundError();
+      // Resolve only unambiguous legacy links before changing the canonical number.
       sqlite.prepare(`
         UPDATE branchbook SET book_volume_id = ?
         WHERE book_volume_id IS NULL AND book = ? AND volume = ?
           AND 1 = (SELECT COUNT(*) FROM book_volumes candidate
                    WHERE candidate.book = branchbook.book AND candidate.volume = branchbook.volume)
-      `).run(volumeId, bookId, current.seq);
+      `).run(volumeId, bookId, previous.seq);
       const result = sqlite.prepare(`
         UPDATE book_volumes SET seq = ?, volume = ?, name = ?, author = ?, isbn13 = ?, price = ?,
           description = ?, link = ?, pubdate = ?, cover = ?, originalUrl = ?, ispurchased = ?,
@@ -146,7 +152,10 @@ export async function updateVolume(ownerId: number, bookId: number, volumeId: nu
         sqlite.prepare("UPDATE books SET type=? WHERE id=? AND owner_id=?").run(input.type, bookId, ownerId);
         category(input.type);
       }
-      if (current.seq !== input.seq) {
+      // Match Excel import semantics: a different product invalidates its old offers.
+      if ((previous.isbn13 || previous.isbn) !== (input.isbn13 || previous.isbn)) {
+        sqlite.prepare("DELETE FROM branchbook WHERE book_volume_id = ?").run(volumeId);
+      } else if (previous.seq !== input.seq) {
         sqlite.prepare("UPDATE branchbook SET volume = ? WHERE book_volume_id = ?").run(input.seq, volumeId);
       }
     });

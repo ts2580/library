@@ -30,11 +30,12 @@ export default async function UsedSearchPage({ searchParams }: { searchParams: P
       </select></div><button className="button" type="submit">조회</button>
     </SearchForm></section>
     {result && (!result.successful ? <div className="flash flash-error" role="alert">{result.errorMessage}</div> : <>
-      <section className="stack-md"><div className="section-heading"><h2>조회 결과</h2><span className="chip">{result.stocks.length}건 · 최저 {minimum == null ? "가격 미상" : formatWon(minimum)}</span></div>
+      {result.partial && <p className="flash flash-error" role="status">{result.warning}</p>}
+      <section className="stack-md"><div className="section-heading"><h2>{result.partial ? "부분 확인 결과" : "조회 결과"}</h2><span className="chip">{result.stocks.length}건 · 최저 {minimum == null ? "가격 미상" : formatWon(minimum)}</span></div>
         {result.stocks.length ? <div className="inventory-grid">{result.stocks.map((stock, index) => <article className="branch-card" key={`${stock.branch}-${index}`}>
-          <div className="section-heading"><h3>{stock.branchName}</h3>{stock.grade && <span className="chip">{stock.grade}</span>}</div>
+          <div className="section-heading"><h3>{stock.branchName}</h3>{stock.verified === false ? <span className="chip">상세 미확인</span> : stock.grade && <span className="chip">{stock.grade}</span>}</div>
           <p className="muted small">{stock.title}</p><p className="muted">{stock.price ? formatWon(stock.price) : "가격 미상"}</p>
-          <div className="button-row"><ExternalLink className="button button-secondary button-small" href={stock.purchaseLink}>구매 링크</ExternalLink><ExternalLink className="button button-outline button-small" href={stock.bookLink}>상품 링크</ExternalLink></div>
+          <div className="button-row"><ExternalLink className="button button-secondary button-small" href={stock.purchaseLink}>{stock.verified === false ? "지점 목록" : "구매 링크"}</ExternalLink><ExternalLink className="button button-outline button-small" href={stock.bookLink}>상품 링크</ExternalLink></div>
         </article>)}</div> : <div className="empty">현재 확인되는 중고 재고가 없습니다.</div>}
       </section>
       <details className="details-card"><summary>원본 JSON 응답</summary><pre className="details-body raw-response">{JSON.stringify(result.raw, null, 2)}</pre></details>
