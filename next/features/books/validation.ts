@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isHttpUrl } from "@/lib/urls";
+import { isWonInput, normalizeWonInput } from "@/lib/money";
 
 export const entityIdSchema = z.coerce.number().int().positive("식별자가 올바르지 않습니다.");
 export const volumeIdsSchema = z.array(entityIdSchema).min(1, "삭제할 권을 선택해 주세요.").max(1000);
@@ -23,7 +24,9 @@ export const volumeInputSchema = z.object({
   seq: z.preprocess((value) => value === "" || value == null ? null : Number(value), z.number().int().min(0).max(100000).nullable()),
   isbn13: z.string().trim().max(32).transform((value) => value || null),
   author: nullableText(300),
-  price: z.string().trim().max(30).transform((value) => value.replace(/[^0-9]/g, "") || null),
+  price: z.string().trim().max(30)
+    .refine(isWonInput, "가격은 0 이상의 정수 또는 올바른 천 단위 쉼표 형식이어야 합니다.")
+    .transform(normalizeWonInput),
   description: nullableText(5000),
   link: nullableHttpUrl,
   pubDate: nullableText(40),

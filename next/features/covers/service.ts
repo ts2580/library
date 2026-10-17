@@ -10,6 +10,7 @@ import sharp from "sharp";
 import { sqlite } from "@/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { abortable } from "@/lib/abortable";
 import { safeFilename, trimToNull } from "@/lib/strings";
 import { ALLOWED_COVER_TYPES, MAX_COVER_BYTES, remoteCoverSchema } from "@/features/covers/validation";
 
@@ -77,7 +78,7 @@ async function resolveRemoteHost(url: URL): Promise<ResolvedHost> {
   return { address: selected.address, family: selected.family };
 }
 
-function requestRemote(url: URL, resolved: ResolvedHost): Promise<IncomingMessage> {
+function requestRemote(url: URL, resolved: ResolvedHost, signal: AbortSignal): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
     const lookup: LookupFunction = (_hostname, options, callback) => {
       if (options.all) callback(null, [resolved]);
@@ -86,6 +87,7 @@ function requestRemote(url: URL, resolved: ResolvedHost): Promise<IncomingMessag
     const requester = url.protocol === "https:" ? https.request : http.request;
     const request = requester(url, {
       method: "GET",
+      signal,
       lookup,
       headers: {
         "user-agent": "Bookshelf/3.0 cover-fetcher",
@@ -120,33 +122,44 @@ async function readLimited(response: IncomingMessage): Promise<Buffer> {
 }
 
 async function downloadRemoteCover(rawUrl: string): Promise<Buffer> {
-  let current = new URL(remoteCoverSchema.parse(rawUrl));
-  for (let redirect = 0; redirect <= 5; redirect += 1) {
-    const resolved = await resolveRemoteHost(current);
-    const response = await requestRemote(current, resolved);
-    const status = response.statusCode ?? 0;
-    if (status >= 300 && status < 400) {
-      const location = response.headers.location;
-      response.resume();
-      if (!location) throw new AppError("표지 URL 리디렉션 주소가 없습니다.");
-      current = new URL(location, current);
-      continue;
+  const controller = new AbortController();
+  const { signal } = controller;
+  // One budget for DNS, all redirects and body consumption (not just socket idle time).
+  const timer = setTimeout(() => controller.abort(new AppError("표지 다운로드 전체 시간이 초과되었습니다.")), 30_000);
+  timer.unref();
+  try {
+    let current = new URL(remoteCoverSchema.parse(rawUrl));
+    for (let redirect = 0; redirect <= 5; redirect += 1) {
+      signal.throwIfAborted();
+      const resolved = await abortable(resolveRemoteHost(current), signal);
+      signal.throwIfAborted();
+      const response = await requestRemote(current, resolved, signal);
+      const status = response.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        const location = response.headers.location;
+        response.destroy();
+        if (!location) throw new AppError("표지 URL 리디렉션 주소가 없습니다.");
+        current = new URL(location, current);
+        continue;
+      }
+      if (status < 200 || status >= 300) {
+        response.destroy();
+        throw new AppError(`표지를 가져오지 못했습니다. HTTP ${status}`);
+      }
+      const rawType = Array.isArray(response.headers["content-type"])
+        ? response.headers["content-type"][0]
+        : response.headers["content-type"];
+      const type = rawType?.split(";")[0]?.trim().toLowerCase();
+      if (type && !ALLOWED_COVER_TYPES.has(type)) {
+        response.destroy();
+        throw new AppError("이미지 형식의 표지만 등록할 수 있습니다.");
+      }
+      return await readLimited(response);
     }
-    if (status < 200 || status >= 300) {
-      response.resume();
-      throw new AppError(`표지를 가져오지 못했습니다. HTTP ${status}`);
-    }
-    const rawType = Array.isArray(response.headers["content-type"])
-      ? response.headers["content-type"][0]
-      : response.headers["content-type"];
-    const type = rawType?.split(";")[0]?.trim().toLowerCase();
-    if (type && !ALLOWED_COVER_TYPES.has(type)) {
-      response.resume();
-      throw new AppError("이미지 형식의 표지만 등록할 수 있습니다.");
-    }
-    return readLimited(response);
+    throw new AppError("표지 URL 리디렉션 횟수가 너무 많습니다.");
+  } finally {
+    clearTimeout(timer);
   }
-  throw new AppError("표지 URL 리디렉션 횟수가 너무 많습니다.");
 }
 
 async function fileBuffer(file: File): Promise<Buffer> {

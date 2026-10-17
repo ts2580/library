@@ -40,19 +40,19 @@ async function branchStocks(input: {
   branch: string;
   branchName: string;
   branchLink: string | null;
-  fallbackPrice: string | null;
   title: string | null;
-}): Promise<AladinBranchStock[]> {
+}): Promise<{ stocks: AladinBranchStock[]; partial: boolean }> {
   const fallback: AladinBranchStock = {
+    verified: false,
     branch: input.branch,
     branchName: input.branchName,
     grade: null,
     bookLink: input.branchLink,
     purchaseLink: input.branchLink,
-    price: input.fallbackPrice,
+    price: null,
     title: input.title
   };
-  if (!input.branchLink) return [fallback];
+  if (!input.branchLink) return { stocks: [fallback], partial: true };
   try {
     const html = await aladinHtml(input.branchLink);
     const $ = load(html);
@@ -95,9 +95,12 @@ async function branchStocks(input: {
         });
       }
     }
-    return parsed.length ? parsed : [fallback];
-  } catch {
-    return [fallback];
+    return parsed.length ? { stocks: parsed, partial: false } : { stocks: [fallback], partial: true };
+  } catch (error) {
+    // A rate limit must reach the lookup/job retry and stop policy.
+    if (error instanceof AladinRateLimitError) throw error;
+    logger.warn("Branch inventory detail could not be verified", { branch: input.branch });
+    return { stocks: [fallback], partial: true };
   }
 }
 
@@ -157,6 +160,7 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
     const title = text(first?.title);
     const stocks: AladinBranchStock[] = [];
     let raw = lookupRaw;
+    let partial = false;
 
     if (source !== "offstore" && (number(aladinUsed?.itemCount) ?? 0) > 0) {
       const link = text(aladinUsed?.link)?.replaceAll("amp;", "") ?? null;
@@ -180,22 +184,23 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
       const off = object(offRaw) ?? {};
       raw = source === "offstore" ? offRaw : { lookup: lookupRaw, offStores: offRaw };
       const branches = array(off.itemOffStoreList).map(object).filter((item): item is Record<string, unknown> => Boolean(item));
-      const minPrice = number(spaceUsed?.minPrice)?.toString() ?? null;
       for (const branch of branches) {
         const link = absoluteAladinUrl(text(branch.link)?.replaceAll("amp;", "") ?? null);
         const branchCode = text(branch.offCode) ?? text(branch.offName) ?? "UNKNOWN";
         const branchName = text(branch.offName) ?? text(branch.offCode) ?? "지점";
-        stocks.push(...await branchStocks({
+        const detail = await branchStocks({
           branch: branchCode,
           branchName,
           branchLink: link,
-          fallbackPrice: minPrice,
           title
-        }));
+        });
+        partial ||= detail.partial;
+        stocks.push(...detail.stocks);
       }
     }
 
-    return { successful: true, stocks, raw };
+    return { successful: true, stocks, raw, partial,
+      warning: partial ? "일부 지점의 상세 재고를 확인하지 못했습니다. 해당 지점의 가격은 미확인이며, 이 권의 조회 결과는 일괄 재고 저장에서 제외됩니다." : undefined };
   } catch (error) {
     const rateLimited = error instanceof AladinRateLimitError;
     logger.warn("Aladin used stock lookup failed", {

@@ -45,7 +45,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
 export function MobileNav({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   return (
-    <nav className="mobile-nav" aria-label="모바일 주 메뉴">
+    <nav className="mobile-nav" aria-label="모바일 주 메뉴" style={{ gridTemplateColumns: `repeat(${visibleItems(user).length}, minmax(0, 1fr))` }}>
       {visibleItems(user).map(({ href, label, Icon }) => {
         const active = isActive(pathname, href);
         return <Link key={href} href={href} className={`mobile-nav-link ${active ? "mobile-nav-link-active" : ""}`} aria-current={active ? "page" : undefined}><Icon/><span>{label}</span></Link>;

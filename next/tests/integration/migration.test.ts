@@ -112,7 +112,7 @@ describe("owned queries and changes", () => {
   it("uses volume rather than legacy seq and updates unambiguous stock links", async () => {
     volume(1); stock(1);
     expect(getBookDetail(1, 1)?.volumes[0]?.seq).toBe(1);
-    await updateVolume(1, 1, 1, { name: "edited", seq: "2", isbn13: "", author: "", price: "", description: "", link: "", pubDate: "", coverUrl: "" });
+    await updateVolume(1, 1, 1, { name: "edited", seq: "2", isbn13: "9780000000001", author: "", price: "", description: "", link: "", pubDate: "", coverUrl: "" });
     expect(sqlite.prepare("SELECT volume, book_volume_id FROM branchbook WHERE id=1").get()).toEqual({ volume: 2, book_volume_id: 1 });
   });
   it("paginates inventory and matches literal search without revealing another owner", () => {
@@ -281,5 +281,68 @@ describe("Java-compatible manual book registration", () => {
     vi.mocked(searchAladinBooks).mockResolvedValue(result);
     await expect(createManualBook(1, { book, direct: false, targetBookId: null, selection: [{ page: 1, key: "9780000000001" }] })).rejects.toThrow("이미 등록");
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });
+  });
+});
+
+
+describe("canary audit inventory regressions", () => {
+  const edit = { name: "edited", seq: "2", isbn13: "9780000000001", author: "", price: "", description: "", link: "", pubDate: "", coverUrl: "" };
+  const offer = { branch: "SEOUL", branchName: "서울", grade: "상", title: "test",
+    bookLink: "https://www.aladin.co.kr/branch/list", purchaseLink: "https://www.aladin.co.kr/offer/a", price: "4,000" };
+
+  it.each(["9781111111111", ""])("invalidates both stable and uniquely linked legacy stocks when ISBN becomes %s", async (isbn13) => {
+    volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 1, null); stock(3, 2, 2);
+    await updateVolume(1, 1, 1, { ...edit, isbn13 });
+    expect(sqlite.prepare("SELECT id FROM branchbook ORDER BY id").all()).toEqual([{ id: 3 }]);
+  });
+  it("does not guess which duplicate-volume legacy stock belongs to an edited ISBN", async () => {
+    volume(1); volume(2, 1, 1); stock(1, 1, 1); stock(2, 1, null); stock(3, 1, 2);
+    await updateVolume(1, 1, 1, { ...edit, isbn13: "9781111111111" });
+    expect(sqlite.prepare("SELECT id,book_volume_id FROM branchbook ORDER BY id").all()).toEqual([
+      { id: 2, book_volume_id: null }, { id: 3, book_volume_id: 2 }
+    ]);
+  });
+  it("keeps same-ISBN inventory and rolls back rejected duplicate ISBN edits", async () => {
+    volume(1); volume(2, 1, 3); stock(1, 1, 1);
+    await expect(updateVolume(1, 1, 1, { ...edit, isbn13: "9780000000002" })).rejects.toThrow();
+    expect(sqlite.prepare("SELECT book_volume_id,volume FROM branchbook").get()).toEqual({ book_volume_id: 1, volume: 1 });
+    await updateVolume(1, 1, 1, edit);
+    expect(sqlite.prepare("SELECT book_volume_id,volume FROM branchbook").get()).toEqual({ book_volume_id: 1, volume: 2 });
+  });
+  it("retains different offers of the same grade and the real lowest price", async () => {
+    volume(1); jobs.requestStockRefresh(1);
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [offer,
+      { ...offer, price: "9,000", purchaseLink: "https://www.aladin.co.kr/offer/b" }] });
+    await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT COUNT(*) AS count, MIN(CAST(REPLACE(price, ',', '') AS INTEGER)) AS minimum FROM branchbook").get())
+      .toEqual({ count: 2, minimum: 4000 });
+  });
+  it("chooses the minimum price for indistinguishable summaries in either order", async () => {
+    volume(1);
+    for (const prices of [["4,000", "9,000"], ["9,000", "4,000"]]) {
+      jobs.requestStockRefresh(1);
+      vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: prices.map((price) => ({ ...offer, price, purchaseLink: offer.bookLink })) });
+      await jobs.processNextStockRefreshJob();
+      expect(sqlite.prepare("SELECT price FROM branchbook").all()).toEqual([{ price: "4,000" }]);
+    }
+  });
+  it("does not save prices or report success for a partial lookup", async () => {
+    volume(1); jobs.requestStockRefresh(1);
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, partial: true, raw: {}, stocks: [{ ...offer, price: null, verified: false }] });
+    await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM branchbook").get()).toEqual({ n: 0 });
+    expect(sqlite.prepare("SELECT success,empty,fail FROM stock_refresh_job").get()).toEqual({ success: 0, empty: 0, fail: 1 });
+  });
+  it("fences a superseded worker after its external lookup, before any result or summary write", async () => {
+    volume(1); jobs.requestStockRefresh(1);
+    vi.mocked(lookupUsedStocks).mockImplementationOnce(async () => {
+      sqlite.prepare("UPDATE stock_refresh_job SET lock_token='replacement-worker',message='replacement' WHERE id=1").run();
+      sqlite.prepare("INSERT INTO branch_inventory_summary(branch,branch_name,stock_count) VALUES ('NEW','new-job',7)").run();
+      return { successful: true, raw: {}, stocks: [offer] };
+    });
+    await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM branchbook").get()).toEqual({ n: 0 });
+    expect(sqlite.prepare("SELECT status,lock_token,message FROM stock_refresh_job").get()).toEqual({ status: "RUNNING", lock_token: "replacement-worker", message: "replacement" });
+    expect(sqlite.prepare("SELECT stock_count FROM branch_inventory_summary").all()).toEqual([{ stock_count: 7 }]);
   });
 });
