@@ -1,144 +1,127 @@
-# bookshelf
+# Bookshelf
 
-기존 프로필의 **새 책장으로 이전** 버튼으로 Next.js 이전을 진행할 수 있습니다. 수동 추가 카테고리는 저장된 목록 선택과 새 이름 추가를 지원합니다. 최초 설치·Docker 전환은 [원클릭 이전 안내](next/docs/ONE_CLICK_MIGRATION.md)를 참고하세요.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **3.0.0-ca3부터 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
-기존 Java Docker 데이터는 먼저 **`trstyq/bookshelf:3.0.0-ca2-migration`**으로 실행해야 이전 버튼이 표시됩니다. 이전 후에는 **`trstyq/bookshelf:3.0.0-ca2`**의 웹·워커로 전환합니다. 기존 named volume을 유지하는 [발행용 Compose](docker-compose.migration.release.yml)는 두 단계를 `migration`·`next` 프로필로 제공합니다. [ca2 릴리스](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)에서도 내려받을 수 있습니다.
+## 로컬 실행
 
-## Next.js 마이그레이션
+Node.js 22 이상이 필요합니다. 기존 설정이 없다면 `.env.example`을 `.env`로 복사하고 `ALADIN_TTB_KEY`를 설정합니다. SQLite 네이티브 모듈을 직접 빌드하는 환경에는 Python 3·make·g++도 필요합니다.
 
-새 애플리케이션은 [`next/`](next/)에 있습니다. Next.js App Router가 UI·서버·API를 제공하고, Drizzle + SQLite와 별도 워커를 사용합니다.
+기존 `next/`에서 실행 중인 웹·워커는 종료한 뒤 루트에서 다시 실행합니다.
 
 ```bash
-cd next
 npm ci
-npm run dev        # http://localhost:25647
-# 다른 터미널에서 cd next 후:
+npm run dev
+# 다른 터미널, 같은 프로젝트 루트에서:
 npm run worker:dev
 ```
 
-기존 DB 복사본 실행, 최초 계정 생성, 전환·롤백은 [Next README](next/README.md)와 [마이그레이션 절차](next/docs/MIGRATION.md)를 참고하세요. 실제 확인 결과는 [검증 기록](next/docs/VALIDATION.md)에 있습니다. Spring 소스는 이전용으로 유지하고, 이전 후 원본 DB·표지는 Next 프로필의 삭제 버튼으로 정리할 수 있습니다.
+주소는 `http://localhost:25647`입니다. 신규 설치의 첫 계정은 `.env`에서 `REGISTRATION=true`로 시작한 뒤 `/signup`에서 만들고, 생성 후 다시 `false`로 설정합니다. 첫 계정은 관리자입니다. 기존 사용자는 이전 계정으로 로그인합니다.
 
-아래는 기존 Spring 애플리케이션의 실행 안내입니다.
-
-책장/재고 조회용 Spring Boot 프로젝트예요 📚
-
-## 실행
+프로덕션 실행은 다음과 같습니다.
 
 ```bash
-cp .env.example .env
-# 환경값 수정 후
-export $(grep -v '^#' .env | xargs)
-./gradlew bootRun
+npm run build
+npm run start
+# 다른 터미널에서:
+npm run worker
 ```
 
-또는 필요한 서버 포트만 직접 넘겨도 돼요.
+웹·워커·DB CLI는 루트의 `.env`와 동일한 데이터 경로를 사용합니다. 개발 프록시는 `next.config.ts`의 `allowedDevOrigins`로 허용하며, 운영 HTTPS 프록시는 `X-Forwarded-Proto`를 전달합니다. 필요하면 `BOOKSHELF_COOKIE_SECURE=true` 또는 내부 HTTP의 `false`를 지정합니다.
+
+## 기존 ca2 데이터로 전환
+
+소스 위치만 바뀌며 DB 스키마와 Docker 데이터 위치는 유지합니다.
+
+| 환경 | 새 앱 데이터 | 원본 정리용 Java 데이터 |
+|---|---|---|
+| Docker | 웹·워커 모두 `Bookshelf-next:/app/data` | 웹에 `Bookshelf:/data` |
+| 로컬 원클릭 이전 | `data/active-migration.json`, 없으면 기존 `next/data/active-migration.json` | `BOOKSHELF_LEGACY_DATA_DIR`로 지정 |
+
+**Next 전용 이미지에 `/app/next/data`를 연결하면 이전 DB를 읽지 못합니다.** 항상 `/app/data`에 연결합니다. 새 빈 볼륨을 만들거나 이전 기록 파일만 따로 옮기지 않습니다. 실제 DB·표지·백업과 `active-migration.json`을 함께 유지합니다.
+
+로컬 `next/data` 이전본은 그대로 두어도 루트 실행 시 인식합니다. 기존 `next/.env`의 설정은 루트 `.env`로 옮기되 사용자 지정 상대 경로를 확인합니다. 기본 DB·데이터 경로는 `.env.example`처럼 `./data/bookshelf.sqlite`·`./data`를 사용해야 이전 기록을 자동 선택합니다. 원본이 루트 `data/`에 남아 있다면 `BOOKSHELF_LEGACY_DATA_DIR=./data`로 지정합니다. 원클릭 이전 기록 없이 직접 운영하던 `next/data`는 `BOOKSHELF_DB_PATH=./next/data/bookshelf.sqlite`, `BOOKSHELF_DATA_DIR=./next/data`를 명시합니다.
+
+Java 소스·Gradle·이전용 실행기는 ca3에서 제거했습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
+
+## Docker
+
+### 신규 설치·로컬 빌드
+
+루트 `.env`를 준비한 뒤 실행합니다. 이 구성은 새 설치용 `bookshelf-data` 볼륨을 사용합니다.
 
 ```bash
-SERVER_PORT=25647 \
-./gradlew bootRun
+docker compose up -d --build
 ```
 
-기본값은 SQLite입니다. DB URL 환경변수를 주입하지 않아도 루트의 `data/bookshelf.sqlite` 파일을 사용하고, 시작 시 `src/main/resources/schema.sql`로 필요한 테이블을 생성합니다.
+컨테이너 내부 웹 포트는 항상 `25647`이며, 호스트 포트는 `SERVER_PORT`로 바꿉니다. 웹·워커는 같은 `/app/data` 볼륨을 공유하고 UID/GID `1001:1001`로 실행합니다.
 
-알라딘 API 연동은 `ALADIN_TTB_KEY`가 있을 때만 동작합니다. 외부 조회 실패와 정상적인 재고 없음은 분리해서 처리하며, 조회 실패 시 기존 지점 재고를 삭제하지 않습니다.
+### 기존 Bookshelf-next 볼륨 사용
+
+`docker-compose.release.yml`은 기존 `Bookshelf-next`와 `Bookshelf`를 external volume으로 연결합니다. 실제 이름이 다르면 `.env`의 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 맞춥니다. 기존 Java·Next 웹·워커를 모두 종료한 뒤 이 구성으로 전환합니다.
+
+ca3은 PR 준비 버전이며 Docker Hub 발행은 별도입니다. 발행 전에는 루트에서 검증 이미지를 빌드해 사용합니다.
 
 ```bash
-ALADIN_TTB_KEY=your-key ./gradlew bootRun
+docker build -t bookshelf:3.0.0-ca3-local .
+BOOKSHELF_IMAGE=bookshelf:3.0.0-ca3-local docker compose -f docker-compose.release.yml up -d
 ```
 
-운영 환경에서는 remember-me 서명 키도 고정된 랜덤 문자열로 주입하세요.
+`trstyq/bookshelf:3.0.0-ca3` 발행 후에는 같은 파일에서 기본 이미지로 `pull`·`up -d`를 실행할 수 있습니다. `restart`만으로는 이미지·볼륨 설정 변경이 적용되지 않습니다. 저장소 이름 변경으로 기존 `next_bookshelf-data` 등을 사용하던 경우에도 실제 볼륨 이름을 지정합니다.
+
+워커는 DB당 하나만 실행합니다. 실행 중 `.worker-lock.sqlite`를 삭제하지 않습니다. SQLite와 워커 잠금은 같은 호스트의 로컬 파일시스템을 사용합니다.
+
+## 구현 범위
+
+- 계정별 도서·권 CRUD와 SQL 수준 `owner_id` 소유권 검사
+- 기존 BCrypt 및 레거시 SHA-256 로그인 호환, 로그인 성공 시 BCrypt 승격
+- SQLite 기반 서버 세션, 전체 세션 폐기형 비밀번호 변경
+- 알라딘 도서 검색·등록, ISBN 중고 재고 조회, 지점 상품 등급별 가격 파싱
+- 직접 추가 안에서 기존 책 검색·알라딘 미리보기·새 책 등록 또는 기존 책에 이어 넣기
+- 최대 10개 페이지 선택, 서버 재조회 검증, 뒤 페이지부터 화면 순서대로 일괄 권 등록 및 항목별 외전 지정
+- 모든 검색 화면과 기존 책 검색·알라딘 페이지 이동의 요청 중 스피너
+- 보유 권의 제목·ISBN 검색, 지점 재고의 제목·ISBN·지점 검색 및 페이지 이동
+- 별도 워커 기반 중고 재고 일괄 갱신과 SQLite 진행 상태
+- 지점별 재고 집계·상세 화면
+- 런타임 표지를 `data/covers`에 저장하고 인증된 Route Handler로 제공
+- 원격 표지 SSRF 방어, MIME·크기·픽셀 제한, WebP 정규화
+- 미생성·유실 표지 재생성
+- Excel 백업 내보내기/병합 가져오기와 XLSX 압축 폭탄 제한
+- 표지 ZIP 스트리밍 백업, 8MiB 청크·최대 2GiB 업로드, 워커 복원
+- 기존 SQLite 조건부 부트스트랩과 최초 전환 전 자동 DB 백업
+- 반응형 사이드바/모바일 하단 내비게이션, 키보드 포커스, reduced-motion 대응
+
+## 검증
 
 ```bash
-APP_REMEMBER_ME_KEY="$(openssl rand -hex 32)" \
-ALADIN_TTB_KEY=your-key \
-./gradlew bootRun
+npm run verify:source
+npm run build
+npm run test:e2e
+npm run db:verify
 ```
 
-`prod` 프로필에서는 32자 미만이거나 알려진 기본 remember-me 키를 허용하지 않으므로, `APP_REMEMBER_ME_KEY`에 안정적인 임의 값을 주입하지 않으면 애플리케이션이 기동하지 않습니다. `docker-compose.example.yml`도 이 키를 필수로 요구합니다.
-
-## 소유권·재고 참조 마이그레이션 정리
-
-임시 소유권 마이그레이션 경로는 제거되었고, 현재 운영/개발 DB는 `owner_id`, `book_volume_id` 정합성 전제하에 동작합니다.
-새로운 화면/스크립트에는 `/user/profile/migrations/*` 경로가 더 이상 없습니다.
-
-## 엑셀 백업과 커버 재생성
-
-사용자 프로필에서 현재 로그인 계정의 도서·권 데이터를 `.xlsx`로 내려받거나 다시 업로드할 수 있습니다. 업로드는 엑셀 안의 사용자 정보가 아니라 현재 세션의 회원 ID를 소유자로 사용하며, ISBN13이 일치하는 기존 도서·권을 우선 upsert합니다. 일치 ISBN13이 없으면 제목·저자를 보조 기준으로 사용하고 기존 데이터를 자동 삭제하지 않습니다.
-
-엑셀에는 이미지 파일이 포함되지 않으므로 업로드된 도서와 권은 `cover_generated = false`로 기록됩니다. 프로필의 `커버 재생성`은 현재 계정의 미생성 항목만 처리하고, 로컬 커버 파일 확인 또는 새 다운로드에 성공한 항목만 `true`로 전환합니다. 실패 항목은 `false`로 남아 다음 실행에서 다시 처리됩니다. 커버 검색과 다운로드에는 `ALADIN_TTB_KEY`가 필요합니다.
-
-표지 파일은 프로필의 `표지 압축 다운로드`에서 별도 ZIP으로 백업할 수 있습니다. 브라우저는 ZIP을 8MiB 청크로 순차 전송하며 최대 2GiB까지 업로드할 수 있고, 서버는 재조립 후 백그라운드에서 복원 상태를 처리합니다. ZIP 복원은 현재 계정의 데이터가 참조하는 안전한 이미지 파일만 커버 저장소에 풀며, 이미 존재하는 파일은 덮어쓰지 않습니다. 복원되었거나 이미 존재함이 확인된 표지는 `cover_generated = true`로 갱신됩니다. 따라서 전체 복원은 엑셀을 먼저 업로드한 뒤 표지 ZIP을 업로드하는 순서가 권장됩니다.
-
-책 수동 추가에서 `알라딘 외 등록`을 선택하면 알라딘 조회 없이 입력한 제목·저자·설명·표지 URL 등의 정보로 새 책을 등록합니다. 이때 JPG·PNG·GIF 표지 파일(최대 8MB)을 직접 올릴 수 있으며, 파일을 선택하면 표지 URL보다 우선합니다. 도서 상세의 `권 추가`에서도 같은 직접 등록 방식과 표지 파일 업로드를 사용할 수 있고, 책 정보 수정에서도 표지 파일을 교체할 수 있습니다.
-
-애플리케이션을 SQLite DB로 실행한 뒤 주요 화면 smoke test를 돌릴 수 있습니다.
+`db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-BOOKSHELF_BASE_URL=http://localhost:25647 \
-BOOKSHELF_DB_PATH=./data/bookshelf.sqlite \
-npm run screen:smoke
+docker build -t bookshelf:3.0.0-ca3-local .
+npm run test:docker -- bookshelf:3.0.0-ca3-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.0.0-ca3-local npm run test:cleanup:docker
 ```
 
-이 스크립트는 SQLite DB에 smoke test 계정과 샘플 책/지점 재고를 임시로 추가한 뒤 로그인, 대시보드, 책장, 책 상세, 상품 검색, 지점 재고 화면을 확인하고 fixture를 정리합니다.
+Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
 
-SQLite 스키마와 핵심 저장소 SQL만 먼저 확인하려면 아래 검증을 실행합니다.
+## 디렉터리
 
-```bash
-npm run db:verify:sqlite
+```text
+app/          페이지와 Route Handler
+components/   UI 컴포넌트
+features/     기능별 queries/actions/service/validation/types
+db/           Drizzle 스키마와 SQLite bootstrap
+worker/       재고 갱신·표지 ZIP 복원
+lib/          환경변수·세션 지원·공통 인프라
+scripts/      DB·소스·Docker 검증 도구
+tests/        단위·통합·브라우저 검사
+data/         Git 제외 DB·표지·업로드·백업
+public/       배포용 정적 파일
 ```
 
-현재 환경에서 가능한 로컬 검증을 한 번에 실행하려면 아래 명령을 사용합니다.
-
-```bash
-npm run verify:local
-```
-
-앱 실행용 `.env`에는 SQLite URL을 넣지 않습니다. 애플리케이션은 루트 `data/bookshelf.sqlite`를 자동으로 사용합니다.
-
-루트에서 바로 실행하고 싶으면 `run.sh`를 써요.
-
-```bash
-./run.sh                    # .env 자동 로드 + Tailwind 빌드 + 포트 충돌 자동 정리 + foreground 실행
-./run.sh --dev              # .env 자동 로드 + Tailwind 빌드 + compileJava 검증 + 포트 충돌 자동 정리 + foreground 실행
-./run.sh --skip-css         # .env 자동 로드 + Tailwind 빌드 생략 + 포트 충돌 자동 정리 + foreground 실행
-./run.sh --dev --skip-css   # .env 자동 로드 + Tailwind 빌드 생략 + compileJava 검증 + 포트 충돌 자동 정리 + foreground 실행
-```
-
-`run.sh`는 같은 포트(기본 `25647`)에서 동작 중인 프로세스가 있으면 자동으로 종료 후 앱을 실행합니다.
-
-백그라운드 제어가 필요하면 `run-bg.sh`를 사용하세요.
-
-```bash
-./run-bg.sh start --dev            # 백그라운드 시작
-./run-bg.sh status                  # 상태 확인
-./run-bg.sh stop                    # 백그라운드 종료
-./run-bg.sh restart --skip-css       # 재시작
-./run-bg.sh logs                    # 최근 로그 확인
-```
-
-애플리케이션 로그는 실행 방식과 관계없이 `data/logs/bookshelf.log`에도 남습니다. 재고 갱신 실패는 책 ID, 권차, ISBN13, 실패 원인과 함께 이 파일에 기록되며, 10MB 단위로 회전하고 14일간 보관합니다. Docker에서는 같은 로그가 `/data/logs/bookshelf.log`에 저장되므로 `/data` 볼륨에 유지됩니다. 경로는 `BOOKSHELF_APP_LOG_FILE`로 변경할 수 있습니다.
-
-알라딘 재고 갱신은 API 호출 제한을 넘지 않도록 한 번에 한 권씩 처리하고, 모든 알라딘 요청 시작 사이에 기본 최소 0.1초 간격을 둡니다. 지점 재고는 API가 제공하는 최저가만 저장하며 지점별 상세 HTML은 조회하지 않습니다. 429 또는 네트워크 timeout은 기본 3회까지 지수 백오프로 재시도하며, 429가 계속되면 기존 재고를 보존하고 남은 일괄 갱신을 중단합니다. 간격과 재시도는 `ALADIN_MIN_REQUEST_INTERVAL_MS`, `ALADIN_MAX_ATTEMPTS`, `ALADIN_INITIAL_BACKOFF_MS`, `ALADIN_MAX_BACKOFF_MS`로 조정할 수 있습니다.
-
-## 기본 포트
-- http://localhost:25647
-
-## 현재 구조
-- `src/main/java/com/example/bookshelf/BookshelfApplication.java`
-- `src/main/java/com/example/bookshelf/web/*Controller.java`
-- `src/main/java/com/example/bookshelf/user/repository/*`
-- `src/main/java/com/example/bookshelf/integration/aladin/*`
-- `src/main/resources/application.yml`
-
-## 개선 메모
-- SQLite DB는 루트 `data/bookshelf.sqlite`를 기본 경로로 사용
-- 로그인 세션 조회 로직은 공통 헬퍼로 관리
-- 외부 API(알라딘) 연동 실패는 로그 남기고 화면은 최대한 정상 동작 유지
-
-## 빌드/실행 보완
-- `./run.sh` 기본 동작은 vendor JS 복사와 Tailwind CSS 빌드를 먼저 수행합니다. `node_modules`가 없고 `package-lock.json`이 있으면 `npm ci --no-audit --no-fund`를 사용하고, lockfile이 없을 때만 `npm install --no-audit --no-fund`로 설치합니다. `--skip-css` 옵션 시 빌드를 완전히 건너뜁니다.
-- Docker 이미지는 빌드 단계에서 Tailwind CSS를 생성한 뒤 JAR을 빌드합니다.
-  ```bash
-  docker build -t bookshelf:2.0.0 .
-  docker run --rm -p 25647:25647 -v "$PWD/data:/data" bookshelf:2.0.0
-  ```
+Server Component는 `queries.ts`를 직접 호출합니다. 자기 `/api`를 HTTP로 다시 호출하지 않습니다. Route Handler는 polling·파일 전송·원시 청크·JSON 경계에서 사용합니다. Java 시절 Excel·표지 경로·SHA-256 및 BCrypt 비밀번호 호환과 계정별 소유권 검사는 유지합니다.
