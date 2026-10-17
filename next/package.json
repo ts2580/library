@@ -1,6 +1,6 @@
 {
   "name": "bookshelf-next",
-  "version": "3.0.0-ca1",
+  "version": "3.0.0-ca2",
   "private": true,
   "allowScripts": {
     "better-sqlite3": true,

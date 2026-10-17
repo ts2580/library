@@ -1,6 +1,6 @@
 # Apply after docker-compose.next.yml to use the published Next.js image.
 services:
   web:
-    image: trstyq/bookshelf:3.0.0-ca1
+    image: trstyq/bookshelf:3.0.0-ca2
   worker:
-    image: trstyq/bookshelf:3.0.0-ca1
+    image: trstyq/bookshelf:3.0.0-ca2

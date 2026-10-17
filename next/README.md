@@ -117,9 +117,9 @@ BOOKSHELF_DATA_DIR=./data/migration-check npm run dev
 
 ## Docker 실행
 
-### 3.0.0-ca1 사전 릴리스
+### 3.0.0-ca2 사전 릴리스
 
-`trstyq/bookshelf:3.0.0-ca1`은 Next.js 웹·워커용 `linux/amd64` 이미지입니다. 같은 이미지에서 웹은 `npm run start`, 워커는 `npm run worker`로 실행합니다. Java에서 데이터 이전을 마쳤다면 저장소 **루트**에서 아래 명령으로 발행 이미지를 사용합니다. 루트 `.env`의 알라딘 설정과 기존 `./next/data`를 그대로 사용합니다.
+`trstyq/bookshelf:3.0.0-ca2`는 Next.js 웹·워커용 `linux/amd64` 이미지입니다. 같은 이미지에서 웹은 `npm run start`, 워커는 `npm run worker`로 실행합니다. Java에서 데이터 이전을 마쳤다면 저장소 **루트**에서 아래 명령으로 발행 이미지를 사용합니다. 루트 `.env`의 알라딘 설정과 기존 `./next/data`를 그대로 사용합니다.
 
 ```bash
 docker compose -f docker-compose.next.yml -f docker-compose.next.release.yml pull
