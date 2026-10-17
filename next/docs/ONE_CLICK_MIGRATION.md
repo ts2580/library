@@ -2,7 +2,7 @@
 
 관리자 한 명만 사용하는 기존 Spring 책장을 위한 이전 패치입니다. **프로필 → Next.js 책장으로 이전 → 새 책장으로 이전**을 누르면 DB·표지를 복사하고, Next 스키마 적용·검사 후 새 웹·워커를 시작합니다. DB 업로드나 표지 ZIP을 따로 만들 필요가 없습니다.
 
-코드·로컬 빌드·격리 테스트까지 완료한 패치입니다. 현재 실행 중인 기존 서비스에는 아직 설치하거나 재시작하지 않았습니다. 패치를 포함한 Spring을 실행해야 버튼이 표시됩니다.
+패치를 포함한 Spring을 실행해야 버튼이 표시됩니다. Docker에서는 Java·Node·Next를 함께 담은 `trstyq/bookshelf:3.0.0-ca2-migration`을 먼저 사용합니다. `trstyq/bookshelf:3.0.0-ca2`는 이전 완료 후 운영하는 Next 전용 이미지입니다. 이미지 발행은 운영 컨테이너를 자동으로 교체하지 않습니다.
 
 ## 로컬에서 준비
 
@@ -32,6 +32,47 @@ npm run css:build
 리버스 프록시 환경에서는 새 앱을 프록시에 연결하고 `BOOKSHELF_NEXT_PUBLIC_URL`을 지정합니다. 버튼은 DNS·프록시·배포 설정을 변경하지 않습니다. 로컬 직접 접속은 별도 주소 설정 없이 동작합니다.
 
 ## Docker를 사용하는 경우
+
+### 기존 Docker volume을 사용하는 경우
+
+기존 `Bookshelf:/data` 연결은 유지합니다. 이전용 이미지와 새 데이터 볼륨, `25648` 포트를 추가합니다. 마운트 이름은 다음 한 줄로 확인합니다. 컨테이너 이름이 다르면 `Bookshelf`를 바꿉니다.
+
+```bash
+docker inspect Bookshelf --format '{{json .Mounts}}'
+```
+
+`Destination`이 `/data`인 항목의 **Name**이 기존 Java 데이터 볼륨입니다. `/app/data`에 다른 익명 볼륨이 있어도 이 절차에서 삭제하지 않습니다. `Type`이 `bind`인 경우 아래 로컬 디렉터리 절차를 사용합니다.
+
+| 단계 | 이미지 | 기존 볼륨 | 새 볼륨 | 접속 포트 |
+|---|---|---|---|---|
+| Java에서 이전 | `trstyq/bookshelf:3.0.0-ca2-migration` | `Bookshelf:/data` | `Bookshelf-next:/app/next/data` | Java `25647`, Next `25648` |
+| Next 운영 | `trstyq/bookshelf:3.0.0-ca2` 웹·워커 | 웹에 `Bookshelf:/data` | 웹·워커에 `Bookshelf-next:/app/data` | `25647` |
+
+저장소의 `docker-compose.migration.release.yml` 또는 [릴리스 첨부 파일](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/docker-compose.migration.3.0.0-ca2.yml)을 별도 작업 폴더에 둡니다. 아래 명령은 저장소 파일 이름 기준이며, 첨부 파일을 사용할 때는 파일 이름을 맞춥니다. 같은 폴더의 `.env`에 기존 컨테이너의 알라딘·remember-me 등 환경 설정을 유지합니다. 설정 파일이 없다면 `touch .env`로 만들고 기존 설정을 옮깁니다. 값은 외부에 공유하지 않습니다.
+
+```bash
+# 확인한 실제 volume 이름을 지정합니다. 이후 전환에서도 같은 값을 사용합니다.
+export BOOKSHELF_LEGACY_VOLUME=Bookshelf
+export BOOKSHELF_NEXT_VOLUME=Bookshelf-next
+docker compose -p bookshelf-transition -f docker-compose.migration.release.yml --profile migration pull
+# 기존 컨테이너를 정지하되 원본 볼륨은 유지합니다.
+docker stop Bookshelf
+docker compose -p bookshelf-transition -f docker-compose.migration.release.yml --profile migration up -d
+```
+
+`http://서버주소:25647/user/profile`에서 기존 관리자 계정으로 로그인한 뒤 **새 책장으로 이전**을 누릅니다. 완료 후 `http://서버주소:25648`에서 같은 계정·책·표지를 확인합니다. HTTPS·리버스 프록시를 쓰면 Next 포트도 프록시에 연결하고 `.env`의 `BOOKSHELF_NEXT_PUBLIC_URL`에 새 주소를 지정합니다.
+
+확인이 끝나면 같은 Compose·볼륨으로 Next 전용 운영을 시작합니다. 이전 컨테이너를 중지하면 그 안의 웹·워커도 종료됩니다.
+
+```bash
+docker compose -p bookshelf-transition -f docker-compose.migration.release.yml --profile next pull
+docker compose -p bookshelf-transition -f docker-compose.migration.release.yml --profile migration stop -t 30 migration
+docker compose -p bookshelf-transition -f docker-compose.migration.release.yml --profile next up -d
+```
+
+이후 `http://서버주소:25647`이 Next 화면입니다. 새 데이터는 같은 `Bookshelf-next` 볼륨에 유지됩니다. 두 프로필을 동시에 실행하지 않고, `down -v`나 볼륨 삭제를 실행하지 않습니다. 기존 데이터 정리는 Next 전용 운영으로 전환한 뒤 프로필에서 진행합니다.
+
+### 로컬 디렉터리·소스 빌드를 사용하는 경우
 
 기존 Java 이미지에는 Node·Next 빌드가 없으므로 일회성 이전용 이미지가 필요합니다. 기존 쓰기 프로세스를 중지한 상태에서 실행합니다. `.env`는 현재 알라딘 설정을 유지합니다.
 

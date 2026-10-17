@@ -2,6 +2,8 @@
 
 기존 프로필의 **새 책장으로 이전** 버튼으로 Next.js 이전을 진행할 수 있습니다. 수동 추가 카테고리는 저장된 목록 선택과 새 이름 추가를 지원합니다. 최초 설치·Docker 전환은 [원클릭 이전 안내](next/docs/ONE_CLICK_MIGRATION.md)를 참고하세요.
 
+기존 Java Docker 데이터는 먼저 **`trstyq/bookshelf:3.0.0-ca2-migration`**으로 실행해야 이전 버튼이 표시됩니다. 이전 후에는 **`trstyq/bookshelf:3.0.0-ca2`**의 웹·워커로 전환합니다. 기존 named volume을 유지하는 [발행용 Compose](docker-compose.migration.release.yml)는 두 단계를 `migration`·`next` 프로필로 제공합니다. [ca2 릴리스](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)에서도 내려받을 수 있습니다.
+
 ## Next.js 마이그레이션
 
 새 애플리케이션은 [`next/`](next/)에 있습니다. Next.js App Router가 UI·서버·API를 제공하고, Drizzle + SQLite와 별도 워커를 사용합니다.

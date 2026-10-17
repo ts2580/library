@@ -1,0 +1,64 @@
+# Published Java -> Next migration, followed by Next-only operation.
+# Set BOOKSHELF_LEGACY_VOLUME to the existing Docker volume name.
+# Keep the same project, environment and volume names for both profiles.
+services:
+  migration:
+    profiles: [migration]
+    image: trstyq/bookshelf:3.0.0-ca2-migration
+    init: true
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      SERVER_PORT: "25647"
+      BOOKSHELF_NEXT_PORT: "25648"
+      BOOKSHELF_NEXT_APP_DIR: /app/next
+      SPRING_DATASOURCE_URL: jdbc:sqlite:/data/bookshelf.sqlite?foreign_keys=on&busy_timeout=5000
+      BOOKSHELF_COVER_DIR: /data/covers
+      REGISTRATION: "false"
+    ports:
+      - "25647:25647"
+      - "25648:25648"
+    volumes:
+      - legacy:/data
+      - next-data:/app/next/data
+  web:
+    profiles: [next]
+    image: trstyq/bookshelf:3.0.0-ca2
+    init: true
+    restart: unless-stopped
+    command: npm run start
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: ./data
+      BOOKSHELF_LEGACY_DATA_DIR: /data
+      REGISTRATION: "false"
+    ports:
+      - "25647:25647"
+    volumes:
+      - next-data:/app/data
+      - legacy:/data
+  worker:
+    profiles: [next]
+    image: trstyq/bookshelf:3.0.0-ca2
+    init: true
+    restart: unless-stopped
+    command: npm run worker
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: ./data
+      REGISTRATION: "false"
+    healthcheck:
+      disable: true
+    volumes:
+      - next-data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  legacy:
+    external: true
+    name: ${BOOKSHELF_LEGACY_VOLUME:?Set the existing Java data volume name}
+  next-data:
+    name: ${BOOKSHELF_NEXT_VOLUME:-Bookshelf-next}
