@@ -20,7 +20,7 @@ The previously specified **clear inventory when a refresh starts** policy is unc
 
 This patch is not a claim that the entire review is resolved. Login throttling and credential-change races, legacy-source deletion guarantees, auth/profile service refactoring, a single migration history, large Excel memory/transaction bounds, moving cover regeneration to a worker, and worker scheduling fairness remain follow-up work. The normal-edit and Excel ISBN rules are aligned, but consolidating both implementations into one service is deferred.
 
-## Validation in this editing environment
+## Validation in the original editing environment
 
 GitHub file baselines were checked against their Git blob SHAs before applying changes. No user DB, `.env`, credentials, migration output or `node_modules` is part of this change.
 
@@ -42,3 +42,22 @@ npm run test:e2e
 ```
 
 Also exercise duplicate worker startup and crash recovery in the target Docker volume before deployment. A single local filesystem/host is required; the process lock is not a distributed queue.
+
+## 로컬 저장소 분석 및 추가 수정 (2026-10-17)
+
+원격 `f17fca5`를 별도 작업 디렉터리에서 분석했습니다. 위 초기 환경의 대체 SQLite·부분 검사와 구분하여, lockfile에 고정된 실제 의존성인 `better-sqlite3`, Next.js, Playwright를 사용했습니다. 테스트 DB·계정·볼륨은 임시로 생성했습니다.
+
+백업 패널에서 다음 두 오류를 실제 Next 프로덕션 서버와 브라우저로 먼저 재현하고 수정했습니다.
+
+- 마지막 청크까지 업로드된 작업에서 상태 조회는 성공하지만 ZIP 조립 요청이 반복 실패하면, 실패 횟수가 매번 초기화되어 무한 재시도가 발생했습니다. 조립 요청까지 성공했을 때만 횟수를 초기화하고, 3회 실패 후 작업 ID를 보존한 채 수동 상태 확인으로 전환합니다.
+- 최초 ZIP 조립 요청에는 시간 제한이 없어 응답이 멈추면 후속 상태 조회도 시작되지 않았습니다. 15초 제한 후 저장된 작업 ID로 조회하도록 변경했습니다. 서버에서 완료된 작업은 재업로드 없이 완료 상태를 표시합니다.
+
+검증 결과:
+
+- Node 24.21.0 / npm 12.0.2에서 `npm run verify:source`: 문법·구조·타입 검사 및 Vitest 14개 파일, 126개 테스트 통과.
+- `npm run build`: 프로덕션 빌드 통과.
+- `npm run test:e2e`: 데스크톱 33개 + 모바일 33개, 총 66개 통과. 추가한 백업 회귀 테스트는 수정 전 2개 실패를 확인했고 수정 후 두 화면 크기에서 통과했습니다. 알라딘 외부 응답과 백업 오류·지연 조건은 fixture로 제어하며, 일반 백업 왕복은 실제 웹·워커·SQLite로 검증합니다.
+- Node 22 Docker 이미지 `bookshelf-next:canary-audit-local` 빌드 및 웹·워커 smoke 통과. UID 1001, 공유 DB, 로그인 HTTP 200, 비인증 API 401, DB 무결성 및 외래키 검사 확인.
+- 별도 Docker 볼륨에서 실제 워커를 실행하고 두 번째 워커의 종료 코드 1 및 기존 RUNNING 작업 불변 확인. 첫 워커를 SIGKILL로 종료한 뒤 새 워커가 잠금을 획득하고 중단 작업을 FAILED로 복구하는 것 확인.
+
+교체 절차는 Next README에도 반영했습니다. 기존 워커는 새 잠금을 사용하지 않으므로 업데이트 전에 모두 종료해야 합니다. 재고 갱신 시작 시 기존 재고를 지우는 정책과 위 후속 과제는 이번 수정 범위에 포함하지 않습니다.

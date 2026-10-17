@@ -50,6 +50,47 @@ test("the ordinary user's mobile menu has one column per item", async ({ page })
   expect(await nav.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length)).toBe(4);
 });
 
+test("repeated assembly errors stop automatic retries and allow a manual status check", async ({ page }) => {
+  await login(page);
+  await page.addInitScript(() => sessionStorage.setItem("bookshelf.cover-restore-job", "assembly-retry-job"));
+  let attempts = 0;
+  let recovered = false;
+  await page.route("**/api/backup/covers/uploads/assembly-retry-job/status", (route) => route.fulfill({ json: {
+    status: recovered ? "COMPLETED" : "UPLOADING", percent: 100, totalChunks: 1, uploadedChunks: 1,
+    completed: recovered, message: recovered ? "수동 확인으로 복원 완료" : "전송 완료"
+  } }));
+  await page.route("**/api/backup/covers/uploads/assembly-retry-job/complete", (route) => {
+    attempts += 1;
+    return route.fulfill({ status: 503, json: { message: "일시적인 조립 요청 실패" } });
+  });
+  await page.goto("/profile");
+  const retry = page.getByRole("button", { name: "작업 상태 다시 확인", exact: true });
+  await expect(retry).toBeVisible({ timeout: 13_000 });
+  expect(attempts).toBe(3);
+  expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBe("assembly-retry-job");
+  recovered = true;
+  await retry.click();
+  await expect(page.getByText("수동 확인으로 복원 완료", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBeNull();
+});
+
+test("a stalled initial assembly response falls back to the saved job status", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/backup/covers/uploads", (route) => route.fulfill({ status: 201, json: { uploadId: "assembly-timeout-job" } }));
+  await page.route("**/api/backup/covers/uploads/assembly-timeout-job/chunks/0", (route) => route.fulfill({ json: {} }));
+  // Leave the response pending: the browser must bound the request and query status.
+  await page.route("**/api/backup/covers/uploads/assembly-timeout-job/complete", () => {});
+  await page.route("**/api/backup/covers/uploads/assembly-timeout-job/status", (route) => route.fulfill({ json: {
+    status: "COMPLETED", percent: 100, totalChunks: 1, uploadedChunks: 1, completed: true, message: "응답 지연 후 복원 완료"
+  } }));
+  await page.goto("/profile");
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByRole("button", { name: "표지 업로드", exact: true }).click()]);
+  await chooser.setFiles({ name: "fixture.zip", mimeType: "application/zip", buffer: Buffer.from("fixture") });
+  await expect(page.getByText("응답 지연 후 복원 완료", { exact: true })).toBeVisible({ timeout: 18_000 });
+  await expect(page.getByRole("button", { name: "표지 업로드", exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBeNull();
+});
+
 test("mobile volume editing uses the card width rather than the cover side column", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await login(page); await page.goto("/books/1");

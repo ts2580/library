@@ -66,7 +66,6 @@ export function BackupPanel() {
         });
         const status = await responseBody<UploadStatus>(response);
         if (!mounted.current || controller.signal.aborted) return;
-        failures = 0;
         if (status.status === "UPLOADING" && status.totalChunks > 0 && status.uploadedChunks === status.totalChunks) {
           // Recover a refresh between the last chunk and the idempotent complete request.
           setPhase("ASSEMBLING");
@@ -74,8 +73,10 @@ export function BackupPanel() {
           await responseBody(await fetch(`/api/backup/covers/uploads/${uploadId}/complete`, {
             method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
           }));
+          failures = 0;
           return;
         }
+        failures = 0;
         setPhase(status.status);
         setMessage(status.message ?? "표지 ZIP 작업 상태를 확인하고 있습니다.");
         if (status.status === "UPLOADING") setPercent(status.percent);
@@ -158,7 +159,7 @@ export function BackupPanel() {
       setPhase("ASSEMBLING");
       setMessage("업로드가 끝났습니다. ZIP 조립 후 복원을 시작합니다.");
       const complete = await fetch(`/api/backup/covers/uploads/${acceptedJob}/complete`, {
-        method: "POST", signal: controller.signal
+        method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
       });
       await responseBody(complete);
       if (mounted.current && !controller.signal.aborted) pollStatus(acceptedJob);
