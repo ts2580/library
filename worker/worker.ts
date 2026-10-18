@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { acquireWorkerLock } from "./singleton";
 import { logger } from "@/lib/logger";
 import { purgeExpiredSessions } from "@/features/auth/session";
-import { processNextCoverArchiveJob, recoverInterruptedCoverArchiveJobs } from "@/features/backup/archive";
+import { processNextCoverArchiveJob, recoverInterruptedCoverArchiveJobs, recoverStaleCoverAssemblies } from "@/features/backup/archive";
 import { processNextStockRefreshJob, recoverInterruptedStockJob } from "@/features/inventory/service";
 
 let stopping = false;
@@ -15,6 +15,11 @@ async function main(): Promise<void> {
   // Acquire before any recovery: another live worker must never be "recovered".
   const release = acquireWorkerLock(env.databasePath);
   process.once("exit", release);
+  const assemblyRecovery = setInterval(() => {
+    try { recoverStaleCoverAssemblies(); }
+    catch (error) { logger.error("Stale cover assembly recovery failed", { error: String(error) }); }
+  }, 30_000);
+  assemblyRecovery.unref();
   try {
     recoverInterruptedStockJob();
     recoverInterruptedCoverArchiveJobs();
@@ -33,6 +38,7 @@ async function main(): Promise<void> {
     }
     logger.info("Bookshelf worker stopped");
   } finally {
+    clearInterval(assemblyRecovery);
     process.off("exit", release);
     release();
   }

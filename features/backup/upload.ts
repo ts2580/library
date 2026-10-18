@@ -8,6 +8,7 @@ import { sqlite } from "@/db";
 import { env } from "@/lib/env";
 import { AppError, errorMessage } from "@/lib/errors";
 import { safeFilename } from "@/lib/strings";
+import { discardFailedCoverUploadFiles } from "@/features/backup/upload-cleanup";
 
 export const CHUNK_SIZE = 8 * 1024 * 1024;
 export const MAX_ARCHIVE_SIZE = 2 * 1024 * 1024 * 1024;
@@ -70,16 +71,19 @@ export function createCoverUpload(ownerId: number, input: { filename: string; to
   cleanupAbandonedUploads(ownerId);
   const uploadId = randomUUID();
   const transaction = sqlite.transaction(() => {
-    const usage = sqlite.prepare(`
-      SELECT COUNT(*) AS activeCount, COALESCE(SUM(total_size), 0) AS activeBytes
+    const rows = sqlite.prepare(`
+      SELECT upload_id AS uploadId, total_size AS totalSize, status
       FROM backup_upload_job
-      WHERE owner_id = ? AND status IN ('UPLOADING', 'ASSEMBLING', 'QUEUED', 'PROCESSING')
-    `).get(ownerId) as { activeCount: number; activeBytes: number };
+      WHERE owner_id = ? AND status IN ('UPLOADING', 'ASSEMBLING', 'QUEUED', 'PROCESSING', 'FAILED')
+    `).all(ownerId) as Array<{ uploadId: string; totalSize: number; status: string }>;
+    // Failed files that could not be removed still reserve their bytes and job slot.
+    const retained = rows.filter(row => row.status !== "FAILED" || !discardFailedCoverUploadFiles(row.uploadId));
+    const usage = { activeCount: retained.length, activeBytes: retained.reduce((sum, row) => sum + row.totalSize, 0) };
     if (usage.activeCount >= MAX_ACTIVE_UPLOADS_PER_OWNER) {
-      throw new AppError("동시에 진행할 수 있는 표지 ZIP 작업은 계정당 2개입니다.", "UPLOAD_LIMIT", 409);
+      throw new AppError("진행 중이거나 정리 대기 중인 표지 ZIP 작업은 계정당 2개까지 가능합니다.", "UPLOAD_LIMIT", 409);
     }
     if (usage.activeBytes + input.totalSize > MAX_ARCHIVE_SIZE) {
-      throw new AppError("계정의 진행 중인 표지 ZIP 총량이 2GiB를 초과합니다.", "UPLOAD_LIMIT", 409);
+      throw new AppError("계정의 진행 중이거나 정리 대기 중인 표지 ZIP 총량이 2GiB를 초과합니다.", "UPLOAD_LIMIT", 409);
     }
     sqlite.prepare(`
       INSERT INTO backup_upload_job(upload_id, owner_id, original_filename, total_size, total_chunks,
@@ -147,11 +151,12 @@ export async function saveCoverChunk(ownerId: number, uploadId: string, index: n
 export async function completeCoverUpload(ownerId: number, uploadId: string): Promise<UploadRow> {
   const job = readJob(uploadId, ownerId);
   if (job.status !== "UPLOADING") return job;
+  const token = `assemble:${randomUUID()}`;
   const claim = sqlite.prepare(`
     UPDATE backup_upload_job SET status = 'ASSEMBLING', lock_token = ?,
       message = '표지 ZIP 청크를 조립하고 있습니다.', updated_at = CURRENT_TIMESTAMP
     WHERE upload_id = ? AND owner_id = ? AND status = 'UPLOADING'
-  `).run(`assemble:${randomUUID()}`, uploadId, ownerId);
+  `).run(token, uploadId, ownerId);
   if (claim.changes !== 1) return readJob(uploadId, ownerId);
 
   const dir = uploadDir(uploadId);
@@ -166,6 +171,9 @@ export async function completeCoverUpload(ownerId: number, uploadId: string): Pr
         fs.createReadStream(path.join(dir, `${i}.part`)),
         fs.createWriteStream(temporary, { flags: i === 0 ? "wx" : "a" })
       );
+      const heartbeat = sqlite.prepare(`UPDATE backup_upload_job SET updated_at=CURRENT_TIMESTAMP
+        WHERE upload_id=? AND owner_id=? AND status='ASSEMBLING' AND lock_token=?`).run(uploadId, ownerId, token);
+      if (heartbeat.changes !== 1) throw new AppError("ZIP 조립 작업이 만료되었습니다. 다시 업로드해 주세요.");
     }
     if (fs.statSync(temporary).size !== job.totalSize) throw new AppError("조립된 ZIP 크기가 원본과 다릅니다.");
     fs.rmSync(assembled, { force: true });
@@ -184,6 +192,7 @@ export async function completeCoverUpload(ownerId: number, uploadId: string): Pr
         message = ?, updated_at = CURRENT_TIMESTAMP
       WHERE upload_id = ? AND owner_id = ?
     `).run(`표지 ZIP 조립 실패: ${errorMessage(error, "내부 오류가 발생했습니다. 다시 업로드해 주세요.")}`, uploadId, ownerId);
+    discardFailedCoverUploadFiles(uploadId);
     throw error;
   }
   return readJob(uploadId, ownerId);

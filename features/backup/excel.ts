@@ -199,6 +199,18 @@ export async function importExcelBackup(ownerId: number, file: File): Promise<Im
 
   const bookData = rows(bookSheet);
   const volumeData = rows(volumeSheet);
+  // Resolve workbook collisions before creating or updating any destination book.
+  const sourceBookByIsbn = new Map<string, string>();
+  for (const row of volumeData) {
+    const bookKey = pick(row, "book_source_id", "book", "bookId", "도서키") ?? "";
+    for (const isbn of [pick(row, "isbn13"), pick(row, "isbn10", "isbn")]) {
+      if (!isbn) continue;
+      if (sourceBookByIsbn.has(isbn) && sourceBookByIsbn.get(isbn) !== bookKey) {
+        throw new AppError("같은 ISBN이 엑셀의 여러 도서에 지정되어 있습니다.");
+      }
+      sourceBookByIsbn.set(isbn, bookKey);
+    }
+  }
   const sourceMap = new Map<string, number>();
   const counters = { booksCreated: 0, booksUpdated: 0, volumesCreated: 0, volumesUpdated: 0 };
 

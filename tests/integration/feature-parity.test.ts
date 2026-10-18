@@ -168,6 +168,35 @@ describe("Java feature parity regressions", () => {
     expect(sqlite.prepare("SELECT id FROM book_volumes").all()).toEqual([{ id: 3 }]);
     expect(sqlite.prepare("SELECT id FROM branchbook").all()).toEqual([{ id: 3 }]);
   });
+  it.each([1, null])("removes ambiguous legacy stock only after every matching volume is selected: %s", (number) => {
+    volume(1, 1, number); volume(2, 1, number); volume(3, 1, number); volume(4, 2, number);
+    sqlite.prepare("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,?,'SEOUL'),(2,2,?,'SEOUL')").run(number, number);
+    deleteVolumes(1, 1, [1]);
+    expect(sqlite.prepare("SELECT id FROM branchbook ORDER BY id").all()).toEqual([{ id: 1 }, { id: 2 }]);
+    deleteVolumes(1, 1, [2, 3]);
+    expect(sqlite.prepare("SELECT id FROM branchbook ORDER BY id").all()).toEqual([{ id: 2 }]);
+  });
+  it.each(["isbn13", "isbn10"])("rejects cross-book %s collisions inside a workbook before inserting data", async (column) => {
+    const workbook = new ExcelJS.Workbook();
+    const books = workbook.addWorksheet("Books"); books.addRow(["source_id", "name"]); books.addRow(["A", "새 책 A"]); books.addRow(["B", "새 책 B"]);
+    const volumes = workbook.addWorksheet("Volumes"); volumes.addRow(["book_source_id", "name", column]);
+    volumes.addRow(["A", "첫 권", "9780000000001"]); volumes.addRow(["B", "다른 책의 권", "9780000000001"]);
+    const file = await workbookFile(workbook);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(importExcelBackup(1, file)).rejects.toThrow("여러 도서");
+      expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS n FROM book_volumes").get()).toEqual({ n: 0 });
+    }
+  });
+  it("keeps valid ISBN workbook imports repeatable", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const books = workbook.addWorksheet("Books"); books.addRow(["source_id", "name"]); books.addRow(["A", "ISBN 책 A"]); books.addRow(["B", "ISBN 책 B"]);
+    const volumes = workbook.addWorksheet("Volumes"); volumes.addRow(["book_source_id", "name", "isbn13"]);
+    volumes.addRow(["A", "첫 권", "9780000000001"]); volumes.addRow(["B", "다른 권", "9780000000002"]);
+    const file = await workbookFile(workbook);
+    await importExcelBackup(1, file);
+    expect(await importExcelBackup(1, file)).toMatchObject({ booksCreated: 0, booksUpdated: 2, volumesCreated: 0, volumesUpdated: 2 });
+  });
   it("enriches missing metadata without overwriting an existing author or purchase state", async () => {
     volume(); sqlite.exec("UPDATE books SET author='직접 입력 저자' WHERE id=1; UPDATE book_volumes SET ispurchased=1,originalUrl='https://example.com/cover.jpg'");
     api.mockResolvedValue({ totalResults: 1, item: [{ title: "권 제목", author: "알라딘 저자", description: "조회한 설명" }] });

@@ -11,6 +11,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { AppError, errorMessage } from "@/lib/errors";
 import { archiveEntryForReference, storedCoverPath } from "@/features/covers/service";
+import { discardFailedCoverUploadFiles } from "@/features/backup/upload-cleanup";
 
 const MAX_ENTRY_BYTES = 25 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024;
@@ -102,12 +103,19 @@ export function recoverInterruptedCoverArchiveJobs(): void {
       updated_at = CURRENT_TIMESTAMP
     WHERE status = 'PROCESSING'
   `).run();
-  sqlite.prepare(`
+  recoverStaleCoverAssemblies();
+}
+
+// Safe during normal worker operation: never recovers a live PROCESSING job.
+export function recoverStaleCoverAssemblies(): void {
+  const failed = sqlite.prepare(`
     UPDATE backup_upload_job SET status = 'FAILED', lock_token = NULL,
       message = '웹 프로세스 중단으로 ZIP 조립이 완료되지 않았습니다. 다시 업로드해 주세요.',
       updated_at = CURRENT_TIMESTAMP
     WHERE status = 'ASSEMBLING' AND updated_at < datetime('now', '-15 minutes')
-  `).run();
+    RETURNING upload_id AS uploadId
+  `).all() as Array<{ uploadId: string }>;
+  for (const job of failed) discardFailedCoverUploadFiles(job.uploadId);
 }
 
 export async function processNextCoverArchiveJob(): Promise<boolean> {
@@ -173,6 +181,7 @@ export async function processNextCoverArchiveJob(): Promise<boolean> {
       UPDATE backup_upload_job SET status = 'FAILED', lock_token = NULL,
         message = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?
     `).run(`표지 복원 실패: ${errorMessage(error, "내부 오류가 발생했습니다. 서버 로그를 확인해 주세요.")}`, job.uploadId);
+    discardFailedCoverUploadFiles(job.uploadId);
     logger.error("Cover archive restore failed", { uploadId: job.uploadId, error: String(error) });
   }
   return true;

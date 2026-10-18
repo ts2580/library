@@ -185,14 +185,18 @@ export function deleteVolumes(ownerId: number, bookId: number, rawIds: unknown):
          OR (
            book_volume_id IS NULL
            AND book = ?
-           AND volume IN (SELECT volume FROM book_volumes WHERE id IN (${placeholders}))
-           AND 1 = (
-             SELECT COUNT(*) FROM book_volumes candidate
+           AND EXISTS (
+             SELECT 1 FROM book_volumes selected
+             WHERE selected.id IN (${placeholders}) AND selected.volume IS branchbook.volume
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM book_volumes candidate
              WHERE candidate.book = branchbook.book
-               AND candidate.volume = branchbook.volume
+               AND candidate.volume IS branchbook.volume
+               AND candidate.id NOT IN (${placeholders})
            )
          )
-    `).run(...ids, bookId, ...ids);
+    `).run(...ids, bookId, ...ids, ...ids);
     const result = sqlite.prepare(`
       DELETE FROM book_volumes
       WHERE id IN (${placeholders}) AND book = ? AND book IN (SELECT id FROM books WHERE owner_id = ?)

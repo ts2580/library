@@ -28,7 +28,18 @@ try {
     ...process.env, NODE_ENV: "production", ALADIN_TTB_KEY: "", BOOKSHELF_DB_PATH: path.join(adopted, "bookshelf.sqlite"), BOOKSHELF_DATA_DIR: adopted, BOOKSHELF_LEGACY_OWNER_USERNAME: "trstyq"
   } });
   await fs.writeFile(path.join(data, "active-migration.json"), JSON.stringify({ version: 1, dataDir: "data/migrations/handover-aabb" }));
-  docker("run", "--rm", "--user", "0", "-v", `${directory}:/fixture`, "--entrypoint", "/bin/chown", image, "-hR", "1001:1001", "/fixture"); chowned = true;
+  const sentinel = path.join(directory, "permission-sentinel");
+  await fs.writeFile(sentinel, "do not modify the symlink target");
+  await fs.symlink("/sentinel", path.join(data, "permission-link"));
+  // Alpine's former application UID differs from the new runtime UID. Do not pre-fix it.
+  docker("run", "--rm", "--user", "0", "-v", `${directory}:/fixture`, "--entrypoint", "/bin/chown", image, "-hR", "100:101", "/fixture/legacy", "/fixture/next-data", "/fixture/permission-sentinel"); chowned = true;
+  assert.equal((await fs.stat(legacy)).uid, 100);
+  docker("run", "--rm", "--user", "1001", "-v", `${legacy}:/data/legacy`, image, "node", "-e",
+    "try { require('fs').mkdirSync('/data/legacy/.permission-probe'); } catch (error) { if (error.code === 'EACCES') process.exit(0); throw error; } throw new Error('Expected legacy write denial before initialization');");
+  docker("run", "--rm", "--user", "0", "--network", "none", "-v", `${data}:/data`, "-v", `${legacy}:/data/legacy`, "-v", `${sentinel}:/sentinel`, image, "node", "scripts/prepare-data-permissions.mjs");
+  assert.equal((await fs.stat(legacy)).uid, 1001);
+  assert.equal((await fs.stat(path.join(legacy, "bookshelf.sqlite"))).uid, 1001);
+  assert.equal((await fs.stat(sentinel)).uid, 100, "Permission preparation must not follow symlinks");
   docker("run", "-d", "--init", "--name", name, "--label", "bookshelf.test=cleanup", "-p", "127.0.0.1::25647",
     "-v", `${data}:/data`, "-v", `${legacy}:/data/legacy`, "-e", "BOOKSHELF_LEGACY_DATA_DIR=/data/legacy", image); created = true;
   const info = JSON.parse(docker("inspect", name))[0]; const port = info.NetworkSettings.Ports["25647/tcp"][0].HostPort;
@@ -60,8 +71,8 @@ try {
   await page.getByRole("heading", { name: "원본 정리 후 유지할 도서", exact: true }).waitFor();
   const artifacts = path.join(process.cwd(), "test-results/legacy-cleanup-docker"); await fs.mkdir(artifacts, { recursive: true });
   await page.screenshot({ path: path.join(artifacts, "mobile-completed.png"), fullPage: true });
-  await fs.writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, image: info.Image, cleanupState: cleaned.state, ...verification }, null, 2));
-  console.log("PASS Docker authenticated admin cleanup API, portable backup paths, preserved active DB and authenticated covers");
+  await fs.writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, image: info.Image, legacyUidBefore: 100, legacyUidAfter: 1001, cleanupState: cleaned.state, ...verification }, null, 2));
+  console.log("PASS Docker legacy UID repair, authenticated admin cleanup API, portable backup paths, preserved active DB and authenticated covers");
 } catch (error) {
   if (created) { const logs = spawnSync("docker", ["logs", "--tail", "30", name], { encoding: "utf8" }); console.error(logs.stdout, logs.stderr); }
   throw error;
