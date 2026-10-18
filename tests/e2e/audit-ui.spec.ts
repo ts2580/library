@@ -99,7 +99,7 @@ test("mobile volume editing uses a dialog with enough width for the form", async
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   const cardBox = await card.boundingBox();
-  const formBox = await dialog.locator("form.form-grid").boundingBox();
+  const formBox = await dialog.locator(".entity-edit-fields").boundingBox();
   expect(cardBox).not.toBeNull(); expect(formBox).not.toBeNull();
   expect(formBox!.width).toBeGreaterThan(cardBox!.width * 0.65);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

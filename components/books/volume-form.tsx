@@ -27,7 +27,9 @@ export function VolumeForm({
   const key = volume?.id ?? "new";
   const [sideStory, setSideStory] = useState(Boolean(volume && volume.seq == null));
   return (
-    <form action={action} className="form-grid">
+    <div className="entity-edit-layout entity-edit-layout-volume">
+    <form action={action} className="entity-edit-form" aria-label={volume ? "권 정보" : "권 추가"}>
+      <div className="form-grid entity-edit-fields">
       <input type="hidden" name="bookId" value={bookId}/>
       {volume && <input type="hidden" name="volumeId" value={volume.id}/>}
       {volume && <div className="field span-2"><label htmlFor={`volume-type-${key}`}>책 카테고리</label>
@@ -49,10 +51,15 @@ export function VolumeForm({
         <label className="check"><input type="checkbox" name="isPurchased" defaultChecked={volume?.isPurchased ?? false}/> 구매 완료</label>
         <label className="check"><input type="checkbox" name="noNeedToBuy" defaultChecked={volume?.noNeedToBuy ?? false}/> 구매 불필요</label>
       </div>
-      <div className="button-row span-2 volume-form-actions">
+      </div>
+      <div className="button-row volume-form-actions">
         <SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton>
-        {volume && deleteAction && <ConfirmSubmitButton formAction={deleteAction} formNoValidate message="이 권과 연결된 지점 재고를 삭제합니까?">삭제</ConfirmSubmitButton>}
       </div>
     </form>
+    {volume && deleteAction && <form action={deleteAction} className="entity-delete-form" aria-label="권 삭제">
+      <input type="hidden" name="bookId" value={bookId}/><input type="hidden" name="volumeId" value={volume.id}/>
+      <ConfirmSubmitButton message="이 권과 연결된 지점 재고를 삭제합니까?">삭제</ConfirmSubmitButton>
+    </form>}
+    </div>
   );
 }

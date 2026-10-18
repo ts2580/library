@@ -173,7 +173,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .book-detail-sidebar .book-hero-cover { width: min(240px, 100%); justify-self: center; }
 .book-detail-sidebar .book-hero h1 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); }
 .book-form-actions, .volume-form-actions { justify-content: flex-end; flex-wrap: nowrap; }
-.volume-form-actions > .button-danger-outline { order: -1; }
+.entity-edit-layout { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
+.entity-edit-form { display: contents; }
+.entity-edit-fields { flex: 0 0 100%; min-width: 0; }
+.entity-edit-layout-volume .volume-form-actions { order: 2; }
+.entity-edit-layout-volume .entity-delete-form { order: 1; }
 .stock-refresh-actions { justify-content: flex-end; flex-wrap: nowrap; }
 .profile-category-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
 .profile-category-list { list-style: none; padding: 0; padding-inline-end: 12px; margin: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; scrollbar-gutter: stable; }
