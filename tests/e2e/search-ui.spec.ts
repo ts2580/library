@@ -258,6 +258,10 @@ test("selecting an existing book fills its title and only searches when there ar
   await page.goto(`/aladin/search?query=retain-results-${testInfo.project.name}&queryType=Author`);
   const url = page.url();
   await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
+  await page.getByText("검색 조건", { exact: true }).click();
+  await page.getByLabel("검색 대상", { exact: true }).selectOption("Foreign");
+  await page.getByLabel("정렬", { exact: true }).selectOption("SalesPoint");
+  await page.getByLabel("품절 도서 제외", { exact: true }).check();
   const searches: string[] = [];
   page.on("request", request => {
     if (/\/(?:api\/)?aladin\/search\?/.test(request.url())) searches.push(request.url());
@@ -267,6 +271,9 @@ test("selecting an existing book fills its title and only searches when there ar
   await expect(page.getByRole("img", { name: "선택한 책 마이그레이션 테스트 책", exact: true })).toBeVisible();
   await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
+  await expect(page.getByLabel("검색 대상", { exact: true })).toHaveValue("Foreign");
+  await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("SalesPoint");
+  await expect(page.getByLabel("품절 도서 제외", { exact: true })).toBeChecked();
   await page.waitForTimeout(500);
   await expect(page).toHaveURL(url);
   expect(searches).toEqual([]);

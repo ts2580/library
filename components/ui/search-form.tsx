@@ -1,13 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, type Ref } from "react";
 import { useRouter } from "next/navigation";
 import { ProgressIndicator } from "@/components/ui/top-progress";
 
-export function SearchForm({ action, className, children }: { action: string; className?: string; children: React.ReactNode }) {
+export function SearchForm({ action, className, children, formRef }: { action: string; className?: string; children: React.ReactNode; formRef?: Ref<HTMLFormElement> }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  return <form action={action} method="get" className={className} aria-busy={pending} onKeyDown={(event) => {
+  return <form ref={formRef} action={action} method="get" className={className} aria-busy={pending} onKeyDown={(event) => {
     if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault();
   }} onSubmit={(event) => {
     event.preventDefault();

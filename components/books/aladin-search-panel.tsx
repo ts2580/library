@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SearchForm } from "@/components/ui/search-form";
@@ -22,6 +22,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
   const [keyword, setKeyword] = useState(query);
   const [queryType, setQueryType] = useState(searchOptions.queryType);
   const [searching, startSearch] = useTransition();
+  const searchForm = useRef<HTMLFormElement>(null);
   const router = useRouter();
   useEffect(() => { setKeyword(query); setQueryType(searchOptions.queryType); }, [query, searchOptions.queryType]);
 
@@ -30,9 +31,10 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
     if (!book) return;
     const title = book.name.trim().slice(0, 200);
     setKeyword(title); setQueryType("Title");
-    if (result?.items.length) return;
-    const params = new URLSearchParams({ queryType: "Title", query: title, bookId: String(book.id) });
-    for (const [key, value] of Object.entries(searchOptions)) if (key !== "queryType" && value != null) params.set(key, String(value));
+    if (result?.items.length || !searchForm.current) return;
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(searchForm.current)) if (typeof value === "string") params.append(key, value);
+    params.set("queryType", "Title"); params.set("query", title); params.set("bookId", String(book.id));
     startSearch(() => router.push(`/aladin/search?${params}`, { scroll: false }));
   }
   return <>
@@ -42,7 +44,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
     </header>
     {children}
     <section className="panel panel-soft stack-md">
-    <SearchForm key={`${query}:${JSON.stringify(searchOptions)}:${resetVersion}`} className="aladin-search-form" action="/aladin/search">
+    <SearchForm key={`${query}:${JSON.stringify(searchOptions)}:${resetVersion}`} formRef={searchForm} className="aladin-search-form" action="/aladin/search">
       <div className="field"><label htmlFor="aladin-query-type">검색 기준</label><select className="select" id="aladin-query-type" name="queryType" value={queryType} onChange={event => setQueryType(event.target.value as AladinSearchOptions["queryType"])} disabled={searching}>
         <option value="Title">제목</option><option value="Author">저자</option><option value="Keyword">키워드</option><option value="Publisher">출판사</option>
       </select></div>
