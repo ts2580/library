@@ -15,11 +15,12 @@ type Query = Record<string, string | undefined>;
 export default async function AladinSearchPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await requireUser();
   const params = await searchParams;
-  const query = params.query?.trim().slice(0, 200) ?? "";
   const page = Math.max(1, Math.min(50, Math.floor(Number(params.page ?? params.start) || 1)));
   const selectedBookId = Number(params.bookId) || null;
   const options = getOwnedBookOptions(user.id, "", selectedBookId);
-  const searchOptions = aladinSearchOptionsSchema.parse({ queryType: params.queryType === "Author" ? "Author" : "Title" });
+  const selectedTitle = params.query === undefined ? options.find(book => book.id === selectedBookId)?.name.trim().slice(0, 200) ?? "" : "";
+  const query = params.query?.trim().slice(0, 200) ?? selectedTitle;
+  const searchOptions = aladinSearchOptionsSchema.parse({ queryType: !selectedTitle && params.queryType === "Author" ? "Author" : "Title" });
   let result: AladinSearchResult | null = null;
   let searchError: string | null = null;
   if (query && !searchError) {

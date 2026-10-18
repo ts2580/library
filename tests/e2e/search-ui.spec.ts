@@ -130,7 +130,7 @@ test("simplified search keeps the selected database book across title and author
   expect(await form.evaluate((node) => Boolean(node.closest(".panel.panel-soft")))).toBe(true);
   await expect(form.getByRole("combobox")).toHaveCount(1);
   await expect(form.getByLabel("분류", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "ISBN 재고 조회", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "ISBN 재고 조회", exact: true })).toBeVisible();
   await expect(page.locator(".aladin-page-header").getByRole("combobox", { name: "기존 책 검색", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "기존 책 검색", exact: true })).toHaveCount(1);
   await expect(form.getByRole("combobox").locator("option")).toHaveText(["제목", "저자"]);
