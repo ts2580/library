@@ -61,3 +61,86 @@ test("book stock search preserves inventory administrator permissions", async ({
   expect((await page.request.post("/api/books/2/stock-search")).status()).toBe(403);
   expect((await page.request.get("/api/books/2/stock-search")).status()).toBe(403);
 });
+
+for (const status of [401, 403, 404]) {
+  test(`stock polling stops on terminal HTTP ${status} and releases the top progress bar`, async ({ page }) => {
+    await login(page, "fixture-admin"); await page.goto("/books/1");
+    let polls = 0;
+    await page.route("**/api/books/1/stock-search", async route => {
+      if (route.request().method() === "POST") await route.fulfill({ status: 202, json: { progress: {
+        status: "RUNNING", mode: "APPEND_BOOK", scopeBookId: 1, message: "진행 중"
+      } } });
+      else { polls++; await route.fulfill({ status, json: { message: "종료 오류" } }); }
+    });
+    await page.getByRole("button", { name: "재고 검색", exact: true }).click();
+    await expect(page.locator("#top-progress-bar")).toBeVisible();
+    await expect.poll(() => polls).toBe(1);
+    await expect(page.locator('.flash-error[role="alert"]')).toContainText("중단");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await page.waitForTimeout(1800);
+    expect(polls).toBe(1);
+  });
+}
+
+test("stock polling retries temporary errors and stops after completion", async ({ page }) => {
+  await login(page, "fixture-admin"); await page.goto("/books/1");
+  let polls = 0;
+  await page.route("**/api/books/1/stock-search", async route => {
+    if (route.request().method() === "POST") await route.fulfill({ status: 202, json: { progress: {
+      status: "RUNNING", mode: "APPEND_BOOK", scopeBookId: 1, message: "진행 중"
+    } } });
+    else if (++polls === 1) await route.fulfill({ status: 503, json: { message: "일시 오류" } });
+    else await route.fulfill({ json: { status: "COMPLETED", mode: "APPEND_BOOK", scopeBookId: 1, message: "재시도 완료" } });
+  });
+  await page.getByRole("button", { name: "재고 검색", exact: true }).click();
+  await expect(page.locator('.flash-error[role="alert"]')).toBeVisible();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "재시도 완료" })).toBeVisible();
+  await expect(page.locator("#top-progress-bar")).toBeHidden();
+  await expect(page.getByRole("button", { name: "재고 검색", exact: true })).toBeEnabled();
+  expect(polls).toBe(2);
+});
+
+test("deleting a running search's book in another tab stops polling the real API", async ({ page }, testInfo) => {
+  await login(page, "fixture-admin");
+  const created = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
+    book: { name: `삭제 중 재고 검색 ${testInfo.project.name}`, author: "", description: "", type: "", totalVolume: "", coverUrl: "" },
+    direct: true, targetBookId: null, selection: []
+  }) } });
+  expect(created.status()).toBe(201);
+  const { bookId } = await created.json();
+  await page.goto(`/books/${bookId}`);
+  await page.getByRole("button", { name: "직접 추가", exact: true }).click();
+  const add = page.getByRole("region", { name: "권 직접 추가", exact: true });
+  await add.getByLabel("권 제목", { exact: true }).fill("검색 중 삭제할 권");
+  await add.getByLabel("ISBN13", { exact: true }).fill("9780000000999");
+  await add.getByRole("button", { name: "권 추가", exact: true }).click();
+  await expect(page.locator(".volume-card")).toHaveCount(1);
+  const other = await page.context().newPage();
+  await other.goto(`/books/${bookId}`);
+  let release!: () => void;
+  const deleted = new Promise<void>(resolve => { release = resolve; });
+  let polls = 0;
+  await page.route(`**/api/books/${bookId}/stock-search`, async route => {
+    if (route.request().method() === "GET") { polls++; await deleted; }
+    await route.continue();
+  });
+  try {
+    const start = page.waitForResponse(response => response.url().endsWith(`/api/books/${bookId}/stock-search`) && response.request().method() === "POST");
+    await page.getByRole("button", { name: "재고 검색", exact: true }).click();
+    expect((await start).status()).toBe(202);
+    await expect(page.locator("#top-progress-bar")).toBeVisible();
+    other.once("dialog", dialog => dialog.accept());
+    await other.getByRole("button", { name: "책 삭제", exact: true }).click();
+    await expect(other).toHaveURL(/\/books\?/);
+    release();
+    await expect(page.locator('.flash-error[role="alert"]')).toContainText("중단");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await page.waitForTimeout(1800);
+    expect(polls).toBe(1);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: "wait" });
+    await other.close();
+  }
+});
