@@ -174,6 +174,7 @@ export const stockRefreshJobs = sqliteTable("stock_refresh_job", {
   requestedBy: integer("requested_by").references(() => members.id, { onDelete: "set null" }),
   mode: text("mode", { enum: ["REPLACE_ALL", "APPEND_BOOK"] }).notNull().default("REPLACE_ALL"),
   scopeBookId: integer("scope_book_id").references(() => books.id, { onDelete: "set null" }),
+  runId: text("run_id"),
   lockToken: text("lock_token"),
   startedAt: text("started_at"),
   finishedAt: text("finished_at"),

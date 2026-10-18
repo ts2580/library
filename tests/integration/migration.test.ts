@@ -114,7 +114,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 2 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 3 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -127,17 +127,21 @@ describe("legacy SQLite adoption", () => {
       expect(legacy.pragma("table_info(member)")).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "role" })]));
     } finally { legacy.close(); }
   });
-  it("upgrades an existing version-one database without changing roles, inventory, or legacy links", () => {
+  it.each([1, 2])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
-      prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode; DELETE FROM bookshelf_migrations WHERE version=2; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
+      if (version === 1) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode;");
+      prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN run_id;");
+      prior.prepare("DELETE FROM bookshelf_migrations WHERE version>?").run(version);
+      prior.exec("INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
       const before = prior.prepare("SELECT * FROM branchbook").all();
       bootstrapDatabase(prior); bootstrapDatabase(prior);
       expect(prior.prepare("SELECT * FROM branchbook").all()).toEqual(before);
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
       expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
-      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }]);
+      expect(prior.prepare("SELECT run_id FROM stock_refresh_job").get()).toEqual({ run_id: null });
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
     } finally { prior.close(); }
   });
 });

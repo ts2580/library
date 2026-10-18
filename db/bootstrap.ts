@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 2;
+const BOOTSTRAP_VERSION = 3;
 
 type Database = BetterSqlite3.Database;
 
@@ -293,9 +293,14 @@ export function bootstrapDatabase(sqlite: Database): void {
         .run(new Date().toISOString(), backup);
     }
     // Version 2 only adds job scope metadata; never re-run legacy data or role adoption.
-    ensureColumn(sqlite, "stock_refresh_job", "mode TEXT NOT NULL DEFAULT 'REPLACE_ALL'");
-    ensureColumn(sqlite, "stock_refresh_job", "scope_book_id INTEGER REFERENCES books(id) ON DELETE SET NULL");
-    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (2, ?, ?)")
+    if (!isApplied(2)) {
+      ensureColumn(sqlite, "stock_refresh_job", "mode TEXT NOT NULL DEFAULT 'REPLACE_ALL'");
+      ensureColumn(sqlite, "stock_refresh_job", "scope_book_id INTEGER REFERENCES books(id) ON DELETE SET NULL");
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (2, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    ensureColumn(sqlite, "stock_refresh_job", "run_id TEXT");
+    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (3, ?, ?)")
       .run(new Date().toISOString(), backup);
   });
   transaction.immediate();
