@@ -144,3 +144,34 @@ test("deleting a running search's book in another tab stops polling the real API
     await other.close();
   }
 });
+
+for (const terminal of ["COMPLETED", "FAILED"] as const) {
+  test(`book detail refreshes counts and prices when an owner-wide job becomes ${terminal}`, async ({ page }) => {
+    const directory = process.env.BOOKSHELF_E2E_DATA;
+    if (!directory || path.dirname(directory) !== tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");
+    const db = new Database(path.join(directory, "bookshelf.sqlite"));
+    let inserted: number | undefined;
+    try {
+      await login(page, "fixture-book-stock");
+      // Publish a running snapshot without enqueueing a worker, then expose its terminal result.
+      db.prepare("UPDATE stock_refresh_job SET requested_by=4,mode='REPLACE_ALL',scope_book_id=NULL,status='RUNNING',running=1,completed=0,failed=0,lock_token=NULL WHERE id=1").run();
+      await page.goto("/books/4");
+      await expect(page.getByRole("button", { name: "재고 검색", exact: true })).toBeDisabled();
+      const before = db.prepare("SELECT COUNT(*) AS n FROM branchbook WHERE book_volume_id=6").get() as { n: number };
+      const metadata = page.locator(".volume-card").first().locator(".volume-meta");
+      await expect(metadata).toContainText(`재고 ${before.n}건`);
+      inserted = Number(db.prepare("INSERT INTO branchbook(book,book_volume_id,volume,branch,branchname,name,price) VALUES(4,6,1,'REVIEW','검증점','전체 갱신 결과','123')").run().lastInsertRowid);
+      let refreshes = 0;
+      page.on("request", request => { if (new URL(request.url()).pathname === "/books/4" && request.headers().rsc === "1") refreshes++; });
+      db.prepare("UPDATE stock_refresh_job SET status=?,running=0,completed=?,failed=?,message='전체 작업 종료' WHERE id=1").run(terminal, Number(terminal === "COMPLETED"), Number(terminal === "FAILED"));
+      await expect(metadata).toContainText(`재고 ${before.n + 1}건`);
+      await expect(metadata).toContainText("최저 123원");
+      await expect(page.getByRole("button", { name: "재고 검색", exact: true })).toBeEnabled();
+      expect(refreshes).toBe(1);
+    } finally {
+      if (inserted !== undefined) db.prepare("DELETE FROM branchbook WHERE id=?").run(inserted);
+      db.prepare("UPDATE stock_refresh_job SET status='IDLE',running=0,completed=0,failed=0,requested_by=NULL,mode='REPLACE_ALL',scope_book_id=NULL,lock_token=NULL WHERE id=1").run();
+      db.close();
+    }
+  });
+}

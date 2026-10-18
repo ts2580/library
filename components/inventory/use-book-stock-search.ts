@@ -15,13 +15,14 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
   const [unavailable, setUnavailable] = useState(false);
   const active = progress?.status === "QUEUED" || progress?.status === "RUNNING";
   const forThisBook = progress?.mode === "APPEND_BOOK" && progress.scopeBookId === options?.bookId;
-  useTopProgress(busy || Boolean(active && forThisBook));
+  const affectsBook = progress?.mode === "REPLACE_ALL" || forThisBook;
+  useTopProgress(busy || Boolean(active && affectsBook));
   const wasActive = useRef(active);
   const bookId = options?.bookId;
   useEffect(() => {
-    if (wasActive.current && !active && forThisBook) router.refresh();
+    if (wasActive.current && !active && affectsBook) router.refresh();
     wasActive.current = active;
-  }, [active, forThisBook, router]);
+  }, [active, affectsBook, router]);
 
   useEffect(() => {
     if (!bookId || !active) return;
