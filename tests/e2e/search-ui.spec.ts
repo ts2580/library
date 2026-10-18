@@ -121,7 +121,8 @@ test("Aladin search uses the bookshelf filter layout and resets the keyword, cri
 test("simplified search keeps the selected database book across title and author searches", async ({ page }, testInfo) => {
   await login(page);
   await page.goto("/books");
-  await expect(page.getByRole("link", { name: "보유 권 검색", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "보유 권 검색", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "보유 권 검색", exact: true })).toHaveAttribute("href", "/products");
   await expect(page.getByRole("link", { name: "알라딘 검색", exact: true })).toHaveCount(0);
   await page.goto("/aladin/search");
   const form = page.locator(".aladin-search-form");

@@ -63,3 +63,10 @@ test("Aladin search, manual preview and quick add jump to numbered pages", async
     await page.unrouteAll({ behavior: "wait" });
   }
 });
+
+test("owned-volume search is reachable from the bookshelf", async ({ page }) => {
+  await login(page); await page.goto("/books");
+  await page.getByRole("link", { name: "보유 권 검색", exact: true }).click();
+  await expect(page).toHaveURL(/\/products$/);
+  await expect(page.getByRole("heading", { name: "보유 권 검색", exact: true })).toBeVisible();
+});

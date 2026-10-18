@@ -220,7 +220,7 @@ test("profile and password edits persist and revoke an already logged-in session
 });
 
 
-test("book edits, side stories, purchase state, and individual deletion persist", async ({ page }, testInfo) => {
+test("book edits, metadata enrichment, purchase state and bulk deletion persist", async ({ page }, testInfo) => {
   await login(page);
   const name = `상세 회귀 ${testInfo.project.name}`;
   const response = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
@@ -243,27 +243,30 @@ test("book edits, side stories, purchase state, and individual deletion persist"
     await form.getByRole("button", { name: "권 추가", exact: true }).click();
     await expect(page.getByRole("heading", { name: `${special ? "외전" : "1권"} · ${title}`, exact: true })).toBeVisible();
   }
-  await expect(page.getByRole("button", { name: "저자/설명 넣기", exact: true })).toHaveCount(0);
+  await page.route(`**/books/${bookId}`, async route => {
+    if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 500));
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "저자/설명 넣기", exact: true }).click();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
+  await expect(page.locator(".flash-success")).toContainText("정보 보강 완료");
+  await expect(page.locator("#top-progress-bar")).toBeHidden();
+  await page.unrouteAll({ behavior: "wait" });
+  await expect(page.locator(".book-hero")).toContainText("수동 저자");
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
+  await expect(volume).toContainText("fixture");
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await volume.getByLabel("구매 완료", { exact: true }).check();
   await volume.getByLabel("저자", { exact: true }).press("Enter");
   await expect(volume.locator(".status-badge")).toHaveText("구매 완료");
   await expect(volume.getByRole("dialog")).toBeHidden();
-  await expect(page.getByLabel("모든 권 선택", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel(/삭제 선택/)).toHaveCount(0);
-  await volume.getByRole("button", { name: "상세정보", exact: true }).click();
-  await volume.getByLabel("권 제목", { exact: true }).fill("");
+  await page.getByLabel("모든 권 선택", { exact: true }).check();
+  await expect(page.getByLabel(/삭제 선택/)).toHaveCount(2);
   page.once("dialog", (dialog) => dialog.dismiss());
-  await volume.getByRole("button", { name: "삭제", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 권 삭제 (2)", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(2);
   page.once("dialog", (dialog) => dialog.accept());
-  await volume.getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(page.locator(".volume-card")).toHaveCount(1);
-  const remaining = page.locator(".volume-card").first();
-  await remaining.getByRole("button", { name: "상세정보", exact: true }).click();
-  page.once("dialog", (dialog) => dialog.accept());
-  await remaining.getByRole("button", { name: "삭제", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 권 삭제 (2)", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(0);
   await expect(page.locator(".book-edit-form").getByLabel("총 권수", { exact: true })).toHaveValue("완결 12권");
   // Deletion must remain available even if the edit form contains invalid unsaved input.

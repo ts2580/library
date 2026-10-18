@@ -1,4 +1,5 @@
 import { BookSearchForm } from "@/components/books/book-search-form";
+import Link from "next/link";
 import { requireUser } from "@/features/auth/authorization";
 import { getBookList, getManualBookCategories, getOwnedBookOptions } from "@/features/books/queries";
 import { BookCard } from "@/components/books/book-card";
@@ -21,7 +22,7 @@ export default async function BooksPage({ searchParams }: { searchParams: Promis
     <div className="page">
       <header className="page-header books-page-header">
         <div><p className="eyebrow">My library</p><h1 className="page-title">책장</h1><p className="page-subtitle">총 {result.totalCount.toLocaleString("ko-KR")}개 시리즈 중 {result.from}–{result.to}</p></div>
-        <ManualBookCreate categories={getManualBookCategories()} options={getOwnedBookOptions(user.id)}/>
+        <div className="button-row"><Link className="button button-outline button-small" href="/products">보유 권 검색</Link><ManualBookCreate categories={getManualBookCategories()} options={getOwnedBookOptions(user.id)}/></div>
       </header>
       <FlashMessage message={query.message} error={query.error}/>
       <section className="panel panel-soft stack-md">

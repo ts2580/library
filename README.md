@@ -83,6 +83,7 @@ BOOKSHELF_IMAGE=bookshelf:3.0.0-ca3-local docker compose -f docker-compose.relea
 ## 구현 범위
 
 - 계정별 도서·권 CRUD와 SQL 수준 `owner_id` 소유권 검사
+- 책장에서 보유 권 검색으로 이동, 책 상세에서 비어 있는 저자·설명 자동 보강 및 선택한 권 일괄 삭제
 - 기존 BCrypt 및 레거시 SHA-256 로그인 호환, 로그인 성공 시 BCrypt 승격
 - SQLite 기반 서버 세션, 전체 세션 폐기형 비밀번호 변경
 - 프로필에서 카테고리 추가·삭제. 책에 사용 중인 카테고리는 분류를 변경한 뒤 삭제

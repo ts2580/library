@@ -33,7 +33,10 @@ test("wide screens use more space without enlarging covers or breaking editing",
   await expect(details.getByLabel("권 제목", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await details.getByRole("button", { name: "상세정보 닫기", exact: true }).click();
-  await expect(page.getByLabel("모든 권 선택", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel(/삭제 선택/)).toHaveCount(0);
+  await expect(page.getByLabel("모든 권 선택", { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/삭제 선택/)).toHaveCount(await page.locator(".volume-card").count());
+  await page.getByLabel("모든 권 선택", { exact: true }).check();
+  await expect(page.getByRole("button", { name: /^선택한 권 삭제/ })).toBeEnabled();
+  await page.getByLabel("모든 권 선택", { exact: true }).uncheck();
   await expect(page.locator(".book-edit-form").getByLabel("제목", { exact: true })).toBeVisible();
 });
