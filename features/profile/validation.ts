@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fitsBcrypt, PASSWORD_BYTE_MESSAGE } from "@/features/auth/password-policy";
 
 export const profileSchema = z.object({
   name: z.string().trim().max(120, "이름은 120자 이하여야 합니다."),
@@ -8,7 +9,7 @@ export const profileSchema = z.object({
 
 export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, "현재 비밀번호를 입력해 주세요."),
-  newPassword: z.string().min(8, "새 비밀번호는 8자 이상이어야 합니다.").max(200),
+  newPassword: z.string().min(8, "새 비밀번호는 8자 이상이어야 합니다.").max(200).refine(fitsBcrypt, PASSWORD_BYTE_MESSAGE),
   confirmPassword: z.string().max(200)
 }).refine((value) => value.newPassword === value.confirmPassword, {
   message: "새 비밀번호 확인값이 일치하지 않습니다.",

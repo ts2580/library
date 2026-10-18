@@ -10,6 +10,16 @@ import type { SessionUser } from "@/features/auth/types";
 
 const COOKIE_NAME = "bookshelf_session";
 
+export class CredentialsChangedError extends Error {
+  constructor() { super("비밀번호가 변경되었습니다. 다시 로그인해 주세요."); }
+}
+
+type SessionCredentials = {
+  expectedPasswordHash: string;
+  nextPasswordHash?: string;
+  revokeExisting?: boolean;
+};
+
 function tokenHash(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
@@ -27,24 +37,33 @@ function useSecureCookie(requestHeaders: Headers): boolean {
   return /(?:^|;)\s*proto=https(?:;|$)/.test(forwarded);
 }
 
-export async function createSession(memberId: number, remember: boolean): Promise<void> {
+export async function createSession(memberId: number, remember: boolean, credentials: SessionCredentials): Promise<void> {
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + (remember
     ? env.BOOKSHELF_REMEMBER_DAYS * 24 * 60 * 60 * 1000
     : env.BOOKSHELF_SESSION_HOURS * 60 * 60 * 1000));
   const requestHeaders = await headers();
-
-  db.insert(appSessions).values({
-    idHash: tokenHash(token),
-    memberId,
-    expiresAt: expiresAt.toISOString(),
-    createdAt: now.toISOString(),
-    lastSeenAt: now.toISOString(),
-    userAgentHash: userAgentHash(requestHeaders.get("user-agent"))
-  }).run();
-
   const cookieStore = await cookies();
+
+  // No await between the credential check, optional rotation/revocation and INSERT.
+  sqlite.transaction(() => {
+    const current = db.select({ hash: members.passwordHash }).from(members).where(eq(members.id, memberId)).get();
+    if (!current || current.hash !== credentials.expectedPasswordHash) throw new CredentialsChangedError();
+    if (credentials.nextPasswordHash) {
+      db.update(members).set({ passwordHash: credentials.nextPasswordHash }).where(eq(members.id, memberId)).run();
+    }
+    if (credentials.revokeExisting) db.delete(appSessions).where(eq(appSessions.memberId, memberId)).run();
+    db.insert(appSessions).values({
+      idHash: tokenHash(token),
+      memberId,
+      expiresAt: expiresAt.toISOString(),
+      createdAt: now.toISOString(),
+      lastSeenAt: now.toISOString(),
+      userAgentHash: userAgentHash(requestHeaders.get("user-agent"))
+    }).run();
+  }).immediate();
+
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",

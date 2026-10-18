@@ -33,21 +33,25 @@ export function searchInventory(ownerId: number, input: { query?: string; branch
 }
 
 export function getStockRefreshProgress(ownerId: number): StockRefreshProgress {
+  const completion = sqlite.prepare("SELECT run_id AS id FROM stock_refresh_completion WHERE owner_id=?")
+    .get(ownerId) as { id: string } | undefined;
+  const completionId = completion?.id ?? null;
   const row = sqlite.prepare(`
     SELECT running, completed, failed, total, processed, success, empty, fail, percent,
            COALESCE(message, '') AS message, updated_at AS updatedAt, status,
-           requested_by AS requestedBy, mode, scope_book_id AS scopeBookId
+           requested_by AS requestedBy, mode, scope_book_id AS scopeBookId, run_id AS runId
     FROM stock_refresh_job
     WHERE id = 1
   `).get() as Record<string, unknown> | undefined;
   if (!row) {
-    return { mode: "REPLACE_ALL", scopeBookId: null, running: false, completed: false, failed: false, total: 0, processed: 0, success: 0, empty: 0, fail: 0, percent: 0, message: "아직 실행한 작업이 없습니다.", updatedAt: null, status: "IDLE" };
+    return { completionId, mode: "REPLACE_ALL", scopeBookId: null, running: false, completed: false, failed: false, total: 0, processed: 0, success: 0, empty: 0, fail: 0, percent: 0, message: "아직 실행한 작업이 없습니다.", updatedAt: null, status: "IDLE" };
   }
   const status = row.status as StockRefreshProgress["status"];
   const requestedBy = row.requestedBy == null ? null : Number(row.requestedBy);
   if (requestedBy != null && requestedBy !== ownerId) {
     if (status === "QUEUED" || status === "RUNNING") {
       return {
+        completionId,
         mode: "REPLACE_ALL", scopeBookId: null,
         running: true, completed: false, failed: false, total: 0, processed: 0, success: 0,
         empty: 0, fail: 0, percent: 0,
@@ -55,9 +59,11 @@ export function getStockRefreshProgress(ownerId: number): StockRefreshProgress {
         updatedAt: row.updatedAt ? String(row.updatedAt) : null, status
       };
     }
-    return { mode: "REPLACE_ALL", scopeBookId: null, running: false, completed: false, failed: false, total: 0, processed: 0, success: 0, empty: 0, fail: 0, percent: 0, message: "아직 실행한 작업이 없습니다.", updatedAt: null, status: "IDLE" };
+    return { completionId, mode: "REPLACE_ALL", scopeBookId: null, running: false, completed: false, failed: false, total: 0, processed: 0, success: 0, empty: 0, fail: 0, percent: 0, message: "아직 실행한 작업이 없습니다.", updatedAt: null, status: "IDLE" };
   }
   return {
+    completionId,
+    runId: row.runId == null ? null : String(row.runId),
     mode: row.mode === "APPEND_BOOK" ? "APPEND_BOOK" : "REPLACE_ALL", scopeBookId: row.scopeBookId == null ? null : Number(row.scopeBookId),
     running: Boolean(row.running), completed: Boolean(row.completed), failed: Boolean(row.failed),
     total: Number(row.total), processed: Number(row.processed), success: Number(row.success),

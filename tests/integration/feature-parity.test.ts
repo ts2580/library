@@ -250,6 +250,27 @@ describe("Java feature parity regressions", () => {
     await updateVolume(1, 1, 1, payload);
     expect(sqlite.prepare("SELECT volume,book_volume_id FROM branchbook").get()).toEqual({ volume: 1, book_volume_id: null });
   });
+  it.each([null, 0, 1])("invalidates uniquely resolved legacy stock for previous volume %s on ISBN change", async number => {
+    volume(1, 1, number);
+    sqlite.exec("UPDATE book_volumes SET isbn13='9780000000001'");
+    sqlite.prepare("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,?,'SEOUL')").run(number);
+    await updateVolume(1, 1, 1, { ...payload, isbn13: "9780000000002" });
+    expect(sqlite.prepare("SELECT * FROM branchbook").all()).toEqual([]);
+  });
+  it("renumbers a unique NULL legacy stock without conflating a zero volume", async () => {
+    volume(1, 1, null); volume(2, 1, 0);
+    sqlite.exec("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,NULL,'SEOUL'),(2,1,0,'SEOUL')");
+    await updateVolume(1, 1, 1, payload);
+    expect(sqlite.prepare("SELECT volume,book_volume_id FROM branchbook ORDER BY id").all()).toEqual([
+      { volume: 2, book_volume_id: 1 }, { volume: 0, book_volume_id: null }
+    ]);
+  });
+  it("does not guess the link of ambiguous NULL legacy stock", async () => {
+    volume(1, 1, null); volume(2, 1, null);
+    sqlite.exec("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,NULL,'SEOUL')");
+    await updateVolume(1, 1, 1, payload);
+    expect(sqlite.prepare("SELECT volume,book_volume_id FROM branchbook").get()).toEqual({ volume: null, book_volume_id: null });
+  });
   it("restores missing generated covers using the retained original URL before Aladin", async () => {
     volume(); volume(2, 2);
     sqlite.exec("UPDATE book_volumes SET cover='cover://1/missing.webp', originalUrl='https://example.com/original.jpg' WHERE id=1");

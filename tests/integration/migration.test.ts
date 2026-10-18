@@ -25,7 +25,7 @@ const { sqlite } = await import("@/db");
 const { bootstrapDatabase } = await import("@/db/bootstrap");
 const { getBookList, getBookDetail, getOwnedBookOptions, searchOwnedVolumes, getManualBookCategories } = await import("@/features/books/queries");
 const { addVolume, updateVolume } = await import("@/features/books/service");
-const { searchInventory } = await import("@/features/inventory/queries");
+const { searchInventory, getStockRefreshProgress } = await import("@/features/inventory/queries");
 const jobs = await import("@/features/inventory/service");
 const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/service");
 const { AladinRateLimitError } = await import("@/features/aladin/client");
@@ -114,7 +114,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 2 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 4 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -127,17 +127,33 @@ describe("legacy SQLite adoption", () => {
       expect(legacy.pragma("table_info(member)")).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "role" })]));
     } finally { legacy.close(); }
   });
-  it("upgrades an existing version-one database without changing roles, inventory, or legacy links", () => {
+  it.each([1, 2, 3])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
-      prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode; DELETE FROM bookshelf_migrations WHERE version=2; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
+      if (version === 1) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode;");
+      if (version < 3) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN run_id;");
+      prior.exec("DROP TABLE stock_refresh_completion;");
+      prior.prepare("DELETE FROM bookshelf_migrations WHERE version>?").run(version);
+      prior.exec("INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
       const before = prior.prepare("SELECT * FROM branchbook").all();
       bootstrapDatabase(prior); bootstrapDatabase(prior);
       expect(prior.prepare("SELECT * FROM branchbook").all()).toEqual(before);
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
       expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
-      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }]);
+      expect(prior.prepare("SELECT run_id FROM stock_refresh_job").get()).toEqual({ run_id: null });
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
+      expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([]);
+    } finally { prior.close(); }
+  });
+  it("seeds a v3 terminal run into owner completion history exactly once", () => {
+    const prior = new BetterSqlite3(":memory:");
+    try {
+      bootstrapDatabase(prior);
+      prior.exec("DROP TABLE stock_refresh_completion; DELETE FROM bookshelf_migrations WHERE version=4; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); UPDATE stock_refresh_job SET requested_by=1,status='COMPLETED',run_id='before-upgrade'");
+      bootstrapDatabase(prior); bootstrapDatabase(prior);
+      expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([{owner_id:1,run_id:"before-upgrade"}]);
+      expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({role:"USER"});
     } finally { prior.close(); }
   });
 });
@@ -181,6 +197,36 @@ describe("owned queries and changes", () => {
 });
 
 describe("stock job lifecycle", () => {
+  it("retains each owner's completed run after another owner reuses the singleton", async () => {
+    volume(1); volume(2, 2);
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful:true,raw:{},stocks:[] });
+    expect(getStockRefreshProgress(1).completionId).toBeNull();
+    jobs.requestStockRefresh(1); const a = getStockRefreshProgress(1).runId;
+    await jobs.processNextStockRefreshJob();
+    expect(getStockRefreshProgress(1).completionId).toBe(a);
+    jobs.requestStockRefresh(2); const b = getStockRefreshProgress(2).runId;
+    expect(getStockRefreshProgress(1)).toMatchObject({status:"QUEUED",completionId:a,total:0});
+    expect(getStockRefreshProgress(1).runId).toBeUndefined();
+    await jobs.processNextStockRefreshJob();
+    expect(getStockRefreshProgress(1)).toMatchObject({status:"IDLE",completionId:a,total:0});
+    expect(getStockRefreshProgress(2)).toMatchObject({status:"COMPLETED",completionId:b});
+    expect(a).not.toBe(b);
+    jobs.requestStockRefresh(1); configured.mockReturnValue(false);
+    const failed = getStockRefreshProgress(1).runId;
+    await jobs.processNextStockRefreshJob();
+    expect(getStockRefreshProgress(1)).toMatchObject({status:"FAILED",completionId:failed});
+    expect(failed).not.toBe(a);
+    expect(getStockRefreshProgress(2).completionId).toBe(b);
+    jobs.deleteOwnerInventory(1);
+    expect(getStockRefreshProgress(1).completionId).not.toBe(failed);
+  });
+  it("retains interrupted owner completion through later jobs", async () => {
+    sqlite.exec("UPDATE stock_refresh_job SET status='RUNNING',running=1,requested_by=1,run_id='interrupted-run'");
+    jobs.recoverInterruptedStockJob();
+    expect(getStockRefreshProgress(1)).toMatchObject({status:"FAILED",completionId:"interrupted-run"});
+    jobs.requestStockRefresh(2); await jobs.processNextStockRefreshJob();
+    expect(getStockRefreshProgress(1)).toMatchObject({status:"IDLE",completionId:"interrupted-run"});
+  });
   it("does not clear inventory for missing configuration or duplicate requests", () => {
     volume(1); stock(1, 1, 1);
     configured.mockReturnValue(false); expect(() => jobs.requestStockRefresh(1)).toThrow();
@@ -482,5 +528,6 @@ describe("canary audit inventory regressions", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM branchbook").get()).toEqual({ n: 0 });
     expect(sqlite.prepare("SELECT status,lock_token,message FROM stock_refresh_job").get()).toEqual({ status: "RUNNING", lock_token: "replacement-worker", message: "replacement" });
     expect(sqlite.prepare("SELECT stock_count FROM branch_inventory_summary").all()).toEqual([{ stock_count: 7 }]);
+    expect(sqlite.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([]);
   });
 });

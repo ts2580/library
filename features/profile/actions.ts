@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { members } from "@/db/schema";
 import { requireUser } from "@/features/auth/authorization";
 import { hashPassword, verifyPassword } from "@/features/auth/password";
-import { createSession, destroyAllSessions } from "@/features/auth/session";
+import { createSession, CredentialsChangedError } from "@/features/auth/session";
 import { passwordChangeSchema, profileSchema } from "@/features/profile/validation";
 import { regeneratePendingCovers } from "@/features/covers/regeneration";
 import { errorMessage } from "@/lib/errors";
@@ -70,10 +70,13 @@ export async function changePasswordAction(formData: FormData): Promise<never> {
   if (!member || !(await verifyPassword(parsed.data.currentPassword, member.passwordHash))) {
     fail("현재 비밀번호가 올바르지 않습니다.");
   }
-  db.update(members).set({ passwordHash: await hashPassword(parsed.data.newPassword) })
-    .where(eq(members.id, user.id)).run();
-  await destroyAllSessions(user.id);
-  await createSession(user.id, false);
+  const nextPasswordHash = await hashPassword(parsed.data.newPassword);
+  try {
+    await createSession(user.id, false, { expectedPasswordHash: member.passwordHash, nextPasswordHash, revokeExisting: true });
+  } catch (error) {
+    if (error instanceof CredentialsChangedError) fail(error.message);
+    throw error;
+  }
   redirect(`/profile?message=${encodeURIComponent("비밀번호를 변경하고 다른 로그인 세션을 종료했습니다.")}`);
 }
 

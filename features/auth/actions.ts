@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { db, sqlite } from "@/db";
 import { members } from "@/db/schema";
-import { createSession, destroySession } from "@/features/auth/session";
+import { createSession, CredentialsChangedError, destroySession } from "@/features/auth/session";
 import { hashPassword, isLegacyPasswordHash, verifyPassword } from "@/features/auth/password";
 import { loginSchema, signupSchema } from "@/features/auth/validation";
 import { env } from "@/lib/env";
+import { fitsBcrypt } from "@/features/auth/password-policy";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
@@ -29,14 +30,15 @@ export async function loginAction(formData: FormData): Promise<never> {
   const valid = member ? await verifyPassword(parsed.data.password, member.passwordHash) : false;
   if (!member || !valid) withError("/login", "아이디 또는 비밀번호가 올바르지 않습니다.");
 
-  if (isLegacyPasswordHash(member.passwordHash)) {
-    db.update(members)
-      .set({ passwordHash: await hashPassword(parsed.data.password) })
-      .where(eq(members.id, member.id))
-      .run();
+  // Long SHA-256 passwords retain full-string verification until explicitly changed.
+  const nextPasswordHash = isLegacyPasswordHash(member.passwordHash) && fitsBcrypt(parsed.data.password)
+    ? await hashPassword(parsed.data.password) : undefined;
+  try {
+    await createSession(member.id, parsed.data.remember, { expectedPasswordHash: member.passwordHash, nextPasswordHash });
+  } catch (error) {
+    if (error instanceof CredentialsChangedError) withError("/login", error.message);
+    throw error;
   }
-
-  await createSession(member.id, parsed.data.remember);
   redirect("/dashboard");
 }
 
@@ -76,7 +78,7 @@ export async function signupAction(formData: FormData): Promise<never> {
     }
     throw error;
   }
-  await createSession(id, false);
+  await createSession(id, false, { expectedPasswordHash: passwordHash });
   redirect("/dashboard?message=" + encodeURIComponent("계정이 생성되었습니다."));
 }
 
