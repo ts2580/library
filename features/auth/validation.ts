@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fitsBcrypt, PASSWORD_BYTE_MESSAGE } from "@/features/auth/password-policy";
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1, "아이디를 입력해 주세요.").max(120),
@@ -9,7 +10,7 @@ export const loginSchema = z.object({
 export const signupSchema = z.object({
   username: z.string().trim().min(4, "아이디는 4자 이상이어야 합니다.").max(120)
     .regex(/^[A-Za-z0-9._-]+$/, "아이디에는 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다."),
-  password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다.").max(200),
+  password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다.").max(200).refine(fitsBcrypt, PASSWORD_BYTE_MESSAGE),
   confirmPassword: z.string().max(200),
   email: z.string().trim().email("이메일 형식이 올바르지 않습니다.").max(320).or(z.literal("")),
   name: z.string().trim().max(120).optional().default(""),

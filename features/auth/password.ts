@@ -1,6 +1,7 @@
 import "server-only";
 import { compare, hash } from "bcryptjs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { fitsBcrypt, PASSWORD_BYTE_MESSAGE } from "@/features/auth/password-policy";
 
 const LEGACY_SHA256 = /^[0-9a-fA-F]{64}$/;
 const BCRYPT_PREFIX = "{bcrypt}";
@@ -14,6 +15,7 @@ export function isLegacyPasswordHash(value: string): boolean {
 }
 
 export async function hashPassword(password: string): Promise<string> {
+  if (!fitsBcrypt(password)) throw new Error(PASSWORD_BYTE_MESSAGE);
   return hash(password, 12);
 }
 
