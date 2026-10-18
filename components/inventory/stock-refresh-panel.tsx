@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 import type { StockRefreshProgress } from "@/features/inventory/types";
 
 async function responseBody<T>(response: Response): Promise<T> {
@@ -89,7 +89,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
     <section className="panel stack-md" aria-labelledby="stock-refresh-title">
       <div className="section-heading"><div><p className="eyebrow">Background worker</p><h2 id="stock-refresh-title">중고 재고 일괄 갱신</h2></div><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
       <p className="muted" aria-live="polite">{progress.message}</p>
-      {(busy || active) && <Spinner label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
+      {(busy || active) && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
       <div className="progress-track" aria-label={`진행률 ${progress.percent}%`}><div style={{ width: `${progress.percent}%` }}/></div>
       <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>
       <div className="button-row stock-refresh-actions"><button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={busy || active}>전체 삭제</button><button className="button" type="button" onClick={start} disabled={busy || active}>{active ? "진행 중" : "갱신 시작"}</button></div>

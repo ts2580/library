@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 import { CoverImage } from "@/components/ui/cover-image";
 import type { BookOption } from "@/features/books/types";
 export type { BookOption } from "@/features/books/types";
@@ -107,7 +107,7 @@ export function ExistingBookSelect({ selected, onChange, disabled = false, showN
           }
         }}/>
       {expanded && <div className={`book-autocomplete-results${above ? " book-autocomplete-above" : ""}`} ref={list}>
-        {loading && <Spinner label="기존 책 검색 중"/>}
+        {loading && <ProgressIndicator label="기존 책 검색 중"/>}
         {error && <p role="alert" className="flash flash-error">{error}</p>}
         {!loading && !error && !options.length && <p className="muted small" role="status">일치하는 기존 책이 없습니다. 새 책으로 등록할 수 있습니다.</p>}
         <div id={`${id}-results`} role="listbox" aria-label="기존 책 검색 결과" aria-busy={loading}>

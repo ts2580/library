@@ -45,14 +45,21 @@ test("Aladin search, manual preview and quick add jump to numbered pages", async
     } else await page.goto(`/products?q=${encodeURIComponent(query)}`);
     const nav = page.getByRole("navigation", { name: mode === "quick" ? "알라딘 한 권 검색 페이지" : "알라딘 검색 페이지", exact: true });
     await expect(nav.getByRole("button", { name: /^\d+페이지$/ })).toHaveText(["1", "2", "3", "4", "5"]);
+    await page.route("**/api/aladin/search?**", async route => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await route.continue();
+    });
     const response = page.waitForResponse(r => r.url().includes("/api/aladin/search?") && new URL(r.url()).searchParams.get("page") === "5");
     await nav.getByRole("button", { name: "5페이지", exact: true }).click();
+    await expect(page.locator("#top-progress-bar")).toBeVisible();
     expect((await response).status()).toBe(200);
     await expect(nav.locator('[aria-current="page"]')).toHaveText("5");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
     await expect(nav.getByRole("button", { name: /^\d+페이지$/ })).toHaveText(["3", "4", "5", "6", "7"]);
     await nav.getByRole("button", { name: "다음 페이지", exact: true }).click();
     await expect(nav.locator('[aria-current="page"]')).toHaveText("6");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`${mode}-pagination.png`), fullPage: true });
+    await page.unrouteAll({ behavior: "wait" });
   }
 });

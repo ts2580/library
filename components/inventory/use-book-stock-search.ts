@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTopProgress } from "@/components/ui/top-progress";
 import type { StockRefreshProgress } from "@/features/inventory/types";
 
 export type BookStockSearchOptions = { bookId: number; initial: StockRefreshProgress };
@@ -13,6 +14,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
   const [error, setError] = useState("");
   const active = progress?.status === "QUEUED" || progress?.status === "RUNNING";
   const forThisBook = progress?.mode === "APPEND_BOOK" && progress.scopeBookId === options?.bookId;
+  useTopProgress(busy || Boolean(active && forThisBook));
   const wasActive = useRef(active);
   const bookId = options?.bookId;
   useEffect(() => {

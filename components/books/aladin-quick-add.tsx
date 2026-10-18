@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
 import { CoverImage } from "@/components/ui/cover-image";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 import { Pagination } from "@/components/ui/pagination";
 import { formatWon } from "@/lib/format";
 import type { AladinBookItem, AladinSearchResult } from "@/features/aladin/types";
@@ -60,7 +60,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
           maxLength={120} disabled={busy} defaultValue={item.categoryName?.split(/>+/).at(-1)?.trim().slice(0, 120) ?? ""}/><datalist id={`${id}-categories`}>{categories.map((category) => <option key={category} value={category}/>)}</datalist></div>
           <div className="field"><label htmlFor={`${id}-total`}>총 권수</label><input className="input" id={`${id}-total`} name="totalVolume" maxLength={30} disabled={busy}/></div></>}
         {error && <p className="flash flash-error span-2" role="alert">{error}</p>}
-        <div className="button-row span-2"><button className="button" disabled={busy}>{busy ? <Spinner label="등록 중"/> : "이 권 저장"}</button></div>
+        <div className="button-row span-2"><button className="button" disabled={busy}>{busy ? <ProgressIndicator label="등록 중"/> : "이 권 저장"}</button></div>
       </form>}
   </article>;
 }
@@ -90,7 +90,7 @@ export function AladinQuickAdd({ initialQuery = "", initial = null, targetBook, 
   return <section className="stack-md" aria-label="알라딘 한 권 추가">
     <form className="search-form" onSubmit={(event) => { event.preventDefault(); void search(query.trim()); }}>
       <div className="field"><label htmlFor={id}>알라딘 검색어</label><input className="input" id={id} value={query} maxLength={200} required onChange={(event) => setQuery(event.target.value)}/></div>
-      <button className="button" disabled={loading}>{loading ? <Spinner label="검색 중"/> : "알라딘 검색"}</button>
+      <button className="button" disabled={loading}>{loading ? <ProgressIndicator label="검색 중"/> : "알라딘 검색"}</button>
     </form>
     {error && <p className="flash flash-error" role="alert">{error}</p>}
     {result && <>

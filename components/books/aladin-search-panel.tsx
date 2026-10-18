@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { SearchForm } from "@/components/ui/search-form";
 import { AladinSelection } from "@/components/books/aladin-selection";
 import { ExistingBookSelect } from "@/components/books/existing-book-select";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 import type { BookOption } from "@/features/books/types";
 import type { AladinSearchResult } from "@/features/aladin/types";
 import type { AladinSearchOptions } from "@/features/aladin/validation";
@@ -49,7 +49,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
       {target && <input type="hidden" name="bookId" value={target.id}/>}
       <div className="button-row"><button className="button" type="submit" disabled={searching}>검색</button><Link className="button button-outline" href="/aladin/search" onClick={() => { setTarget(null); setKeyword(""); setQueryType("Title"); setResetVersion((previous) => previous + 1); }}>초기화</Link></div>
     </SearchForm>
-    {searching && <Spinner label="알라딘 검색 중"/>}
+    {searching && <ProgressIndicator label="알라딘 검색 중"/>}
     </section>
     {result && <AladinSelection key={`${query}:${searchOptions.queryType}:${result.page}:${resetVersion}`} query={query} initial={result} searchOptions={searchOptions}
       initialOptions={options} selectedBookId={selectedBookId} selectedTarget={target} onTargetChange={setTarget} showTargetPicker={false} categories={categories}/>}

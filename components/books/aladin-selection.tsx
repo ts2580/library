@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CoverImage } from "@/components/ui/cover-image";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator, useTopProgress } from "@/components/ui/top-progress";
 import { Pagination } from "@/components/ui/pagination";
 import { CategorySelect } from "@/components/books/category-select";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
@@ -36,6 +36,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  useTopProgress(saving);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const pageRequest = useRef<AbortController | null>(null);
   const pages = useRef(new Map<number, AladinSearchResult>(initial ? [[initial.page, initial]] : []));
@@ -133,7 +134,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
   const submitLabel = saving ? "등록 중" : manual && direct ? "책 추가" : manual && !result ? "추가 예정 확인"
     : ready && !result?.items.length && !target ? "책만 추가" : `${selection.length}권 추가`;
   const submitButton = <button type="submit" className="button" disabled={saving || loading || ((!manual || ready) && !selection.length && !(!target && manual && !result?.items.length))}>
-    {saving && <span className="spinner" aria-hidden="true"/>}{submitLabel}</button>;
+    {submitLabel}</button>;
   if (!manual && !result) return showTargetPicker ? <ExistingBookSelect initialOptions={initialOptions} selected={target} onChange={setTarget} showNewBookButton={false}/> : null;
   return <section className="stack-md" aria-label={manual ? "책 직접 추가" : "알라딘 선택 등록"}>
     {manual && <div className="manual-book-tabs" role="tablist" aria-label="책 추가 방법">
@@ -172,7 +173,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
         </>}
       </>}
       {error && !categoryOpen && <p className="flash flash-error span-2" role="alert">{error}</p>}
-      {loading && <div className="span-2"><Spinner label="알라딘 검색 중"/></div>}
+      {loading && <div className="span-2"><ProgressIndicator label="알라딘 검색 중"/></div>}
       {result && !direct && <div className="stack-md span-2" aria-busy={loading}>
         <div className="section-heading"><h2>{manual ? "추가 예정 도서" : "검색 결과"}</h2><span className="chip">{result.totalResults.toLocaleString("ko-KR")}건</span></div>
         <div className="button-row"><button className="button button-outline" type="button" disabled={loading || saving || !keys.length} onClick={() => toggle(keys, true)}>현재 페이지 모두 선택</button>

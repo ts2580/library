@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 
 export function SearchForm({ action, className, children }: { action: string; className?: string; children: React.ReactNode }) {
   const router = useRouter();
@@ -17,6 +17,6 @@ export function SearchForm({ action, className, children }: { action: string; cl
     startTransition(() => router.push(`${action}?${query}`, { scroll: false }));
   }}>
     <fieldset className="search-fields" disabled={pending}>{children}</fieldset>
-    {pending && <Spinner/>}
+    {pending && <ProgressIndicator/>}
   </form>;
 }

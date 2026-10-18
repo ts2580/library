@@ -278,35 +278,40 @@ test("manual form resets after closing and supports empty-search fallback", asyn
   await deleteCurrentBook(page);
 });
 
-test("all search forms and inline lookups show spinners while a request is pending", async ({ page }) => {
+test("all search forms and inline lookups show the top progress bar while a request is pending", async ({ page }) => {
   await login(page);
   for (const [url, label, value, button] of [
-    ["/books", "검색어", "spinner-books", "검색"],
-    ["/products", "권 제목·ISBN", "spinner-volumes", "권 검색"],
-    ["/aladin/search", "검색어", "spinner-aladin", "검색"],
+    ["/books", "검색어", "progress-books", "검색"],
+    ["/products", "권 제목·ISBN", "progress-volumes", "권 검색"],
+    ["/aladin/search", "검색어", "progress-aladin", "검색"],
     ["/aladin/used", "ISBN10 또는 ISBN13", "9780000000001", "조회"],
-    ["/inventory", "제목·ISBN·지점 검색", "spinner-inventory", "재고 검색"],
-    ["/inventory/branches/SEOUL", "제목·ISBN·지점 검색", "spinner-branch", "재고 검색"]
+    ["/inventory", "제목·ISBN·지점 검색", "progress-inventory", "재고 검색"],
+    ["/inventory/branches/SEOUL", "제목·ISBN·지점 검색", "progress-branch", "재고 검색"]
   ]) {
     await page.goto(url);
     await page.route(`**${url}?**`, async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
     await page.getByLabel(label, { exact: true }).fill(value);
     await page.getByRole("button", { name: button, exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "검색 중" }).first(), url).toBeVisible();
-    await expect(page.locator("form[aria-busy=true]")).toHaveCount(0);
-    await page.unroute(`**${url}?**`);
+    await expect(page.locator("#top-progress-bar"), url).toBeVisible();
+    await expect(page.locator(".spinner")).toHaveCount(0);
+    await expect(page.locator("form[aria-busy=true]"), url).toHaveCount(0);
+    await expect(page.locator("#top-progress-bar"), url).toBeHidden();
+    await page.unrouteAll({ behavior: "wait" });
   }
   await page.goto("/books"); await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
   await page.route("**/api/books/options?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
   await page.getByLabel("기존 책 검색", { exact: true }).fill("마이그레이션");
-  await expect(page.getByRole("status").filter({ hasText: "기존 책 검색 중" })).toBeVisible();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
+  expect(await page.locator("#top-progress-bar").evaluate(el => el.matches(":popover-open"))).toBe(true);
+  await expect(page.getByLabel("기존 책 검색", { exact: true })).toBeFocused();
   await expect(page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" })).toBeVisible();
-  await page.unroute("**/api/books/options?**");
+  await page.unrouteAll({ behavior: "wait" });
   await page.route("**/api/aladin/search?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
-  await page.getByRole("region", { name: "책 직접 추가", exact: true }).getByLabel("제목", { exact: true }).fill("spinner");
+  await page.getByRole("region", { name: "책 직접 추가", exact: true }).getByLabel("제목", { exact: true }).fill("progress");
   await page.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "알라딘 검색 중" })).toBeVisible();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
   await expect(page.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator("#top-progress-bar")).toBeHidden();
 });
 
 test("real stock worker refreshes inventory, progress, and visible results without a reload", async ({ page }, testInfo) => {

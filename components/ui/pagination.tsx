@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkProgress } from "@/components/ui/top-progress";
 import { pageNumbers } from "@/lib/pagination";
 
 type Props = {
@@ -13,7 +14,7 @@ export function Pagination({ page, totalPages, label, className = "", disabled =
     const props = { className: `page-link${current ? " page-link-current" : ""}`, "aria-label": ariaLabel,
       "aria-current": current ? "page" as const : undefined };
     return href && !unavailable
-      ? <Link key={text} {...props} href={href(target)}>{text}</Link>
+      ? <Link key={text} {...props} href={href(target)}>{text}<LinkProgress/></Link>
       : <button key={text} type="button" {...props} disabled={unavailable || current} onClick={onPageChange ? () => onPageChange(target) : undefined}>{text}</button>;
   }
   return <nav className={`pagination ${className}`} aria-label={label}>
