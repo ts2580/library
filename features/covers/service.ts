@@ -5,7 +5,7 @@ import dns from "node:dns/promises";
 import http, { type IncomingMessage } from "node:http";
 import https from "node:https";
 import net, { type LookupFunction } from "node:net";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { sqlite } from "@/db";
 import { env } from "@/lib/env";
@@ -212,12 +212,16 @@ export function normalizeImportedCoverReference(ownerId: number, value: string |
   if (!rawName) return null;
   const filename = path.posix.basename(rawName);
   if (!filename || filename === "." || filename === ".." || filename.length > 255 || filename.includes("\0")) return null;
-  return `cover://${ownerId}/${filename}`;
+  // Preserve the source path's identity when importing another account or a legacy path.
+  const identity = createHash("sha256").update(reference).digest("hex");
+  return `cover://${ownerId}/imports/${identity}/${filename}`;
 }
 
-export function archiveEntryForReference(reference: string): string | null {
+export function archiveEntryForReference(reference: string, version = 3): string | null {
   const target = storedCoverPath(reference);
-  return target ? `covers/${path.basename(target)}` : null;
+  if (!target) return null;
+  const identity = createHash("sha256").update(reference).digest("hex");
+  return version === 2 ? `covers/${path.basename(target)}` : `covers/${identity}/${path.basename(target)}`;
 }
 
 export function storedCoverPath(reference: string): string | null {
