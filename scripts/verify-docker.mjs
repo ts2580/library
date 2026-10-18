@@ -14,7 +14,7 @@ const containers = [];
 try {
   docker("volume", "create", "--label", "bookshelf.migration-test=true", volume);
   containers.push(web);
-  docker("run", "-d", "--name", web, "--label", "bookshelf.migration-test=true", "--publish", "127.0.0.1::25647", "--volume", `${volume}:/app/data`, image);
+  docker("run", "-d", "--name", web, "--label", "bookshelf.migration-test=true", "--publish", "127.0.0.1::25647", "--volume", `${volume}:/data`, image);
   const port = docker("port", web, "25647/tcp").split(":").at(-1);
   const base = `http://127.0.0.1:${port}`;
   let healthy = false;
@@ -25,7 +25,7 @@ try {
   }
   if (!healthy) throw new Error("Docker web did not become healthy");
   containers.push(worker);
-  docker("run", "-d", "--name", worker, "--label", "bookshelf.migration-test=true", "--no-healthcheck", "--volume", `${volume}:/app/data`, image, "npm", "run", "worker");
+  docker("run", "-d", "--name", worker, "--label", "bookshelf.migration-test=true", "--no-healthcheck", "--volume", `${volume}:/data`, image, "npm", "run", "worker");
   await sleep(1000);
   if (docker("inspect", "--format", "{{.State.Running}}", worker) !== "true") throw new Error(docker("logs", worker));
   const raw = docker("exec", worker, "npm", "run", "db:verify");
@@ -34,7 +34,7 @@ try {
   if (unauthenticated !== 401) throw new Error(`Anonymous API status: ${unauthenticated}`);
   if ((await fetch(`${base}/login`)).status !== 200) throw new Error("Docker login page failed");
   const mounts = [web, worker].map((container) => JSON.parse(docker("inspect", "--format", "{{json .Mounts}}", container)));
-  if (!mounts.every((list) => list.some((mount) => mount.Name === volume && mount.Destination === "/app/data"))) throw new Error("Shared volume mismatch");
+  if (!mounts.every((list) => list.some((mount) => mount.Name === volume && mount.Destination === "/data"))) throw new Error("Shared volume mismatch");
   const report = {
     passed: true, image: docker("image", "inspect", "--format", "{{.Id}}", image),
     node: docker("exec", worker, "node", "--version"), uid: docker("exec", web, "id", "-u"),

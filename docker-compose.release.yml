@@ -8,14 +8,14 @@ services:
     command: npm run start
     env_file: [.env]
     environment:
-      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
-      BOOKSHELF_DATA_DIR: ./data
-      BOOKSHELF_LEGACY_DATA_DIR: /data
+      BOOKSHELF_DB_PATH: /data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: /data
+      BOOKSHELF_LEGACY_DATA_DIR: /data/legacy
     ports:
       - "${SERVER_PORT:-25647}:25647"
     volumes:
-      - bookshelf-data:/app/data
-      - legacy-data:/data
+      - bookshelf-data:/data
+      - legacy-data:/data/legacy
   worker:
     image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.0.0-ca3}
     init: true
@@ -23,12 +23,13 @@ services:
     command: npm run worker
     env_file: [.env]
     environment:
-      BOOKSHELF_DB_PATH: ./data/bookshelf.sqlite
-      BOOKSHELF_DATA_DIR: ./data
+      BOOKSHELF_DB_PATH: /data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: /data
+      BOOKSHELF_LEGACY_DATA_DIR: /data/legacy
     healthcheck:
       disable: true
     volumes:
-      - bookshelf-data:/app/data
+      - bookshelf-data:/data
     depends_on:
       web:
         condition: service_healthy

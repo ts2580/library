@@ -1,5 +1,7 @@
 # 3.0.0-ca3 루트 전환
 
+이 문서는 PR #30의 최초 변경·검증 기록입니다. 후속 데이터 경로 통일에서는 로컬 `data/`와 Docker `/data`를 사용하며, 아래 `/app/data`·`next/data` 호환 방식은 당시 기록입니다. 현재 전환 절차는 [Java 이전과 ca3 전환](ONE_CLICK_MIGRATION.md), 변경 후 검증은 [데이터 경로 통일](DATA_DIRECTORY.md)을 따릅니다.
+
 ## 변경 범위
 
 - Next.js 패키지·앱·컴포넌트·기능·DB·워커·스크립트·검사를 프로젝트 루트로 이동.

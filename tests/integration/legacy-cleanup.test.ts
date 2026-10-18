@@ -6,11 +6,11 @@ import BetterSqlite3 from "better-sqlite3";
 
 vi.mock("server-only", () => ({}));
 const { LegacyCleanup } = await import("@/features/migration/legacy-cleanup");
-let root: string, sourceDir: string, appRoot: string, dataDir: string, databasePath: string, backupFile: string;
+let root: string, sourceDir: string, dataRoot: string, dataDir: string, databasePath: string, backupFile: string;
 let service: InstanceType<typeof LegacyCleanup>;
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(tmpdir(), "bookshelf-cleanup-"));
-  sourceDir = path.join(root, "legacy"); appRoot = path.join(root, "next"); dataDir = path.join(appRoot, "data/migrations/handover-aabb");
+  dataRoot = path.join(root, "data"); sourceDir = path.join(dataRoot, "legacy"); dataDir = path.join(dataRoot, "migrations/handover-aabb");
   databasePath = path.join(dataDir, "bookshelf.sqlite"); backupFile = path.join(dataDir, "backups/pre-next-bootstrap-fixture.sqlite");
   await fs.mkdir(path.join(sourceDir, "covers"), { recursive: true }); await fs.mkdir(path.join(dataDir, "covers"), { recursive: true }); await fs.mkdir(path.dirname(backupFile));
   await fs.writeFile(path.join(sourceDir, "covers/a.webp"), "fixture-cover"); await fs.writeFile(path.join(dataDir, "covers/a.webp"), "fixture-cover");
@@ -22,15 +22,15 @@ beforeEach(async () => {
   const current = new BetterSqlite3(databasePath);
   current.exec("CREATE TABLE bookshelf_migrations(version INTEGER PRIMARY KEY,backup_path TEXT)");
   current.prepare("INSERT INTO bookshelf_migrations VALUES(1,?)").run(backupFile); current.close();
-  await fs.writeFile(path.join(appRoot, "data/active-migration.json"), JSON.stringify({ version: 1, dataDir: "data/migrations/handover-aabb" }));
-  service = new LegacyCleanup({ appRoot, sourceDir, dataDir, databasePath });
+  await fs.writeFile(path.join(dataRoot, "active-migration.json"), JSON.stringify({ version: 1, dataDir: "data/migrations/handover-aabb" }));
+  service = new LegacyCleanup({ dataRoot, sourceDir, dataDir, databasePath });
 });
 afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 const exists = async (file: string) => fs.access(file).then(() => true, () => false);
 
 describe("legacy original cleanup", () => {
-  it("still cleans the original after sources move above the preserved next/data directory", async () => {
-    const relocated = new LegacyCleanup({ appRoot: root, sourceDir, dataDir, databasePath });
+  it("cleans originals inside the shared data root while preserving the migrated sibling", async () => {
+    const relocated = new LegacyCleanup({ dataRoot, sourceDir, dataDir, databasePath });
     expect((await relocated.status()).state).toBe("READY");
     expect((await relocated.remove()).state).toBe("CLEANED");
     expect(await exists(databasePath)).toBe(true); expect(await exists(backupFile)).toBe(true);
@@ -67,8 +67,8 @@ describe("legacy original cleanup", () => {
     await fs.unlink(backupFile); await expect(service.remove()).rejects.toThrow(); expect(await exists(path.join(sourceDir, "bookshelf.sqlite"))).toBe(true);
   });
   it("rejects the current DB as a cleanup source and refuses a rehearsal DB", async () => {
-    expect((await new LegacyCleanup({ appRoot, sourceDir: dataDir, dataDir, databasePath }).status()).state).toBe("BLOCKED");
-    const rehearsal = new LegacyCleanup({ appRoot, sourceDir, dataDir: sourceDir, databasePath: path.join(sourceDir, "bookshelf.sqlite") });
+    expect((await new LegacyCleanup({ dataRoot, sourceDir: dataDir, dataDir, databasePath }).status()).state).toBe("BLOCKED");
+    const rehearsal = new LegacyCleanup({ dataRoot, sourceDir, dataDir: sourceDir, databasePath: path.join(sourceDir, "bookshelf.sqlite") });
     await expect(rehearsal.remove()).rejects.toThrow("실제 이전본");
   });
   it("rejects symlinks and independent processes holding the cleanup lock", async () => {

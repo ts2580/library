@@ -7,7 +7,7 @@ import { activeMigrationPaths } from "@/lib/active-migration";
 import { AppError } from "@/lib/errors";
 import type { CleanupStatus } from "@/features/migration/types";
 
-type Config = { appRoot: string; sourceDir: string; dataDir: string; databasePath: string };
+type Config = { dataRoot: string; sourceDir: string; dataDir: string; databasePath: string };
 type Receipt = { version: 1; phase: "DELETING" | "COMPLETED"; staging: string; databaseBytes: number; coverBytes: number; coverFiles: number; completedAt?: string };
 const names = ["bookshelf.sqlite", "bookshelf.sqlite-wal", "bookshelf.sqlite-shm", "covers"];
 const busy = globalThis as typeof globalThis & { bookshelfLegacyCleanup?: boolean };
@@ -77,7 +77,7 @@ export class LegacyCleanup {
   constructor(private readonly config: Config) {}
 
   private async context() {
-    const active = activeMigrationPaths(this.config.appRoot);
+    const active = activeMigrationPaths(this.config.dataRoot);
     if (!active) throw blocked("원클릭 이전 완료 후에 기존 데이터를 삭제할 수 있습니다.");
     if (await fs.realpath(this.config.databasePath) !== await fs.realpath(active.databasePath)
         || await fs.realpath(this.config.dataDir) !== await fs.realpath(active.dataDir)) throw blocked("현재 앱이 실제 이전본을 사용하지 않습니다. 원본을 보존합니다.");

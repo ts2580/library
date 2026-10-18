@@ -40,6 +40,9 @@
   ],
   "exclude": [
     "node_modules",
-    "next/data"
+    "data",
+    "next",
+    "legacy-data",
+    "temp"
   ]
 }

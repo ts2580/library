@@ -120,7 +120,7 @@ for (const script of ["start", "worker", "check:syntax", "check:structure"]) {
 
 const compose = fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8");
 if (!/\bweb:/.test(compose) || !/\bworker:/.test(compose)) failures.push("docker-compose.yml: web/worker 서비스가 모두 필요합니다.");
-if ((compose.match(/bookshelf-data:\/app\/data/g) ?? []).length < 2) failures.push("docker-compose.yml: web와 worker가 동일한 /app/data 볼륨을 공유해야 합니다.");
+if ((compose.match(/bookshelf-data:\/data/g) ?? []).length < 2) failures.push("docker-compose.yml: web와 worker가 동일한 /data 볼륨을 공유해야 합니다.");
 
 if (failures.length) {
   console.error(`Structure check failed (${failures.length})`);
