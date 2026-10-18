@@ -1,0 +1,54 @@
+# Existing ca2 Docker installation: reuse the migrated volume, never create an empty replacement.
+# The ca3 image is a release target; use BOOKSHELF_IMAGE for a locally built review image.
+services:
+  permissions:
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.0.0-ca3}
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    entrypoint: ["node", "scripts/prepare-data-permissions.mjs"]
+    volumes:
+      - bookshelf-data:/data
+      - legacy-data:/data/legacy
+  web:
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.0.0-ca3}
+    init: true
+    restart: unless-stopped
+    command: npm run start
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: /data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: /data
+      BOOKSHELF_LEGACY_DATA_DIR: /data/legacy
+    ports:
+      - "${SERVER_PORT:-25647}:25647"
+    volumes:
+      - bookshelf-data:/data
+      - legacy-data:/data/legacy
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+  worker:
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.0.0-ca3}
+    init: true
+    restart: unless-stopped
+    command: npm run worker
+    env_file: [.env]
+    environment:
+      BOOKSHELF_DB_PATH: /data/bookshelf.sqlite
+      BOOKSHELF_DATA_DIR: /data
+      BOOKSHELF_LEGACY_DATA_DIR: /data/legacy
+    healthcheck:
+      disable: true
+    volumes:
+      - bookshelf-data:/data
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  bookshelf-data:
+    external: true
+    name: ${BOOKSHELF_DATA_VOLUME:-${BOOKSHELF_NEXT_VOLUME:-Bookshelf-next}}
+  legacy-data:
+    external: true
+    name: ${BOOKSHELF_LEGACY_VOLUME:-Bookshelf}

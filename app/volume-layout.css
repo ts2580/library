@@ -1,0 +1,9 @@
+/* Give mobile titles and modal actions the full card width below the cover. */
+@media (max-width: 560px) {
+  .volume-card { grid-template-columns: minmax(0, 1fr); }
+  .volume-card > .stack-sm { min-width: 0; }
+  .volume-card > .stack-sm > .volume-title {
+    flex-direction: row;
+    overflow-wrap: anywhere;
+  }
+}
