@@ -3,13 +3,14 @@ import { importExcelBackup } from "@/features/backup/excel";
 import { assertSameOrigin } from "@/lib/http";
 import { AppError, errorMessage } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { boundedFormData } from "@/lib/form-data";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireApiUser();
-    const data = await request.formData();
+    const data = await boundedFormData(request, 32 * 1024 * 1024 + 64 * 1024);
     const file = data.get("backupFile");
     if (!(file instanceof File)) throw new AppError("백업 파일을 선택해 주세요.");
     const result = await importExcelBackup(user.id, file);
