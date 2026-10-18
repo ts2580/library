@@ -215,7 +215,7 @@ test("Korean composition confirmation does not search, register, or reset the cu
 
 test("a slower old database lookup cannot replace the latest autocomplete results", async ({ page }) => {
   await login(page);
-  await page.goto("/aladin/search");
+  await page.goto("/aladin/search?query=lookup-race");
   const releases: Array<() => void> = [];
   await page.route("**/api/books/options?**", async (route) => {
     const query = new URL(route.request().url()).searchParams.get("query");
@@ -231,6 +231,41 @@ test("a slower old database lookup cannot replace the latest autocomplete result
   await input.press("Enter");
   await expect(input).toHaveValue("최신 결과");
   await expect(page.getByRole("listbox")).toHaveCount(0);
+});
+
+test("selecting an existing book fills its title and only searches when there are no results", async ({ page }, testInfo) => {
+  await login(page);
+  await page.goto("/aladin/search?queryType=Author");
+  const target = page.getByRole("combobox", { name: "기존 책 검색", exact: true });
+  const keyword = page.getByLabel("검색어", { exact: true });
+  const criterion = page.getByLabel("검색 기준", { exact: true });
+  const chooseBook = async () => {
+    await target.fill("마이그레이션");
+    await page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" }).click();
+  };
+
+  await chooseBook();
+  await expect(keyword).toHaveValue("마이그레이션 테스트 책");
+  await expect(criterion).toHaveValue("Title");
+  await expect.poll(() => new URL(page.url()).searchParams.get("query")).toBe("마이그레이션 테스트 책");
+  expect(new URL(page.url()).searchParams.get("bookId")).toBe("1");
+  await expect(page.locator(".search-result-card")).toHaveCount(2);
+
+  await page.goto(`/aladin/search?query=retain-results-${testInfo.project.name}&queryType=Author`);
+  const url = page.url();
+  await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
+  const searches: string[] = [];
+  page.on("request", request => {
+    if (/\/(?:api\/)?aladin\/search\?/.test(request.url())) searches.push(request.url());
+  });
+  await chooseBook();
+  await expect(keyword).toHaveValue("마이그레이션 테스트 책");
+  await expect(page.getByRole("img", { name: "선택한 책 마이그레이션 테스트 책", exact: true })).toBeVisible();
+  await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(url);
+  expect(searches).toEqual([]);
 });
 
 test("new-book registration asks for a category and retains selection across cancellation and a failed save", async ({ page }, testInfo) => {
