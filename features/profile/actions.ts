@@ -22,7 +22,8 @@ function fail(message: string): never {
 }
 
 async function changeCategory(formData: FormData, remove: boolean): Promise<never> {
-  await requireUser();
+  const user = await requireUser();
+  if (remove && user.role !== "ADMIN") fail("공용 카테고리 삭제는 관리자만 할 수 있습니다.");
   try {
     if (remove) removeCategory(v(formData, "category"));
     else addCategory(v(formData, "category"));
