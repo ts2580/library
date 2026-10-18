@@ -129,3 +129,61 @@ it("rejects a manifest mapping outside the current owner's DB references", async
   expect((await restore(zip)).status).toBe("COMPLETED");
   expect(fs.existsSync(storedCoverPath(reference)!)).toBe(false);
 });
+
+it.each([2,3])("rejects a v%s manifest whose owned cover member is absent", async version => {
+  const reference=bookCover(), entry=archiveEntryForReference(reference,version)!;
+  const zip=await zipFiles([["manifest.json",JSON.stringify({version,files:[{reference,entry}]})]]);
+  const job=await restore(zip);
+  expect(job).toMatchObject({status:"FAILED"});
+  expect(job.message).toContain("누락");
+  expect(fs.existsSync(storedCoverPath(reference)!)).toBe(false);
+  expect(sqlite.prepare("SELECT cover_generated FROM books WHERE id=1").get()).toEqual({cover_generated:0});
+});
+
+it.each([2,3])("accepts a missing v%s member only when its owned target is already valid", async version => {
+  const originals=await sources(), reference=bookCover(), entry=archiveEntryForReference(reference,version)!;
+  const zip=await zipFiles([["manifest.json",JSON.stringify({version,files:[{reference,entry}]})]]);
+  expect((await restore(zip)).status).toBe("COMPLETED");
+  expect(digest(fs.readFileSync(storedCoverPath(reference)!))).toBe(digest(originals.get(reference)!));
+});
+
+it("does not treat a present but unsupported owned image as restored", async () => {
+  const reference=bookCover(),entry=archiveEntryForReference(reference)!;
+  const bytes=await sharp({create:{width:8,height:8,channels:3,background:"red"}}).tiff().toBuffer();
+  const zip=await zipFiles([[entry,bytes],["manifest.json",JSON.stringify({version:3,files:[{reference,entry}]})]]);
+  const job=await restore(zip);
+  expect(job.status).toBe("FAILED"); expect(job.message).toContain("정상적으로 복원");
+});
+
+// A complete, stored ZIP with empty members; build it without archiver's per-entry
+// task queue so the test itself does not need the memory that the worker rejects.
+function emptyEntryZip(count: number): Buffer {
+  const localSize=38, centralSize=54, directoryOffset=count*localSize;
+  const buffer=Buffer.alloc(count*(localSize+centralSize)+22);
+  for(let index=0;index<count;index++) {
+    const name=`e${String(index).padStart(7,"0")}`,local=index*localSize,central=directoryOffset+index*centralSize;
+    buffer.writeUInt32LE(0x04034b50,local); buffer.writeUInt16LE(20,local+4); buffer.writeUInt16LE(8,local+26);
+    buffer.write(name,local+30);
+    buffer.writeUInt32LE(0x02014b50,central); buffer.writeUInt16LE(20,central+4); buffer.writeUInt16LE(20,central+6);
+    buffer.writeUInt16LE(8,central+28); buffer.writeUInt32LE(local,central+42); buffer.write(name,central+46);
+  }
+  const end=buffer.length-22;
+  buffer.writeUInt32LE(0x06054b50,end); buffer.writeUInt16LE(count,end+8); buffer.writeUInt16LE(count,end+10);
+  buffer.writeUInt32LE(count*centralSize,end+12); buffer.writeUInt32LE(directoryOffset,end+16);
+  return buffer;
+}
+
+it("rejects member 50001 while streaming, before reading the complete ZIP directory", async () => {
+  const zip=emptyEntryZip(60_000), opened=vi.spyOn(unzipper.Open,"file");
+  const createReadStream=fs.createReadStream;
+  const reads: fs.ReadStream[]=[];
+  vi.spyOn(fs,"createReadStream").mockImplementation((file,options)=>{
+    const stream=createReadStream(file,options);
+    if(String(file).endsWith("archive.zip")) reads.push(stream);
+    return stream;
+  });
+  const job=await restore(zip);
+  expect(job.status).toBe("FAILED"); expect(job.message).toContain("항목 수");
+  expect(opened).not.toHaveBeenCalled(); expect(reads).toHaveLength(1);
+  expect(reads[0].bytesRead).toBeLessThan(zip.length); expect(reads[0].destroyed).toBe(true);
+},30_000);

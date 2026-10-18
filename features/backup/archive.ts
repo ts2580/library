@@ -1,8 +1,8 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
-import { PassThrough, type Readable } from "node:stream";
-import { randomUUID } from "node:crypto";
+import { PassThrough } from "node:stream";
+import { createHash, randomUUID } from "node:crypto";
 import archiver from "archiver";
 import unzipper from "unzipper";
 import sharp from "sharp";
@@ -58,7 +58,7 @@ function targetForReference(reference: string): string | null {
   return storedCoverPath(reference);
 }
 
-type ZipEntry = Readable & AsyncIterable<Buffer>;
+type ZipEntry = AsyncIterable<Buffer> & { path: string; type: string };
 
 async function consumeEntry(entry: ZipEntry, collect: boolean): Promise<{ size: number; buffer: Buffer | null }> {
   const chunks: Buffer[] = [];
@@ -136,12 +136,9 @@ async function publishCover(target: string, buffer: Buffer): Promise<boolean> {
   } finally { fs.rmSync(temp, { force: true }); }
 }
 
-async function archiveReferences(ownerId: number, files: unzipper.File[]): Promise<Map<string, string>> {
-  const manifestFiles = files.filter(file => file.path === "manifest.json" && file.type === "File");
-  if (!manifestFiles.length) return referenceMap(ownerId); // Older ZIPs without a manifest.
-  if (manifestFiles.length !== 1) throw new AppError("ZIP manifest가 중복되었습니다.");
-  const { buffer } = await consumeEntry(manifestFiles[0].stream() as ZipEntry, true);
-  const manifest = JSON.parse(buffer!.toString("utf8")) as { version: number; files: Array<{ reference: string; entry: string }> };
+function archiveReferences(ownerId: number, buffer: Buffer | null): Map<string, string> {
+  if (!buffer) return referenceMap(ownerId); // Older ZIPs without a manifest.
+  const manifest = JSON.parse(buffer.toString("utf8")) as { version: number; files: Array<{ reference: string; entry: string }> };
   if (![2, 3].includes(manifest.version) || !Array.isArray(manifest.files) || manifest.files.length > MAX_ENTRIES) {
     throw new AppError("지원하지 않는 표지 ZIP manifest입니다.");
   }
@@ -157,6 +154,57 @@ async function archiveReferences(ownerId: number, files: unzipper.File[]): Promi
     else map.set(item.entry, reference);
   }
   return map;
+}
+
+// Consume one entry at a time, including the preflight pass. Never materialize
+// the central directory: an upload can contain millions of tiny records.
+async function* archiveEntries(archivePath: string): AsyncGenerator<ZipEntry> {
+  const input = fs.createReadStream(archivePath);
+  const parser = unzipper.Parse({ forceStream: true });
+  input.on("error", error => parser.destroy(error));
+  input.pipe(parser);
+  let count = 0, expandedBytes = 0;
+  try {
+    for await (const entry of parser) {
+      if (++count > MAX_ENTRIES) {
+        entry.destroy();
+        throw new AppError("ZIP 항목 수가 제한을 초과했습니다.");
+      }
+      // The consumer must fully read the entry before asking for the next one.
+      try {
+        yield {
+          path: entry.path, type: entry.type,
+          async *[Symbol.asyncIterator]() {
+            for await (const chunk of entry) {
+              const buffer = Buffer.from(chunk);
+              expandedBytes += buffer.length;
+              if (expandedBytes > MAX_EXPANDED_BYTES) throw new AppError("ZIP 압축 해제 크기가 2GiB를 초과합니다.");
+              yield buffer;
+            }
+          }
+        };
+      } finally { entry.destroy(); }
+    }
+  } finally { input.destroy(); parser.destroy(); }
+}
+
+function archiveMemberId(name: string): string {
+  return createHash("sha256").update(name).digest("hex");
+}
+
+async function inspectArchive(archivePath: string): Promise<{ manifest: Buffer | null; members: Set<string> }> {
+  let manifest: Buffer | null = null;
+  const members = new Set<string>();
+  for await (const entry of archiveEntries(archivePath)) {
+    const name = path.posix.normalize(entry.path).replace(/^\.\//, "");
+    const isManifest = entry.type === "File" && name === "manifest.json";
+    if (isManifest && manifest) throw new AppError("ZIP manifest가 중복되었습니다.");
+    const consumed = await consumeEntry(entry, isManifest);
+    if (isManifest) manifest = consumed.buffer;
+    // Retain fixed-size identities, not up to 50,000 untrusted long names.
+    else if (entry.type === "File") members.add(archiveMemberId(name));
+  }
+  return { manifest, members };
 }
 
 export function recoverInterruptedCoverArchiveJobs(): void {
@@ -195,24 +243,27 @@ export async function processNextCoverArchiveJob(): Promise<boolean> {
     SELECT upload_id AS uploadId, owner_id AS ownerId FROM backup_upload_job WHERE lock_token = ?
   `).get(lockToken) as { uploadId: string; ownerId: number };
   const archivePath = path.join(env.uploadsDir, job.uploadId, "archive.zip");
-  let restored = 0, skipped = 0, count = 0, expandedBytes = 0;
+  let restored = 0, skipped = 0;
   try {
-    const archive = await unzipper.Open.file(archivePath);
-    if (archive.files.length > MAX_ENTRIES) throw new AppError("ZIP 항목 수가 제한을 초과했습니다.");
-    const allowed = await archiveReferences(job.ownerId, archive.files);
-    for (const entry of archive.files) {
-      count += 1;
-      if (count > MAX_ENTRIES) throw new AppError("ZIP 항목 수가 제한을 초과했습니다.");
+    const archive = await inspectArchive(archivePath);
+    const allowed = archiveReferences(job.ownerId, archive.manifest);
+    if (archive.manifest) {
+      for (const [entry, reference] of allowed) {
+        if (!archive.members.has(archiveMemberId(entry)) && !(await validCover(targetForReference(reference)))) {
+          throw new AppError("ZIP manifest에 선언된 표지 파일이 누락되었습니다.");
+        }
+      }
+    }
+    for await (const entry of archiveEntries(archivePath)) {
       const normalized = path.posix.normalize(entry.path).replace(/^\.\//, "");
       if (entry.type !== "File") {
+        await consumeEntry(entry, false);
         continue;
       }
       const reference = normalized === "manifest.json" ? null : allowed.get(normalized);
       const target = reference ? targetForReference(reference) : null;
       const shouldRestore = Boolean(reference && target && !(await validCover(target)));
-      const consumed = await consumeEntry(entry.stream() as ZipEntry, shouldRestore);
-      expandedBytes += consumed.size;
-      if (expandedBytes > MAX_EXPANDED_BYTES) throw new AppError("ZIP 압축 해제 크기가 2GiB를 초과합니다.");
+      const consumed = await consumeEntry(entry, shouldRestore);
       if (!shouldRestore || !target || !consumed.buffer) {
         if (normalized !== "manifest.json") skipped += 1;
         continue;
@@ -230,6 +281,9 @@ export async function processNextCoverArchiveJob(): Promise<boolean> {
     }
 
     const generated = await coverGeneratedState(job.ownerId);
+    if (archive.manifest && [...allowed.values()].some(reference => !generated.get(reference))) {
+      throw new AppError("ZIP manifest에 선언된 표지를 정상적으로 복원하지 못했습니다.");
+    }
     const transaction = sqlite.transaction(() => {
       synchronizeCoverGenerated(job.ownerId, generated);
       sqlite.prepare(`
