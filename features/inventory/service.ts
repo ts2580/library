@@ -33,8 +33,11 @@ function rebuildSummaryStatements(): void {
   `).run();
 }
 
-function rebuildSummary(): void {
-  sqlite.transaction(rebuildSummaryStatements).immediate();
+function rememberStockCompletion(): void {
+  sqlite.prepare(`INSERT INTO stock_refresh_completion(owner_id, run_id)
+    SELECT requested_by, COALESCE(run_id, ?) FROM stock_refresh_job
+    WHERE id=1 AND requested_by IS NOT NULL
+    ON CONFLICT(owner_id) DO UPDATE SET run_id=excluded.run_id`).run(randomUUID());
 }
 
 function assertScopedBook(ownerId: number, bookId: number | null): void {
@@ -92,20 +95,24 @@ export function deleteOwnerInventory(ownerId: number): void {
         mode = 'REPLACE_ALL', scope_book_id = NULL
       WHERE id = 1
     `).run(ownerId);
+    rememberStockCompletion();
   });
   transaction.immediate();
 }
 
 export function recoverInterruptedStockJob(): void {
-  const row = sqlite.prepare("SELECT status FROM stock_refresh_job WHERE id = 1").get() as { status: string };
-  if (row.status !== "RUNNING") return;
-  rebuildSummary();
-  sqlite.prepare(`
+  sqlite.transaction(() => {
+    const row = sqlite.prepare("SELECT status FROM stock_refresh_job WHERE id = 1").get() as { status: string };
+    if (row.status !== "RUNNING") return;
+    rebuildSummaryStatements();
+    sqlite.prepare(`
     UPDATE stock_refresh_job SET running = 0, failed = 1, completed = 0, status = 'FAILED',
       message = '워커 재기동으로 이전 재고 갱신 작업이 중단되었습니다. 다시 실행해 주세요.',
       updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP, lock_token = NULL
     WHERE id = 1
-  `).run();
+    `).run();
+    rememberStockCompletion();
+  }).immediate();
 }
 
 function claimStockJob(): { ownerId: number; total: number; lockToken: string; mode: string; bookId: number | null } | null {
@@ -189,6 +196,7 @@ function completeJob(lockToken: string, total: number, processed: number, succes
       WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?
     `).run(processed, success, empty, fail,
       `${append ? "책 재고 검색 완료" : "재고 일괄 조회 완료"}: 총 ${total}권 중 ${success}권 성공, ${empty}권 재고없음, ${fail}권 실패`, lockToken);
+    rememberStockCompletion();
   }).immediate();
 }
 
@@ -204,6 +212,7 @@ function failJob(lockToken: string, total: number, processed: number, success: n
         heartbeat_at = CURRENT_TIMESTAMP, lock_token = NULL
       WHERE id = 1 AND status = 'RUNNING' AND lock_token = ?
     `).run(processed, success, empty, fail, percent, message, lockToken);
+    rememberStockCompletion();
   }).immediate();
 }
 

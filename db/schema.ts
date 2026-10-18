@@ -181,6 +181,11 @@ export const stockRefreshJobs = sqliteTable("stock_refresh_job", {
   heartbeatAt: text("heartbeat_at")
 });
 
+export const stockRefreshCompletions = sqliteTable("stock_refresh_completion", {
+  ownerId: integer("owner_id").primaryKey().references(() => members.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull()
+});
+
 export const appSessions = sqliteTable(
   "app_sessions",
   {

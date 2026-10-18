@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 3;
+const BOOTSTRAP_VERSION = 4;
 
 type Database = BetterSqlite3.Database;
 
@@ -299,8 +299,19 @@ export function bootstrapDatabase(sqlite: Database): void {
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (2, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
-    ensureColumn(sqlite, "stock_refresh_job", "run_id TEXT");
-    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (3, ?, ?)")
+    if (!isApplied(3)) {
+      ensureColumn(sqlite, "stock_refresh_job", "run_id TEXT");
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (3, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS stock_refresh_completion (
+      owner_id INTEGER PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
+      run_id TEXT NOT NULL
+    )`);
+    sqlite.exec(`INSERT OR IGNORE INTO stock_refresh_completion(owner_id, run_id)
+      SELECT requested_by, run_id FROM stock_refresh_job
+      WHERE requested_by IS NOT NULL AND run_id IS NOT NULL AND status IN ('COMPLETED','FAILED')`);
+    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (4, ?, ?)")
       .run(new Date().toISOString(), backup);
   });
   transaction.immediate();

@@ -84,3 +84,46 @@ test("new server props wake up an IDLE hook without retaining its previous state
     db.close();
   }
 });
+
+test("an owner's unseen completion survives another owner's completed job", async ({ page, browser }, testInfo) => {
+  const directory=process.env.BOOKSHELF_E2E_DATA;
+  if(!directory || path.dirname(directory)!==tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");
+  const db=new Database(path.join(directory,"bookshelf.sqlite"));
+  const owners=["a","b"].map(suffix=>{
+    const username=`completion-${suffix}-${testInfo.project.name}`;
+    const id=Number(db.prepare("INSERT INTO member(username,password_hash,role) SELECT ?,password_hash,'ADMIN' FROM member WHERE id=1").run(username).lastInsertRowid);
+    const book=Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('완료 보존 검증',?)").run(id).lastInsertRowid);
+    db.prepare("INSERT INTO book_volumes(book,volume,name,isbn13) VALUES(?,1,'작업 권','9780000000192')").run(book);
+    return {id,book,username};
+  });
+  const other=await browser.newContext();
+  let release!:()=>void;
+  const blocked=new Promise<void>(resolve=>{release=resolve;});
+  try {
+    await login(page,owners[0].username); await page.goto(`/books/${owners[0].book}`);
+    const metadata=page.locator(".volume-card .volume-meta");
+    await expect(metadata).toContainText("재고 0건");
+    await page.route(`**/api/books/${owners[0].book}/stock-search`,async route=>{await blocked; await route.continue();});
+    expect((await page.request.post("/api/stock-refresh")).status()).toBe(202);
+    await expect.poll(()=>(db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owners[0].id) as {status:string})?.status).toBe("COMPLETED");
+    const a=db.prepare("SELECT run_id FROM stock_refresh_completion WHERE owner_id=?").get(owners[0].id) as {run_id:string};
+    const bPage=await other.newPage(); await login(bPage,owners[1].username);
+    expect((await bPage.request.post("/api/stock-refresh")).status()).toBe(202);
+    await expect.poll(()=>(db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owners[1].id) as {status:string})?.status).toBe("COMPLETED");
+    await expect(metadata).toContainText("재고 0건");
+    const response=page.waitForResponse(r=>r.url().endsWith(`/api/books/${owners[0].book}/stock-search`));
+    release(); await page.evaluate(()=>window.dispatchEvent(new Event("focus")));
+    const progress=await (await response).json();
+    expect(progress).toMatchObject({status:"IDLE",completionId:a.run_id,total:0});
+    expect(progress.runId).toBeUndefined();
+    await expect(metadata).toContainText("재고 2건");
+    await expect(metadata).toContainText("최저 1,700원");
+  } finally {
+    release(); await page.unrouteAll({behavior:"wait"}); await other.close();
+    for(const owner of owners) {
+      db.prepare("UPDATE stock_refresh_job SET status='IDLE',running=0,requested_by=NULL,run_id=NULL,lock_token=NULL WHERE requested_by=?").run(owner.id);
+      db.prepare("DELETE FROM books WHERE owner_id=?").run(owner.id); db.prepare("DELETE FROM member WHERE id=?").run(owner.id);
+    }
+    db.close();
+  }
+});

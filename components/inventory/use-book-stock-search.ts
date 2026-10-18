@@ -38,7 +38,8 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
       const ended = before.progress?.status === "QUEUED" || before.progress?.status === "RUNNING";
       const terminal = progress.status === "COMPLETED" || progress.status === "FAILED";
       const newCompletion = terminal && progress.runId && progress.runId !== before.progress?.runId;
-      if (!active && affectsBook && (ended || newCompletion)) router.refresh();
+      const ownerCompleted = progress.completionId && progress.completionId !== before.progress?.completionId;
+      if (ownerCompleted || (!active && affectsBook && (ended || newCompletion))) router.refresh();
     }
     previous.current = { bookId, progress };
   }, [bookId, progress, active, affectsBook, router]);
