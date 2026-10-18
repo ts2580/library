@@ -7,6 +7,7 @@ import { bulkSelectionSchema } from "@/features/aladin/selection";
 import type { AladinBookItem } from "@/features/aladin/types";
 import { bookInputSchema } from "@/features/books/validation";
 import { persistAladinCover } from "@/features/aladin/covers";
+import { orderByPublicationDate } from "@/features/aladin/volume-order";
 
 export async function importAladinSelection(ownerId: number, raw: unknown, manual?: { book: unknown; coverFile?: File | null }) {
   const input = bulkSelectionSchema.parse(raw);
@@ -16,7 +17,7 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
       .get(input.targetBookId, ownerId)) throw new NotFoundError("추가할 책을 찾을 수 없습니다.");
   }
   assertTarget();
-  const selected: AladinBookItem[] = [];
+  let selected: AladinBookItem[] = [];
   const seen = new Set<string>();
   const pages = [...new Set(input.selection.map((item) => item.page))].sort((a, b) => b - a);
   for (const page of pages) {
@@ -29,12 +30,13 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
     if ([...keys].some((key) => !available.has(key))) {
       throw new AppError("선택한 알라딘 항목이 변경되었습니다. 다시 검색해 주세요.", "STALE_SELECTION");
     }
-    // Later pages first; preserve the displayed top-to-bottom order within a page.
+    // Keep a stable search order for equal or unavailable publication dates.
     for (const item of result.items) {
       const key = item.isbn13 ?? item.isbn;
       if (key && keys.has(key) && !seen.has(key)) { seen.add(key); selected.push(item); }
     }
   }
+  selected = orderByPublicationDate(selected);
   function assertNoDuplicates() {
     const duplicate = sqlite.prepare(`SELECT 1 FROM book_volumes bv JOIN books b ON b.id = bv.book
       WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ?) LIMIT 1`);

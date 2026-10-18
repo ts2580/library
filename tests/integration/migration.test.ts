@@ -265,7 +265,7 @@ describe("book-scoped additive stock search", () => {
 describe("Aladin multi-page selection", () => {
   const request = { query: "series", targetBookId: 1, seriesName: "series", sideStory: false,
     selection: [{ page: 1, key: "9780000000001" }, { page: 2, key: "9780000000003" }, { page: 2, key: "9780000000002" }] };
-  it("refetches pages, orders later pages first, and preserves displayed item order", async () => {
+  it("refetches pages and preserves stable search order when publication dates are missing", async () => {
     vi.mocked(searchAladinBooks).mockImplementation(async (input: unknown) => {
       const { page } = input as { page: number };
       return { page, pageSize: 20, totalResults: 40,
@@ -275,6 +275,31 @@ describe("Aladin multi-page selection", () => {
     expect(result.count).toBe(3);
     expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes ORDER BY id").all()).toEqual([
       { isbn13: "9780000000002", volume: 1 }, { isbn13: "9780000000003", volume: 2 }, { isbn13: "9780000000001", volume: 3 }
+    ]);
+  });
+  it.each([false, true])("numbers by publication date across pages when manual=%s", async (manual) => {
+    vi.mocked(searchAladinBooks).mockImplementation(async (input: unknown) => {
+      const { page } = input as { page: number };
+      return { page, pageSize: 20, totalResults: 40, items: page === 2 ? [
+        { ...item("9780000000002"), pubDate: "2026-07-31" },
+        { ...item("9780000000003"), pubDate: "2026-03-20" }
+      ] : [{ ...item("9780000000001"), pubDate: "2026-05-29" }] };
+    });
+    if (manual) await createManualBook(1, { book: { name: "series", author: "", description: "", type: "", totalVolume: "", coverUrl: "" }, direct: false, targetBookId: 1, selection: request.selection });
+    else await importAladinSelection(1, request);
+    expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes WHERE book=1 ORDER BY volume").all()).toEqual([
+      { isbn13: "9780000000003", volume: 1 }, { isbn13: "9780000000001", volume: 2 }, { isbn13: "9780000000002", volume: 3 }
+    ]);
+  });
+  it("starts at four after three regular volumes and ignores side stories", async () => {
+    volume(1, 1, 1); volume(2, 1, 2); volume(3, 1, 3); volume(4, 1, null);
+    expect(getOwnedBookOptions(1)[0]?.nextVolume).toBe(4);
+    vi.mocked(searchAladinBooks).mockResolvedValue({ page: 1, pageSize: 20, totalResults: 2, items: [
+      { ...item("9781111111112"), pubDate: "2026-07-31" }, { ...item("9781111111111"), pubDate: "2026-03-20" }
+    ] });
+    await importAladinSelection(1, { ...request, selection: [{ page: 1, key: "9781111111112" }, { page: 1, key: "9781111111111" }] });
+    expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes WHERE isbn13 LIKE '978111%' ORDER BY volume").all()).toEqual([
+      { isbn13: "9781111111111", volume: 4 }, { isbn13: "9781111111112", volume: 5 }
     ]);
   });
   it("rejects a missing selection before creating any rows", async () => {

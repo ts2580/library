@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { sqlite } from "@/db";
 import { aladinJson, isAladinConfigured } from "@/features/aladin/client";
 import { searchAladinBooks } from "@/features/aladin/service";
+import { largeAladinCover } from "@/features/aladin/cover-url";
 import { deleteCoverIfUnused, persistCover, storedCoverPath } from "@/features/covers/service";
 import { logger } from "@/lib/logger";
 import { normalizeHttpUrl } from "@/lib/urls";
@@ -60,7 +61,7 @@ async function lookupCoverByIsbn(isbn13: string): Promise<string | null> {
       Cover: "Big"
     }));
     const first = Array.isArray(raw?.item) ? object(raw.item[0]) : null;
-    return stringValue(first?.cover)?.replace(/coversum/gi, "cover500") ?? null;
+    return largeAladinCover(stringValue(first?.cover));
   } catch (error) {
     logger.warn("Aladin cover lookup by ISBN failed", {
       isbn13,
@@ -86,7 +87,7 @@ async function lookupCoverByTitle(title: string): Promise<string | null> {
 
 async function candidateCover(input: { current: string | null; originalUrl?: string | null; isbn13?: string | null; title?: string | null }): Promise<string | null> {
   const external = normalizeHttpUrl(input.current) ?? normalizeHttpUrl(input.originalUrl ?? null);
-  if (external) return external;
+  if (external) return largeAladinCover(external);
   if (input.isbn13) {
     const byIsbn = await lookupCoverByIsbn(input.isbn13);
     if (byIsbn) return byIsbn;
