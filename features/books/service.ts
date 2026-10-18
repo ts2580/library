@@ -134,9 +134,9 @@ export async function updateVolume(ownerId: number, bookId: number, volumeId: nu
       // Resolve only unambiguous legacy links before changing the canonical number.
       sqlite.prepare(`
         UPDATE branchbook SET book_volume_id = ?
-        WHERE book_volume_id IS NULL AND book = ? AND volume = ?
+        WHERE book_volume_id IS NULL AND book = ? AND volume IS ?
           AND 1 = (SELECT COUNT(*) FROM book_volumes candidate
-                   WHERE candidate.book = branchbook.book AND candidate.volume = branchbook.volume)
+                   WHERE candidate.book = branchbook.book AND candidate.volume IS branchbook.volume)
       `).run(volumeId, bookId, previous.seq);
       const result = sqlite.prepare(`
         UPDATE book_volumes SET seq = ?, volume = ?, name = ?, author = ?, isbn13 = ?, price = ?,
