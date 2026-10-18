@@ -30,7 +30,7 @@ try {
   await fs.writeFile(path.join(data, "active-migration.json"), JSON.stringify({ version: 1, dataDir: "data/migrations/handover-aabb" }));
   docker("run", "--rm", "--user", "0", "-v", `${directory}:/fixture`, "--entrypoint", "/bin/chown", image, "-hR", "1001:1001", "/fixture"); chowned = true;
   docker("run", "-d", "--init", "--name", name, "--label", "bookshelf.test=cleanup", "-p", "127.0.0.1::25647",
-    "-v", `${data}:/app/data`, "-v", `${legacy}:/legacy-data`, "-e", "BOOKSHELF_LEGACY_DATA_DIR=/legacy-data", image); created = true;
+    "-v", `${data}:/data`, "-v", `${legacy}:/data/legacy`, "-e", "BOOKSHELF_LEGACY_DATA_DIR=/data/legacy", image); created = true;
   const info = JSON.parse(docker("inspect", name))[0]; const port = info.NetworkSettings.Ports["25647/tcp"][0].HostPort;
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
@@ -42,17 +42,26 @@ try {
   browser = await chromium.launch({ headless: true }); const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(origin + "/login"); await page.getByLabel("아이디", { exact: true }).fill("trstyq"); await page.getByLabel("비밀번호", { exact: true }).fill("fixture-only-password");
   await page.getByRole("button", { name: "로그인", exact: true }).click(); await page.waitForURL("**/dashboard");
-  await page.goto(origin + "/profile");
-  const button = page.getByRole("button", { name: "기존 DB·표지 삭제", exact: true });
-  for (let attempt = 0; !await button.isEnabled(); attempt++) { if (attempt === 30) throw new Error("Cleanup button not enabled"); await new Promise((resolve) => setTimeout(resolve, 200)); }
-  page.once("dialog", (dialog) => dialog.accept()); await button.click(); await page.getByRole("button", { name: "원본 삭제 완료", exact: true }).waitFor();
-  const verification = JSON.parse(docker("exec", name, "node", "-e", "const fs=require('fs'),DB=require('better-sqlite3'); const db=new DB('/app/data/migrations/handover-aabb/bookshelf.sqlite',{readonly:true}); console.log(JSON.stringify({sourceDb:fs.existsSync('/legacy-data/bookshelf.sqlite'),sourceCovers:fs.existsSync('/legacy-data/covers'),books:db.prepare('SELECT COUNT(*) AS n FROM books').get().n,backups:fs.readdirSync('/app/data/migrations/handover-aabb/backups').length})); db.close();"));
+  const cleanupUrl = origin + "/api/migration/legacy-cleanup";
+  const before = await page.request.get(cleanupUrl);
+  assert.equal(before.status(), 200);
+  const ready = await before.json();
+  assert.equal(ready.state, "READY", ready.message); assert.equal(ready.canDelete, true);
+  const response = await page.request.post(cleanupUrl, { headers: { origin } });
+  assert.equal(response.status(), 200);
+  const cleaned = await response.json();
+  assert.equal(cleaned.state, "CLEANED", cleaned.message); assert.equal(cleaned.canDelete, false);
+  const after = await page.request.get(cleanupUrl);
+  assert.equal(after.status(), 200); assert.equal((await after.json()).state, "CLEANED");
+  const verification = JSON.parse(docker("exec", name, "node", "-e", "const fs=require('fs'),DB=require('better-sqlite3'); const db=new DB('/data/migrations/handover-aabb/bookshelf.sqlite',{readonly:true}); console.log(JSON.stringify({sourceDb:fs.existsSync('/data/legacy/bookshelf.sqlite'),sourceCovers:fs.existsSync('/data/legacy/covers'),books:db.prepare('SELECT COUNT(*) AS n FROM books').get().n,backups:fs.readdirSync('/data/migrations/handover-aabb/backups').length})); db.close();"));
   assert.equal(verification.sourceDb, false); assert.equal(verification.sourceCovers, false); assert.equal(verification.books, 1); assert.ok(verification.backups > 0);
   assert.equal((await page.request.get(origin + "/api/covers/fixture.webp")).status(), 200);
+  await page.goto(origin + "/books");
+  await page.getByRole("heading", { name: "원본 정리 후 유지할 도서", exact: true }).waitFor();
   const artifacts = path.join(process.cwd(), "test-results/legacy-cleanup-docker"); await fs.mkdir(artifacts, { recursive: true });
   await page.screenshot({ path: path.join(artifacts, "mobile-completed.png"), fullPage: true });
-  await fs.writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, image: info.Image, ...verification }, null, 2));
-  console.log("PASS Docker original cleanup button, portable backup paths, preserved active DB and authenticated covers");
+  await fs.writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, image: info.Image, cleanupState: cleaned.state, ...verification }, null, 2));
+  console.log("PASS Docker authenticated admin cleanup API, portable backup paths, preserved active DB and authenticated covers");
 } catch (error) {
   if (created) { const logs = spawnSync("docker", ["logs", "--tail", "30", name], { encoding: "utf8" }); console.error(logs.stdout, logs.stderr); }
   throw error;

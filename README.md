@@ -120,7 +120,7 @@ npm run test:docker -- bookshelf:3.0.0-ca3-local
 CLEANUP_DOCKER_IMAGE=bookshelf:3.0.0-ca3-local npm run test:cleanup:docker
 ```
 
-Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
+Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
 
 ## 디렉터리
 
