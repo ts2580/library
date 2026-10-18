@@ -67,6 +67,8 @@ docker compose up -d --build
 
 `docker-compose.release.yml`은 기존 `Bookshelf-next`와 `Bookshelf`를 external volume으로 연결합니다. 실제 이름이 다르면 `.env`의 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 맞춥니다. 기존 Java·Next 웹·워커를 모두 종료한 뒤 이 구성으로 전환합니다.
 
+발행용 Compose의 `permissions` 작업이 먼저 root로 실행되어 두 데이터 볼륨의 소유권을 UID/GID `1001:1001`로 맞춥니다. 작업 성공 후 웹·워커는 기존처럼 UID 1001로 실행합니다. 심볼릭 링크 대상을 따라가거나 데이터 파일을 삭제하지 않습니다. 기존 Java 이미지의 UID가 달라도 관리자 정리 API가 원본 볼륨에 쓸 수 있도록 하기 위한 단계입니다.
+
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
 ca3은 PR 준비 버전이며 Docker Hub 발행은 별도입니다. 발행 전에는 루트에서 검증 이미지를 빌드해 사용합니다.

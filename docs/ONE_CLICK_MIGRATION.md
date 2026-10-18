@@ -20,6 +20,8 @@ Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next
 
 루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. ca3 발행 전 로컬 이미지로 검증하는 명령은 [README](../README.md)에 있습니다.
 
+Compose의 일회성 `permissions` 서비스가 웹 실행 전에 두 볼륨의 소유권을 UID/GID `1001:1001`로 맞춥니다. 이 작업만 root를 사용하며, 웹·워커는 비특권 사용자로 실행합니다. 이전 Java 프로세스를 먼저 종료하고, 초기화 작업이 성공한 뒤 전환합니다. 심볼릭 링크 대상은 따라가지 않으며 각 데이터 경로에서 파일시스템 경계를 넘지 않습니다.
+
 ca2의 `BOOKSHELF_NEXT_VOLUME`도 계속 지원합니다. 새 데이터 볼륨은 비어 있지 않은 `BOOKSHELF_DATA_VOLUME`을 우선하고, 없으면 `BOOKSHELF_NEXT_VOLUME`, 둘 다 없거나 비어 있으면 `Bookshelf-next`를 사용합니다.
 
 현재 소스로 빌드한 이미지에서 새 데이터 볼륨은 `/data`, Java 원본 볼륨은 `/data/legacy`에 연결합니다. 예전 Java 볼륨을 `/data`에 계속 연결하면 다른 DB를 읽게 됩니다. 이미지나 마운트 변경 후에는 컨테이너를 재생성합니다. 이전 Java·Next 워커가 동시에 원본이나 새 DB에 쓰지 않도록 먼저 종료합니다. 원본 정리를 마친 뒤에는 `legacy-data:/data/legacy` 연결을 생략할 수 있습니다. 백업·로그가 남은 예전 볼륨 자체는 삭제하지 않습니다.
