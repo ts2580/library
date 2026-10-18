@@ -33,7 +33,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
       <div className="button-row"><button className="button" type="submit">검색</button><Link className="button button-outline" href="/aladin/search" onClick={() => { setTarget(null); setResetVersion((previous) => previous + 1); }}>초기화</Link></div>
     </SearchForm>
     </section>
-    <AladinSelection key={`${query}:${searchOptions.queryType}:${resetVersion}`} query={query} initial={result} searchOptions={searchOptions}
-      initialOptions={options} selectedBookId={selectedBookId} selectedTarget={target} onTargetChange={setTarget} showTargetPicker={false} categories={categories}/>
+    {result && <AladinSelection key={`${query}:${searchOptions.queryType}:${result.page}:${resetVersion}`} query={query} initial={result} searchOptions={searchOptions}
+      initialOptions={options} selectedBookId={selectedBookId} selectedTarget={target} onTargetChange={setTarget} showTargetPicker={false} categories={categories}/>}
   </>;
 }
