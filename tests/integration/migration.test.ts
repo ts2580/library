@@ -87,6 +87,17 @@ describe("legacy SQLite adoption", () => {
     sqlite.prepare("INSERT OR IGNORE INTO book_categories(name) VALUES (?)").run("저장만 한 카테고리");
     expect(getManualBookCategories()).toContain("저장만 한 카테고리");
   });
+  it("preserves a trimmed category still used by a legacy book with surrounding spaces", () => {
+    const name = "이전 공백 분류";
+    sqlite.prepare("UPDATE books SET type=? WHERE id=2").run(` ${name} `);
+    addCategory(name);
+    expect(() => removeCategory(name)).toThrow("사용 중");
+    expect(getManualBookCategories()).toContain(name);
+    expect(sqlite.prepare("SELECT type FROM books WHERE id=2").get()).toEqual({ type: ` ${name} ` });
+    sqlite.prepare("UPDATE books SET type=NULL WHERE id=2").run();
+    removeCategory(name);
+    expect(getManualBookCategories()).not.toContain(name);
+  });
   it("does not open or migrate the database just by importing server modules", () => {
     expect(databaseExistedAfterImport).toBe(false);
   });
