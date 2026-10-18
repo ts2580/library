@@ -50,6 +50,10 @@ worker -> PROCESSING -> safe ZIP validation/restore -> COMPLETED or FAILED
 
 `ASSEMBLING` belongs to the web process and is distinct from worker-owned `PROCESSING`, preventing worker restart recovery from incorrectly failing a currently assembling upload.
 
+The web process updates the assembly heartbeat after each chunk. Every 30 seconds the worker expires assemblies with no heartbeat for 15 minutes, independently of inventory processing. This periodic recovery leaves live `PROCESSING` jobs alone. Failed assembly/restore files are removed while retaining the job status; any failed files that cannot be removed still count toward the owner's two-job and 2GiB upload reservations.
+
+Multipart Excel and manual-cover routes limit the raw incoming stream before parsing form data. The 32MiB workbook and 8MiB cover limits each allow an additional 64KiB for multipart metadata; file validation still applies after parsing.
+
 ## Runtime data
 
 - `data/bookshelf.sqlite`: SQLite database.
