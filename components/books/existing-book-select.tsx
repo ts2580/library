@@ -6,8 +6,8 @@ import { CoverImage } from "@/components/ui/cover-image";
 import type { BookOption } from "@/features/books/types";
 export type { BookOption } from "@/features/books/types";
 
-export function ExistingBookSelect({ selected, onChange, disabled = false }: {
-  initialOptions: BookOption[]; selected: BookOption | null; onChange: (value: BookOption | null) => void; disabled?: boolean;
+export function ExistingBookSelect({ selected, onChange, disabled = false, showNewBookButton = true }: {
+  initialOptions: BookOption[]; selected: BookOption | null; onChange: (value: BookOption | null) => void; disabled?: boolean; showNewBookButton?: boolean;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -75,7 +75,7 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
   function clear() {
     onChange(null); setQuery(""); setOpen(false); setOptions([]); input.current?.focus();
   }
-  return <div className="field span-2 book-autocomplete" onBlur={(event) => {
+  return <div className={`field span-2 book-autocomplete${selected ? " book-autocomplete-selected" : ""}`} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }}>
     <label htmlFor={id}>기존 책 검색</label>
@@ -121,7 +121,8 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
       </div>}
     </div>
     {selected ? <div className="button-row"><span className="muted small" role="status">선택됨 · {selected.name} · {selected.type ?? "미분류"} · 다음 정규 권차 {selected.nextVolume}권부터 추가</span>
-      <button type="button" className="button button-outline button-small" disabled={disabled} onClick={clear}>새 책으로 등록</button></div>
+      {showNewBookButton && <button type="button" className="button button-outline button-small" disabled={disabled} onClick={clear}>새 책으로 등록</button>}</div>
       : <span className="muted small">검색 결과에서 책을 선택하거나, 비워 두고 새 책으로 등록하세요.</span>}
+    {selected && <div className="book-autocomplete-selected-cover"><CoverImage cover={selected.cover} alt={`선택한 책 ${selected.name}`}/></div>}
   </div>;
 }

@@ -20,7 +20,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
   return <>
     <header className="page-header aladin-page-header">
       <div><p className="eyebrow">Aladin API</p><h1 className="page-title">알라딘 도서 검색</h1><p className="page-subtitle">여러 페이지에서 선택한 권을 새 책이나 기존 책에 한 번에 등록합니다.</p></div>
-      <div className="aladin-target-select"><ExistingBookSelect key={resetVersion} initialOptions={options} selected={target} onChange={setTarget}/></div>
+      <div className="aladin-target-select"><ExistingBookSelect key={resetVersion} initialOptions={options} selected={target} onChange={setTarget} showNewBookButton={false}/></div>
     </header>
     {children}
     <section className="panel panel-soft stack-md">

@@ -103,6 +103,7 @@ test("Aladin search uses the bookshelf filter layout and resets the keyword, cri
   for (let attempt = 0; attempt < 2; attempt++) {
     await target.fill("마이그레이션");
     await page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" }).click();
+    await expect(page.locator(".book-autocomplete-selected-cover")).toBeVisible();
     await criterion.selectOption("Author");
     await keyword.fill("검색 전 입력");
     await reset.click();
@@ -110,6 +111,7 @@ test("Aladin search uses the bookshelf filter layout and resets the keyword, cri
     await expect(keyword).toHaveValue("");
     await expect(criterion).toHaveValue("Title");
     await expect(target).toHaveValue("");
+    await expect(page.locator(".book-autocomplete-selected-cover")).toHaveCount(0);
     await expect(page.locator(".search-result-card")).toHaveCount(0);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -139,6 +141,9 @@ test("simplified search keeps the selected database book across title and author
   const option = page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" });
   await expect(option.getByRole("img")).toBeVisible();
   await option.click();
+  const selectedCover = page.getByRole("img", { name: "선택한 책 마이그레이션 테스트 책", exact: true });
+  await expect(selectedCover).toBeVisible();
+  await expect.poll(() => selectedCover.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   const documents: string[] = [];
   page.on("request", (request) => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(request.url()); });
   for (const queryType of ["Author", "Title"]) {
@@ -149,14 +154,17 @@ test("simplified search keeps the selected database book across title and author
     await expect.poll(() => new URL(page.url()).searchParams.get("queryType")).toBe(queryType);
     expect(new URL(page.url()).searchParams.get("bookId")).toBe("1");
     await expect(input).toHaveValue("마이그레이션 테스트 책");
+    await expect(selectedCover).toBeVisible();
+    await expect(page.getByRole("button", { name: "새 책으로 등록", exact: true })).toHaveCount(0);
     await expect(page.getByLabel("새 책 제목", { exact: true })).toHaveCount(0);
     await expect(page.locator(".search-result-card")).toHaveCount(2);
   }
   expect(documents).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("simplified-search.png"), fullPage: true });
-  await page.getByRole("button", { name: "새 책으로 등록", exact: true }).click();
+  await input.fill("");
   await expect(input).toHaveValue("");
+  await expect(selectedCover).toHaveCount(0);
   await form.getByRole("button", { name: "검색", exact: true }).click();
   await expect(page).not.toHaveURL(/bookId=/);
   await expect(page.getByLabel("새 책 제목", { exact: true })).toBeVisible();

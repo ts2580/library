@@ -133,7 +133,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     : ready && !result?.items.length && !target ? "책만 추가" : `${selection.length}권 추가`;
   const submitButton = <button type="submit" className="button" disabled={saving || loading || ((!manual || ready) && !selection.length && !(!target && manual && !result?.items.length))}>
     {saving && <span className="spinner" aria-hidden="true"/>}{submitLabel}</button>;
-  if (!manual && !result) return showTargetPicker ? <ExistingBookSelect initialOptions={initialOptions} selected={target} onChange={setTarget}/> : null;
+  if (!manual && !result) return showTargetPicker ? <ExistingBookSelect initialOptions={initialOptions} selected={target} onChange={setTarget} showNewBookButton={false}/> : null;
   return <section className="stack-md" aria-label={manual ? "책 직접 추가" : "알라딘 선택 등록"}>
     {manual && <div className="manual-book-tabs" role="tablist" aria-label="책 추가 방법">
       {([{ value: false, id: "aladin", label: "알라딘 검색" }, { value: true, id: "manual", label: "책 수동 추가" }] as const).map((tab, index) => <button
@@ -151,7 +151,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     <form className="form-grid" autoComplete="off" onSubmit={submit} encType="multipart/form-data" onKeyDown={(event) => {
       if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault();
     }}>
-      {!direct && showTargetPicker && <ExistingBookSelect initialOptions={initialOptions} selected={target} disabled={saving} onChange={(value) => {
+      {!direct && showTargetPicker && <ExistingBookSelect initialOptions={initialOptions} selected={target} disabled={saving} showNewBookButton={false} onChange={(value) => {
         setTarget(value); if (manual) { resetPreview(); if (!seriesName.trim() && value) setSeriesName(value.name); }
       }}/>}
       {(manual || !target) && <div className="field span-2"><label htmlFor="series-name">{manual ? "제목" : "새 책 제목"}</label>
