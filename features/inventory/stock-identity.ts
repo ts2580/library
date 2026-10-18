@@ -14,7 +14,7 @@ function canonicalLink(value: string | null): string | null {
 }
 
 /** Prices, volume numbers and display names must not define offer identity. */
-export function stockIdentity(volumeId: number, stock: AladinBranchStock): string {
+export function stockIdentity<T extends Pick<AladinBranchStock, "branch" | "grade" | "bookLink" | "purchaseLink">>(volumeId: number, stock: T): string {
   const purchase = canonicalLink(stock.purchaseLink);
   const listing = canonicalLink(stock.bookLink);
   const offer = purchase && purchase !== listing ? purchase : null;
