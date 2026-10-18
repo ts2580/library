@@ -1,12 +1,12 @@
-# Java 이전과 ca3 전환
+# Java 이전과 3.0.0 전환
 
-ca3은 Next.js만 포함합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
+3.0.0은 Next.js만 포함합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
 
 ## 아직 Java에서 이전하지 않은 경우
 
 먼저 `trstyq/bookshelf:3.0.0-ca2-migration`으로 기존 Java 데이터를 실행합니다. [ca2 Docker 이전 안내](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/DOCKER_MIGRATION_CA2.md)와 [이전용 Compose](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/docker-compose.migration.3.0.0-ca2.yml)를 사용합니다. 이 버전의 자동 이전은 관리자 한 명만 있는 DB를 지원합니다.
 
-Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. ca3 루트에서는 Java를 빌드하거나 시작하지 않습니다.
+Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. 3.0.0 루트에서는 Java를 빌드하거나 시작하지 않습니다.
 
 ## 이전 완료한 Docker
 
@@ -16,9 +16,9 @@ Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next
 |---|---|---|---|
 | 이전 중 | `3.0.0-ca2-migration` | `Bookshelf-next:/app/next/data` | `Bookshelf:/data` |
 | ca2 Next 단독 | `3.0.0-ca2` | 웹·워커 모두 `Bookshelf-next:/app/data` | 웹에 `Bookshelf:/data` |
-| 데이터 경로 통일 후 | 현재 소스의 로컬 이미지 또는 발행 후 ca3 | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
+| 3.0.0 정식 버전 | `trstyq/bookshelf:3.0.0` | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
 
-루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. ca3 발행 전 로컬 이미지로 검증하는 명령은 [README](../README.md)에 있습니다.
+루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. 정식 이미지로 교체하는 명령과 로컬 빌드 검증은 [README](../README.md)에 있습니다.
 
 Compose의 일회성 `permissions` 서비스가 웹 실행 전에 두 볼륨의 소유권을 UID/GID `1001:1001`로 맞춥니다. 이 작업만 root를 사용하며, 웹·워커는 비특권 사용자로 실행합니다. 이전 Java 프로세스를 먼저 종료하고, 초기화 작업이 성공한 뒤 전환합니다. 심볼릭 링크 대상은 따라가지 않으며 각 데이터 경로에서 파일시스템 경계를 넘지 않습니다.
 
