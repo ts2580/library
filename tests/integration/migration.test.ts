@@ -31,6 +31,7 @@ const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/
 const { AladinRateLimitError } = await import("@/features/aladin/client");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
 const { createManualBook } = await import("@/features/books/manual-create");
+const { addCategory, removeCategory } = await import("@/features/books/categories");
 const { withOwnership } = await import("@/features/aladin/ownership");
 const { exportExcelBackup, importExcelBackup } = await import("@/features/backup/excel");
 const { getCurrentUser } = await import("@/features/auth/session");
@@ -43,7 +44,7 @@ beforeEach(() => {
   sqlite.exec("DELETE FROM app_sessions; DELETE FROM backup_upload_job; DELETE FROM branchbook; DELETE FROM branch_inventory_summary; DELETE FROM book_volumes; DELETE FROM books; DELETE FROM member;");
   sqlite.prepare("INSERT INTO member(id, username, password_hash, role) VALUES (1, 'fixture-admin', 'test-hash', 'ADMIN'), (2, 'fixture-user', 'test-hash', 'USER')").run();
   sqlite.prepare("INSERT INTO books(id, name, owner_id) VALUES (1, ?, 1), (2, 'other-owner', 2)").run("가나 100%_!\\");
-  sqlite.prepare("UPDATE stock_refresh_job SET status = 'IDLE', running = 0, failed = 0, completed = 0, requested_by = NULL, lock_token = NULL").run();
+  sqlite.prepare("UPDATE stock_refresh_job SET status = 'IDLE', running = 0, failed = 0, completed = 0, requested_by = NULL, lock_token = NULL, mode='REPLACE_ALL',scope_book_id=NULL").run();
   configured.mockReturnValue(true);
   vi.mocked(lookupUsedStocks).mockReset();
   vi.mocked(searchAladinBooks).mockReset();
@@ -65,9 +66,37 @@ function item(key: string) {
 }
 
 describe("legacy SQLite adoption", () => {
+  it("adds trimmed categories once and deletes unused categories", () => {
+    const name = "프로필 추가 삭제 검증";
+    addCategory(` ${name} `); addCategory(name);
+    expect(sqlite.prepare("SELECT COUNT(*) count FROM book_categories WHERE name=?").get(name)).toEqual({ count: 1 });
+    removeCategory(name);
+    expect(getManualBookCategories()).not.toContain(name);
+  });
+  it("rejects invalid category names and preserves categories used by any owner", () => {
+    expect(() => addCategory("   ")).toThrow("1~120");
+    expect(() => removeCategory("x".repeat(121))).toThrow("1~120");
+    const name = "다른 소유자 사용 분류";
+    addCategory(name);
+    sqlite.prepare("UPDATE books SET type=? WHERE id=2").run(name);
+    expect(() => removeCategory(name)).toThrow("사용 중");
+    expect(getManualBookCategories()).toContain(name);
+    expect(sqlite.prepare("SELECT type FROM books WHERE id=2").get()).toEqual({ type: name });
+  });
   it("offers saved categories even when no current book uses them", () => {
     sqlite.prepare("INSERT OR IGNORE INTO book_categories(name) VALUES (?)").run("저장만 한 카테고리");
     expect(getManualBookCategories()).toContain("저장만 한 카테고리");
+  });
+  it("preserves a trimmed category still used by a legacy book with surrounding spaces", () => {
+    const name = "이전 공백 분류";
+    sqlite.prepare("UPDATE books SET type=? WHERE id=2").run(` ${name} `);
+    addCategory(name);
+    expect(() => removeCategory(name)).toThrow("사용 중");
+    expect(getManualBookCategories()).toContain(name);
+    expect(sqlite.prepare("SELECT type FROM books WHERE id=2").get()).toEqual({ type: ` ${name} ` });
+    sqlite.prepare("UPDATE books SET type=NULL WHERE id=2").run();
+    removeCategory(name);
+    expect(getManualBookCategories()).not.toContain(name);
   });
   it("does not open or migrate the database just by importing server modules", () => {
     expect(databaseExistedAfterImport).toBe(false);
@@ -85,7 +114,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 1 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 2 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -97,6 +126,19 @@ describe("legacy SQLite adoption", () => {
       expect(legacy.prepare("SELECT owner_id FROM books").get()).toEqual({ owner_id: null });
       expect(legacy.pragma("table_info(member)")).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "role" })]));
     } finally { legacy.close(); }
+  });
+  it("upgrades an existing version-one database without changing roles, inventory, or legacy links", () => {
+    const prior = new BetterSqlite3(":memory:");
+    try {
+      bootstrapDatabase(prior);
+      prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode; DELETE FROM bookshelf_migrations WHERE version=2; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
+      const before = prior.prepare("SELECT * FROM branchbook").all();
+      bootstrapDatabase(prior); bootstrapDatabase(prior);
+      expect(prior.prepare("SELECT * FROM branchbook").all()).toEqual(before);
+      expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
+      expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }]);
+    } finally { prior.close(); }
   });
 });
 
@@ -178,10 +220,81 @@ describe("stock job lifecycle", () => {
   });
 });
 
+describe("book-scoped additive stock search", () => {
+  const offer = { branch: "SEOUL", branchName: "서울", grade: "상", title: "new", price: "9,000",
+    bookLink: "https://www.aladin.co.kr/list", purchaseLink: "https://www.aladin.co.kr/offer/a" };
+  it("rejects foreign books before queueing or external calls", () => {
+    expect(() => jobs.requestBookStockSearch(1, 2)).toThrow("책");
+    expect(() => jobs.requestBookStockSearch(1, 999)).toThrow("책");
+    expect(sqlite.prepare("SELECT status FROM stock_refresh_job").get()).toEqual({ status: "IDLE" });
+    expect(lookupUsedStocks).not.toHaveBeenCalled();
+  });
+  it("searches only eligible volumes of the selected book and preserves every old row including matching legacy offers", async () => {
+    sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(3,'same owner other book',1)").run();
+    volume(1); volume(2, 1, 2); volume(3, 1, 3); volume(4, 3); volume(5, 2);
+    sqlite.prepare("UPDATE book_volumes SET ispurchased=1 WHERE id=2").run();
+    sqlite.prepare("UPDATE book_volumes SET noneedtobuy=1 WHERE id=3").run();
+    stock(1, 1, null); stock(2, 1, 2, 2); stock(3, 3, 4); stock(4, 2, 5);
+    sqlite.prepare("UPDATE branchbook SET grade=?,booklink=?,purchaseurl=? WHERE id=1").run(offer.grade, offer.bookLink, offer.purchaseLink);
+    const before = sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all();
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [offer, { ...offer, price: "2,000", purchaseLink: "https://www.aladin.co.kr/offer/b" }] });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      expect(jobs.requestBookStockSearch(1, 1).started).toBe(true);
+      expect(jobs.requestStockRefresh(1).started).toBe(false);
+      await jobs.processNextStockRefreshJob();
+      expect(sqlite.prepare("SELECT * FROM branchbook WHERE id<=4 ORDER BY id").all()).toEqual(before);
+      expect(sqlite.prepare("SELECT book,book_volume_id,price FROM branchbook WHERE id>4").all()).toEqual([{ book: 1, book_volume_id: 1, price: "2,000" }]);
+      expect(sqlite.prepare("SELECT status,mode,scope_book_id,total,processed FROM stock_refresh_job").get())
+        .toEqual({ status: "COMPLETED", mode: "APPEND_BOOK", scope_book_id: 1, total: 1, processed: 1 });
+    }
+    expect(vi.mocked(lookupUsedStocks).mock.calls.map(([isbn]) => isbn)).toEqual(["9780000000001", "9780000000001"]);
+    expect(sqlite.prepare("SELECT stock_count FROM branch_inventory_summary").get()).toEqual({ stock_count: 5 });
+  });
+  it.each(["empty", "failed", "partial", "network"])("preserves saved inventory when lookup is %s", async mode => {
+    volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 2, 2);
+    const before = sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all();
+    if (mode === "network") vi.mocked(lookupUsedStocks).mockRejectedValue(new TypeError("network"));
+    else if (mode === "failed") vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: false, stocks: [], errorMessage: "upstream failed" });
+    else vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: mode === "empty" ? [] : [offer], partial: mode === "partial" });
+    jobs.requestBookStockSearch(1, 1); await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all()).toEqual(before);
+    expect(sqlite.prepare("SELECT success,empty,fail FROM stock_refresh_job").get()).toEqual({ success: 0, empty: mode === "empty" ? 1 : 0, fail: mode === "empty" ? 0 : 1 });
+  });
+  it("preserves inventory when there are no eligible volumes", async () => {
+    volume(1); stock(1, 1, 1);
+    sqlite.prepare("UPDATE book_volumes SET ispurchased=1 WHERE id=1").run();
+    const before = sqlite.prepare("SELECT * FROM branchbook").all();
+    jobs.requestBookStockSearch(1, 1); await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT * FROM branchbook").all()).toEqual(before);
+    expect(lookupUsedStocks).not.toHaveBeenCalled();
+  });
+  it.each(["deleted", "transferred", "unconfigured"])("never falls back to a global refresh after the queued book is %s", async change => {
+    volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 2, 2);
+    jobs.requestBookStockSearch(1, 1);
+    if (change === "deleted") sqlite.prepare("DELETE FROM books WHERE id=1").run();
+    else if (change === "transferred") sqlite.prepare("UPDATE books SET owner_id=2 WHERE id=1").run();
+    else configured.mockReturnValue(false);
+    const before = sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all();
+    await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all()).toEqual(before);
+    expect(sqlite.prepare("SELECT status FROM stock_refresh_job").get()).toEqual({ status: "FAILED" });
+    expect(lookupUsedStocks).not.toHaveBeenCalled();
+  });
+  it("keeps old and newly appended inventory when a later volume hits the rate limit", async () => {
+    volume(1); volume(2); volume(3, 2); stock(1, 1, 1); stock(2, 2, 3);
+    const before = sqlite.prepare("SELECT * FROM branchbook ORDER BY id").all();
+    vi.mocked(lookupUsedStocks).mockResolvedValueOnce({ successful: true, raw: {}, stocks: [offer] }).mockRejectedValueOnce(new AladinRateLimitError());
+    jobs.requestBookStockSearch(1, 1); await jobs.processNextStockRefreshJob();
+    expect(sqlite.prepare("SELECT * FROM branchbook WHERE id<=2 ORDER BY id").all()).toEqual(before);
+    expect(sqlite.prepare("SELECT COUNT(*) n FROM branchbook").get()).toEqual({ n: 3 });
+    expect(sqlite.prepare("SELECT status,processed,success,fail FROM stock_refresh_job").get()).toEqual({ status: "FAILED", processed: 2, success: 1, fail: 1 });
+  });
+});
+
 describe("Aladin multi-page selection", () => {
   const request = { query: "series", targetBookId: 1, seriesName: "series", sideStory: false,
     selection: [{ page: 1, key: "9780000000001" }, { page: 2, key: "9780000000003" }, { page: 2, key: "9780000000002" }] };
-  it("refetches pages, orders later pages first, and preserves displayed item order", async () => {
+  it("refetches pages and preserves stable search order when publication dates are missing", async () => {
     vi.mocked(searchAladinBooks).mockImplementation(async (input: unknown) => {
       const { page } = input as { page: number };
       return { page, pageSize: 20, totalResults: 40,
@@ -191,6 +304,31 @@ describe("Aladin multi-page selection", () => {
     expect(result.count).toBe(3);
     expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes ORDER BY id").all()).toEqual([
       { isbn13: "9780000000002", volume: 1 }, { isbn13: "9780000000003", volume: 2 }, { isbn13: "9780000000001", volume: 3 }
+    ]);
+  });
+  it.each([false, true])("numbers by publication date across pages when manual=%s", async (manual) => {
+    vi.mocked(searchAladinBooks).mockImplementation(async (input: unknown) => {
+      const { page } = input as { page: number };
+      return { page, pageSize: 20, totalResults: 40, items: page === 2 ? [
+        { ...item("9780000000002"), pubDate: "2026-07-31" },
+        { ...item("9780000000003"), pubDate: "2026-03-20" }
+      ] : [{ ...item("9780000000001"), pubDate: "2026-05-29" }] };
+    });
+    if (manual) await createManualBook(1, { book: { name: "series", author: "", description: "", type: "", totalVolume: "", coverUrl: "" }, direct: false, targetBookId: 1, selection: request.selection });
+    else await importAladinSelection(1, request);
+    expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes WHERE book=1 ORDER BY volume").all()).toEqual([
+      { isbn13: "9780000000003", volume: 1 }, { isbn13: "9780000000001", volume: 2 }, { isbn13: "9780000000002", volume: 3 }
+    ]);
+  });
+  it("starts at four after three regular volumes and ignores side stories", async () => {
+    volume(1, 1, 1); volume(2, 1, 2); volume(3, 1, 3); volume(4, 1, null);
+    expect(getOwnedBookOptions(1)[0]?.nextVolume).toBe(4);
+    vi.mocked(searchAladinBooks).mockResolvedValue({ page: 1, pageSize: 20, totalResults: 2, items: [
+      { ...item("9781111111112"), pubDate: "2026-07-31" }, { ...item("9781111111111"), pubDate: "2026-03-20" }
+    ] });
+    await importAladinSelection(1, { ...request, selection: [{ page: 1, key: "9781111111112" }, { page: 1, key: "9781111111111" }] });
+    expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes WHERE isbn13 LIKE '978111%' ORDER BY volume").all()).toEqual([
+      { isbn13: "9781111111111", volume: 4 }, { isbn13: "9781111111112", volume: 5 }
     ]);
   });
   it("rejects a missing selection before creating any rows", async () => {

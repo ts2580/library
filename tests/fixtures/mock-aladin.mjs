@@ -1,16 +1,23 @@
 // Loaded only by the isolated E2E server, never by normal web/worker commands.
 import { createHash } from "node:crypto";
 const originalFetch = globalThis.fetch;
+const failedSearches = new Set();
 globalThis.fetch = async function fixtureFetch(input, init) {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if (url.hostname !== "www.aladin.co.kr") return originalFetch(input, init);
   if (url.pathname.endsWith("ItemSearch.aspx")) {
+    const query = url.searchParams.get("Query") ?? "";
+    if (query.startsWith("검색재시도검증") && !failedSearches.has(query)) {
+      failedSearches.add(query);
+      return Response.json({ errorCode: 1, errorMessage: "Fixture search failure" });
+    }
     if (url.searchParams.get("Query")?.startsWith("검색결과없음")) return Response.json({ totalResults: 0, item: [] });
     const page = Number(url.searchParams.get("start") ?? 1);
     const namespace = String(parseInt(createHash("sha256").update(url.searchParams.get("Query") ?? "").digest("hex").slice(0, 8), 16) % 1000000).padStart(6, "0");
-    return Response.json({ totalResults: 40, startIndex: page, itemsPerPage: 20, item: [1, 2].map((index) => ({
+    return Response.json({ totalResults: query.startsWith("페이지검증") ? 200 : 40, startIndex: page, itemsPerPage: 20, item: [1, 2].map((index) => ({
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
-      author: "테스트 저자", description: "fixture", priceSales: 1000
+      author: "테스트 저자", description: "fixture", priceSales: 1000,
+      pubDate: new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
     })) });
   }
   if (url.pathname.endsWith("ItemLookUp.aspx")) {

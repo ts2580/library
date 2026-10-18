@@ -64,22 +64,32 @@ test("other-owner books, covers, and administrator actions are isolated", async 
 });
 
 test("manual registration and volume Server Actions persist actual records", async ({ page }, testInfo) => {
+  const aladinRequests: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("/api/aladin/")) aladinRequests.push(request.url()); });
   await login(page); await page.goto("/books");
-  await page.getByText("책 직접 추가", { exact: true }).click();
-  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
+  const trigger = page.getByRole("button", { name: "책 직접 추가", exact: true });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("tab", { name: "책 수동 추가", exact: true }).click();
   const create = page.locator("form").filter({ has: page.getByRole("button", { name: "책 추가", exact: true }) });
+  await expect(create.getByLabel(/ISBN/)).toHaveCount(0);
   const name = `직접 등록 ${testInfo.project.name}`;
   await create.getByLabel("제목", { exact: true }).fill(name);
   await create.getByLabel("저자", { exact: true }).fill("테스트 저자");
   await create.getByRole("button", { name: "책 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-  await page.getByText("권 직접 추가", { exact: true }).click();
+  await page.getByRole("button", { name: "직접 추가", exact: true }).click();
   const add = page.locator("form").filter({ has: page.getByRole("button", { name: "권 추가", exact: true }) });
   await add.getByLabel("권 제목", { exact: true }).fill("직접 추가 1권");
   await add.getByLabel("권차", { exact: true }).fill("1");
   await add.getByRole("button", { name: "권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "1권 · 직접 추가 1권", exact: true })).toBeVisible();
-  await page.getByText("책 정보 수정", { exact: true }).click();
+  await expect(page.locator(".volume-card .volume-meta")).not.toContainText("ISBN");
+  await page.locator(".volume-card").getByRole("button", { name: "상세정보", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("ISBN13", { exact: true })).toHaveValue("");
+  await page.getByRole("button", { name: "상세정보 닫기", exact: true }).click();
+  expect(aladinRequests).toEqual([]);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
@@ -88,8 +98,8 @@ test("manual registration and volume Server Actions persist actual records", asy
 
 test("manual categories can be created, selected, and reused without a book", async ({ page }, testInfo) => {
   await login(page); await page.goto("/books");
-  await page.getByText("책 직접 추가", { exact: true }).click();
-  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
+  await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
+  await page.getByRole("tab", { name: "책 수동 추가", exact: true }).click();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "책 추가", exact: true }) });
   const category = `저장한 분류 ${testInfo.project.name}`;
   const select = form.getByRole("combobox", { name: "카테고리", exact: true });
@@ -98,8 +108,8 @@ test("manual categories can be created, selected, and reused without a book", as
   await form.getByLabel("새 카테고리 이름", { exact: true }).fill(category);
   await form.getByRole("button", { name: "추가", exact: true }).click();
   await expect(select).toHaveValue(`saved:${category}`);
-  await page.reload(); await page.getByText("책 직접 추가", { exact: true }).click();
-  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
+  await page.reload(); await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
+  await page.getByRole("tab", { name: "책 수동 추가", exact: true }).click();
   await expect(select.locator("option", { hasText: category })).toHaveCount(1);
   await select.selectOption(`saved:${category}`);
   const name = `카테고리 확인 ${testInfo.project.name}`;
@@ -107,7 +117,6 @@ test("manual categories can be created, selected, and reused without a book", as
   await form.getByRole("button", { name: "책 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.getByText(category, { exact: true }).first()).toBeVisible();
-  await page.getByText("책 정보 수정", { exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
 });
@@ -123,12 +132,16 @@ test("multi-page selection survives a failed page request and preserves import o
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await page.getByLabel("선택 선택 샘플 2-2", { exact: true }).check();
   await page.getByLabel("선택 선택 샘플 2-1", { exact: true }).check();
+  await expect(page.locator(".search-result-card").filter({ hasText: "선택 샘플 2-2" }).getByText("1권으로 추가", { exact: true })).toBeVisible();
+  await expect(page.locator(".search-result-card").filter({ hasText: "선택 샘플 2-1" }).getByText("2권으로 추가", { exact: true })).toBeVisible();
   await page.getByLabel("새 책 제목", { exact: true }).fill(`선택 등록 ${testInfo.project.name}`);
   await page.getByRole("button", { name: "3권 추가", exact: true }).click();
+  const categoryDialog = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
+  await categoryDialog.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("none");
+  await categoryDialog.getByRole("button", { name: "3권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: `선택 등록 ${testInfo.project.name}` })).toBeVisible();
-  await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 2-2", "3권 · 선택 샘플 1-1"]);
+  await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-2", "2권 · 선택 샘플 2-1", "3권 · 선택 샘플 1-1"]);
   // The two projects share a fixture server; remove this test's ISBNs afterwards.
-  await page.getByText("책 정보 수정", { exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
@@ -167,21 +180,18 @@ test("foreign-origin mutation requests are rejected", async ({ page }) => {
 });
 
 async function deleteCurrentBook(page: Page) {
-  const details = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: "책 정보 수정" }) });
-  if ((await details.getAttribute("open")) === null) await details.locator("summary").click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
 }
 
-test("manual Aladin preview keeps metadata, multi-page selections, and individual side stories", async ({ page }, testInfo) => {
+test("manual Aladin preview keeps category, multi-page selections, and individual side stories", async ({ page }, testInfo) => {
   await login(page); await page.goto("/books");
-  await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
   const form = page.getByRole("region", { name: "책 직접 추가", exact: true });
   const name = `직접 검색 등록 ${testInfo.project.name}`;
   await form.getByLabel("제목", { exact: true }).fill(name);
-  await form.getByLabel("저자", { exact: true }).fill("내가 입력한 저자");
-  await form.getByLabel("총 권수 메모", { exact: true }).fill("전 30권");
+  for (const label of ["저자", "총 권수", "설명", "표지 URL", "표지 파일"]) await expect(form.getByLabel(label, { exact: true })).toHaveCount(0);
   await form.getByLabel("카테고리", { exact: true }).selectOption("add");
   await form.getByLabel("새 카테고리 이름", { exact: true }).fill(`직접 검색 분류 ${testInfo.project.name}`);
   await form.getByRole("button", { name: "추가", exact: true }).click();
@@ -189,16 +199,16 @@ test("manual Aladin preview keeps metadata, multi-page selections, and individua
   await expect(form.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
   await form.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await form.getByLabel("외전 선택 샘플 2-2", { exact: true }).check();
+  await expect(form.locator(".search-result-card").filter({ hasText: "선택 샘플 2-1" }).getByText("1권으로 추가", { exact: true })).toBeVisible();
   await expect(form.getByRole("button", { name: "4권 추가", exact: true })).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("manual-preview.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await form.getByRole("button", { name: "4권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-  await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 1-1", "3권 · 선택 샘플 1-2", "외전 · 선택 샘플 2-2"]);
-  await page.getByText("책 정보 수정", { exact: true }).click();
+  await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 1-2", "3권 · 선택 샘플 1-1", "외전 · 선택 샘플 2-2"]);
   const editor = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
-  await expect(editor.getByLabel("저자", { exact: true })).toHaveValue("내가 입력한 저자");
-  await expect(editor.getByLabel("총 권수 메모", { exact: true })).toHaveValue("전 30권");
+  await expect(editor.getByLabel("저자", { exact: true })).toHaveValue("테스트 저자");
+  await expect(editor.getByLabel("총 권수", { exact: true })).toHaveValue("");
   await expect(editor.getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:직접 검색 분류 ${testInfo.project.name}`);
   page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
@@ -206,15 +216,15 @@ test("manual Aladin preview keeps metadata, multi-page selections, and individua
 
 test("search page and manual preview both append to an existing series and exclude owned ISBNs", async ({ page }, testInfo) => {
   await login(page); await page.goto("/books");
-  await page.getByText("책 직접 추가", { exact: true }).click();
-  await page.getByLabel("알라딘 외 등록", { exact: false }).check();
+  await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
+  await page.getByRole("tab", { name: "책 수동 추가", exact: true }).click();
   const name = `기존 시리즈 ${testInfo.project.name}`;
   await page.getByLabel("제목", { exact: true }).last().fill(name);
-  await page.getByLabel("총 권수 메모", { exact: true }).fill("전 12권");
+  await page.getByLabel("총 권수", { exact: true }).fill("전 12권");
   await page.getByRole("button", { name: "책 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   const bookId = page.url().match(/books\/(\d+)/)![1];
-  await page.getByText("권 직접 추가", { exact: true }).click();
+  await page.getByRole("button", { name: "직접 추가", exact: true }).click();
   await page.getByLabel("권 제목", { exact: true }).fill("기존 4권");
   await page.getByLabel("권차", { exact: true }).fill("4");
   await page.getByRole("button", { name: "권 추가", exact: true }).click();
@@ -223,8 +233,9 @@ test("search page and manual preview both append to an existing series and exclu
   await expect(page.getByLabel("기존 책 검색", { exact: true })).toHaveValue(name);
   await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
   await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "새 책 카테고리", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "5권 · 선택 샘플 1-1", exact: true })).toBeVisible();
-  await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.goto("/books"); await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
   await page.getByLabel("기존 책 검색", { exact: true }).fill(name);
   await page.getByRole("option").filter({ hasText: name }).click();
   await expect(page.getByText("다음 정규 권차 6권부터 추가", { exact: false })).toBeVisible();
@@ -233,18 +244,28 @@ test("search page and manual preview both append to an existing series and exclu
   await expect(page.getByLabel("선택 선택 샘플 1-2", { exact: true })).toBeChecked();
   await page.getByRole("button", { name: "1권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "6권 · 선택 샘플 1-2", exact: true })).toBeVisible();
-  await page.getByText("책 정보 수정", { exact: true }).click();
-  await expect(page.getByLabel("총 권수 메모", { exact: true })).toHaveValue("전 12권");
+  await expect(page.getByLabel("총 권수", { exact: true })).toHaveValue("전 12권");
   await deleteCurrentBook(page);
 });
 
 test("manual form resets after closing and supports empty-search fallback", async ({ page }, testInfo) => {
-  await login(page); await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await login(page); await page.goto("/books");
+  const trigger = page.getByRole("button", { name: "책 직접 추가", exact: true });
+  const modal = page.getByRole("dialog", { name: "책 직접 추가", exact: true });
+  await trigger.click();
+  await expect(modal).toBeVisible();
+  expect(await modal.evaluate((element) => element.matches(":modal"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
   await page.getByLabel("기존 책 검색", { exact: true }).fill("마이그레이션");
   await page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" }).click();
-  await page.getByText("책 직접 추가", { exact: true }).click();
+  await modal.getByRole("button", { name: "책 직접 추가 닫기", exact: true }).click();
+  await expect(modal).toBeHidden();
+  await expect(trigger).toBeFocused();
   await expect(page.getByRole("region", { name: "책 직접 추가", exact: true })).toHaveCount(0);
-  await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
   await expect(page.getByLabel("기존 책 검색", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("등록 위치", { exact: true })).toHaveCount(0);
   const form = page.getByRole("region", { name: "책 직접 추가", exact: true });
@@ -257,34 +278,40 @@ test("manual form resets after closing and supports empty-search fallback", asyn
   await deleteCurrentBook(page);
 });
 
-test("all search forms and inline lookups show spinners while a request is pending", async ({ page }) => {
+test("all search forms and inline lookups show the top progress bar while a request is pending", async ({ page }) => {
   await login(page);
   for (const [url, label, value, button] of [
-    ["/books", "통합 검색", "spinner-books", "검색"],
-    ["/products", "권 제목·ISBN", "spinner-volumes", "권 검색"],
-    ["/aladin/search", "제목", "spinner-aladin", "검색"],
+    ["/books", "검색어", "progress-books", "검색"],
+    ["/products", "권 제목·ISBN", "progress-volumes", "권 검색"],
+    ["/aladin/search", "검색어", "progress-aladin", "검색"],
     ["/aladin/used", "ISBN10 또는 ISBN13", "9780000000001", "조회"],
-    ["/inventory", "제목·ISBN·지점 검색", "spinner-inventory", "재고 검색"],
-    ["/inventory/branches/SEOUL", "제목·ISBN·지점 검색", "spinner-branch", "재고 검색"]
+    ["/inventory", "제목·ISBN·지점 검색", "progress-inventory", "재고 검색"],
+    ["/inventory/branches/SEOUL", "제목·ISBN·지점 검색", "progress-branch", "재고 검색"]
   ]) {
     await page.goto(url);
     await page.route(`**${url}?**`, async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
     await page.getByLabel(label, { exact: true }).fill(value);
     await page.getByRole("button", { name: button, exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "검색 중" }).first(), url).toBeVisible();
-    await expect(page.locator("form[aria-busy=true]")).toHaveCount(0);
-    await page.unroute(`**${url}?**`);
+    await expect(page.locator("#top-progress-bar"), url).toBeVisible();
+    await expect(page.locator(".spinner")).toHaveCount(0);
+    await expect(page.locator("form[aria-busy=true]"), url).toHaveCount(0);
+    await expect(page.locator("#top-progress-bar"), url).toBeHidden();
+    await page.unrouteAll({ behavior: "wait" });
   }
-  await page.goto("/books"); await page.getByText("책 직접 추가", { exact: true }).click();
+  await page.goto("/books"); await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
   await page.route("**/api/books/options?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
   await page.getByLabel("기존 책 검색", { exact: true }).fill("마이그레이션");
-  await expect(page.getByRole("status").filter({ hasText: "기존 책 검색 중" })).toBeVisible();
-  await page.unroute("**/api/books/options?**");
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
+  expect(await page.locator("#top-progress-bar").evaluate(el => el.matches(":popover-open"))).toBe(true);
+  await expect(page.getByLabel("기존 책 검색", { exact: true })).toBeFocused();
+  await expect(page.getByRole("option").filter({ hasText: "마이그레이션 테스트 책" })).toBeVisible();
+  await page.unrouteAll({ behavior: "wait" });
   await page.route("**/api/aladin/search?**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 600)); await route.continue(); });
-  await page.getByRole("region", { name: "책 직접 추가", exact: true }).getByLabel("제목", { exact: true }).fill("spinner");
+  await page.getByRole("region", { name: "책 직접 추가", exact: true }).getByLabel("제목", { exact: true }).fill("progress");
   await page.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "알라딘 검색 중" })).toBeVisible();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
   await expect(page.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator("#top-progress-bar")).toBeHidden();
 });
 
 test("real stock worker refreshes inventory, progress, and visible results without a reload", async ({ page }, testInfo) => {

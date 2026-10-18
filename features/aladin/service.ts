@@ -3,6 +3,7 @@ import { load } from "cheerio";
 import { AladinRateLimitError, aladinHtml, aladinJson, isAladinConfigured } from "@/features/aladin/client";
 import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
 import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
+import { largeAladinCover } from "@/features/aladin/cover-url";
 import { logger } from "@/lib/logger";
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -125,7 +126,7 @@ export async function searchAladinBooks(input: unknown): Promise<AladinSearchRes
     description: text(item.description),
     isbn: text(item.isbn),
     isbn13: text(item.isbn13),
-    cover: text(item.cover)?.replace(/coversum/gi, "cover500") ?? null,
+    cover: largeAladinCover(text(item.cover)),
     priceSales: number(item.priceSales),
     link: text(item.link),
     pubDate: text(item.pubDate),

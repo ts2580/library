@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 1;
+const BOOTSTRAP_VERSION = 2;
 
 type Database = BetterSqlite3.Database;
 
@@ -274,22 +274,29 @@ export function bootstrapDatabase(sqlite: Database): void {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("synchronous = NORMAL");
 
-  function isApplied(): boolean {
+  function isApplied(version = BOOTSTRAP_VERSION): boolean {
     return tableExists(sqlite, "bookshelf_migrations") && Boolean(sqlite.prepare(
       "SELECT 1 FROM bookshelf_migrations WHERE version = ?"
-    ).get(BOOTSTRAP_VERSION));
+    ).get(version));
   }
   if (isApplied()) return;
   const backup = backupBeforeUpgrade(sqlite);
 
   const transaction = sqlite.transaction(() => {
     if (isApplied()) return;
-    createBaseline(sqlite);
-    upgradeLegacySchema(sqlite);
-    createIndexesAndSeed(sqlite);
-    sqlite.exec("CREATE TABLE IF NOT EXISTS bookshelf_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, backup_path TEXT)");
-    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (?, ?, ?)")
-      .run(BOOTSTRAP_VERSION, new Date().toISOString(), backup);
+    if (!isApplied(1)) {
+      createBaseline(sqlite);
+      upgradeLegacySchema(sqlite);
+      createIndexesAndSeed(sqlite);
+      sqlite.exec("CREATE TABLE IF NOT EXISTS bookshelf_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, backup_path TEXT)");
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (1, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    // Version 2 only adds job scope metadata; never re-run legacy data or role adoption.
+    ensureColumn(sqlite, "stock_refresh_job", "mode TEXT NOT NULL DEFAULT 'REPLACE_ALL'");
+    ensureColumn(sqlite, "stock_refresh_job", "scope_book_id INTEGER REFERENCES books(id) ON DELETE SET NULL");
+    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (2, ?, ?)")
+      .run(new Date().toISOString(), backup);
   });
   transaction.immediate();
 

@@ -1,4 +1,5 @@
 import { SearchForm } from "@/components/ui/search-form";
+import { Pagination } from "@/components/ui/pagination";
 import Link from "next/link";
 import { requireUser } from "@/features/auth/authorization";
 import { getManualBookCategories, searchOwnedVolumes } from "@/features/books/queries";
@@ -48,7 +49,6 @@ export default async function ProductsPage({ searchParams }: {
           {Boolean(item.noNeedToBuy) && <span className="chip">구매 불필요</span>}<strong>{item.price ? formatWon(item.price) : "가격 미상"}</strong></div>
       </div></article>)}</div>
     {!result.items.length && <p className="empty">검색 결과가 없습니다.</p>}
-    <nav className="button-row" aria-label="보유 권 페이지">{result.page > 1 && <Link className="button button-outline" href={href(result.page - 1)}>이전 페이지</Link>}
-      {result.page < result.totalPages && <Link className="button button-outline" href={href(result.page + 1)}>다음 페이지</Link>}</nav>
+    <Pagination page={result.page} totalPages={result.totalPages} href={href} label="보유 권 페이지"/>
   </div>;
 }

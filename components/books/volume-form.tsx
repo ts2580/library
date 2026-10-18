@@ -3,15 +3,17 @@
 import { useState } from "react";
 import type { VolumeDetail } from "@/features/books/types";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 export function VolumeForm({
   action,
   bookId,
   volume,
-  submitLabel = "권 저장",
+  submitLabel = "저장",
   nextVolume = 1,
   bookType = "",
-  categories = []
+  categories = [],
+  deleteAction
 }: {
   action: (formData: FormData) => void | Promise<void>;
   bookId: number;
@@ -20,11 +22,14 @@ export function VolumeForm({
   nextVolume?: number;
   bookType?: string | null;
   categories?: string[];
+  deleteAction?: (formData: FormData) => void | Promise<void>;
 }) {
   const key = volume?.id ?? "new";
   const [sideStory, setSideStory] = useState(Boolean(volume && volume.seq == null));
   return (
-    <form action={action} className="form-grid" encType="multipart/form-data">
+    <div className="entity-edit-layout entity-edit-layout-volume">
+    <form action={action} className="entity-edit-form" aria-label={volume ? "권 정보" : "권 추가"}>
+      <div className="form-grid entity-edit-fields">
       <input type="hidden" name="bookId" value={bookId}/>
       {volume && <input type="hidden" name="volumeId" value={volume.id}/>}
       {volume && <div className="field span-2"><label htmlFor={`volume-type-${key}`}>책 카테고리</label>
@@ -46,7 +51,15 @@ export function VolumeForm({
         <label className="check"><input type="checkbox" name="isPurchased" defaultChecked={volume?.isPurchased ?? false}/> 구매 완료</label>
         <label className="check"><input type="checkbox" name="noNeedToBuy" defaultChecked={volume?.noNeedToBuy ?? false}/> 구매 불필요</label>
       </div>
-      <div className="button-row span-2"><SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton></div>
+      </div>
+      <div className="button-row volume-form-actions">
+        <SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton>
+      </div>
     </form>
+    {volume && deleteAction && <form action={deleteAction} className="entity-delete-form" aria-label="권 삭제">
+      <input type="hidden" name="bookId" value={bookId}/><input type="hidden" name="volumeId" value={volume.id}/>
+      <ConfirmSubmitButton message="이 권과 연결된 지점 재고를 삭제합니까?">삭제</ConfirmSubmitButton>
+    </form>}
+    </div>
   );
 }

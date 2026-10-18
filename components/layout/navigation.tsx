@@ -9,8 +9,8 @@ import { BooksIcon, DashboardIcon, InventoryIcon, LogOutIcon, SearchIcon, UserIc
 const items = [
   { href: "/dashboard", label: "대시보드", Icon: DashboardIcon },
   { href: "/books", label: "책장", Icon: BooksIcon },
-  { href: "/inventory", label: "재고", Icon: InventoryIcon },
   { href: "/aladin/search", label: "검색", Icon: SearchIcon },
+  { href: "/inventory", label: "재고", Icon: InventoryIcon },
   { href: "/profile", label: "프로필", Icon: UserIcon }
 ];
 

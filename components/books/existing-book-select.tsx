@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { ProgressIndicator } from "@/components/ui/top-progress";
 import { CoverImage } from "@/components/ui/cover-image";
 import type { BookOption } from "@/features/books/types";
 export type { BookOption } from "@/features/books/types";
 
-export function ExistingBookSelect({ selected, onChange, disabled = false }: {
-  initialOptions: BookOption[]; selected: BookOption | null; onChange: (value: BookOption | null) => void; disabled?: boolean;
+export function ExistingBookSelect({ selected, onChange, disabled = false, showNewBookButton = true }: {
+  initialOptions: BookOption[]; selected: BookOption | null; onChange: (value: BookOption | null) => void; disabled?: boolean; showNewBookButton?: boolean;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -47,16 +47,16 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
     setOptions([]); setHighlight(-1); setError("");
     if (!expanded) { setLoading(false); return; }
     setLoading(true);
-    const timer = setTimeout(async () => {
+    void (async () => {
       try {
-        const response = await fetch(`/api/books/options?query=${encodeURIComponent(query)}`, { cache: "no-store", signal: controller.signal });
+        const response = await fetch(`/api/books/options?query=${encodeURIComponent(query.normalize("NFC").trim())}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("기존 책을 불러오지 못했습니다. 다시 검색해 주세요.");
         const found = await response.json() as BookOption[];
         if (!controller.signal.aborted) { setOptions(found); setHighlight(found.length ? 0 : -1); }
       } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "기존 책 검색에 실패했습니다."); }
       finally { if (!controller.signal.aborted) setLoading(false); }
-    }, 180);
-    return () => { controller.abort(); clearTimeout(timer); };
+    })();
+    return () => controller.abort();
   }, [query, expanded]);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
   function clear() {
     onChange(null); setQuery(""); setOpen(false); setOptions([]); input.current?.focus();
   }
-  return <div className="field span-2 book-autocomplete" onBlur={(event) => {
+  return <div className={`field span-2 book-autocomplete${selected ? " book-autocomplete-selected" : ""}`} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }}>
     <label htmlFor={id}>기존 책 검색</label>
@@ -93,7 +93,10 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
           if (query.trim() && !selected) setOpen(true);
         }}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing) return;
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+            if (event.key === "Enter") event.preventDefault();
+            return;
+          }
           if (event.key === "Escape") { event.preventDefault(); setOpen(false); return; }
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault(); setOpen(true);
@@ -104,7 +107,7 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
           }
         }}/>
       {expanded && <div className={`book-autocomplete-results${above ? " book-autocomplete-above" : ""}`} ref={list}>
-        {loading && <Spinner label="기존 책 검색 중"/>}
+        {loading && <ProgressIndicator label="기존 책 검색 중"/>}
         {error && <p role="alert" className="flash flash-error">{error}</p>}
         {!loading && !error && !options.length && <p className="muted small" role="status">일치하는 기존 책이 없습니다. 새 책으로 등록할 수 있습니다.</p>}
         <div id={`${id}-results`} role="listbox" aria-label="기존 책 검색 결과" aria-busy={loading}>
@@ -118,7 +121,8 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
       </div>}
     </div>
     {selected ? <div className="button-row"><span className="muted small" role="status">선택됨 · {selected.name} · {selected.type ?? "미분류"} · 다음 정규 권차 {selected.nextVolume}권부터 추가</span>
-      <button type="button" className="button button-outline button-small" disabled={disabled} onClick={clear}>새 책으로 등록</button></div>
+      {showNewBookButton && <button type="button" className="button button-outline button-small" disabled={disabled} onClick={clear}>새 책으로 등록</button>}</div>
       : <span className="muted small">검색 결과에서 책을 선택하거나, 비워 두고 새 책으로 등록하세요.</span>}
+    {selected && <div className="book-autocomplete-selected-cover"><CoverImage cover={selected.cover} alt={`선택한 책 ${selected.name}`}/></div>}
   </div>;
 }

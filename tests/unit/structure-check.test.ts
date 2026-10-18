@@ -13,7 +13,7 @@ function checkout() {
   directories.push(directory);
   writeFileSync(path.join(directory, "next-env.d.ts"), declaration("./.next/dev/types/routes.d.ts") + declaration("./.next/dev/types/root-params.d.ts"));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ scripts: { start: "next start", worker: "worker", "check:syntax": "syntax", "check:structure": "structure" } }));
-  writeFileSync(path.join(directory, "docker-compose.yml"), "services:\n  web:\n    volumes: [bookshelf-data:/app/data]\n  worker:\n    volumes: [bookshelf-data:/app/data]\n");
+  writeFileSync(path.join(directory, "docker-compose.yml"), "services:\n  web:\n    volumes: [bookshelf-data:/data]\n  worker:\n    volumes: [bookshelf-data:/data]\n");
   return directory;
 }
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });

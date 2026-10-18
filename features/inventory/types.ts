@@ -1,4 +1,6 @@
 export interface StockRefreshProgress {
+  mode: "REPLACE_ALL" | "APPEND_BOOK";
+  scopeBookId: number | null;
   running: boolean;
   completed: boolean;
   failed: boolean;

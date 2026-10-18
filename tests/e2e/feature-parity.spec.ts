@@ -17,8 +17,6 @@ async function emptyBook(page: Page, name: string): Promise<number> {
 }
 
 async function deleteCurrentBook(page: Page) {
-  const details = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: "책 정보 수정" }) });
-  if ((await details.getAttribute("open")) === null) await details.locator("summary").click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books\?/);
@@ -29,7 +27,7 @@ test("book detail searches Aladin inline, saves explicit numbering and side stor
   const name = `상세 검색 복원 ${testInfo.project.name}`;
   const bookId = await emptyBook(page, name);
   await page.goto(`/books/${bookId}`);
-  await page.getByText("알라딘에서 권 검색", { exact: true }).click();
+  await page.getByRole("button", { name: "알라딘에서 검색", exact: true }).click();
   const panel = page.getByRole("region", { name: "알라딘 한 권 추가" });
   await panel.getByRole("button", { name: "알라딘 검색", exact: true }).click();
   const first = panel.locator(".quick-add-item").first();
@@ -44,10 +42,10 @@ test("book detail searches Aladin inline, saves explicit numbering and side stor
   await second.getByLabel("외전·특별판", { exact: true }).check();
   await second.getByRole("button", { name: "이 권 저장" }).click();
   await expect(page.getByRole("heading", { name: "외전 · 선택 샘플 1-2", exact: true })).toBeVisible();
-  const volume = page.locator(".volume-card").filter({ has: page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true }) });
-  await volume.getByText("권 정보 수정", { exact: true }).click();
+  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "7권 · 선택 샘플 1-1" }) });
+  await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await volume.getByLabel("책 카테고리", { exact: true }).fill("복원 분류");
-  await volume.getByRole("button", { name: "권 저장" }).click();
+  await volume.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.locator(".book-hero")).toContainText("복원 분류");
   await page.goto("/dashboard");
   await page.getByLabel("비교 기준", { exact: true }).selectOption("amount");
@@ -72,7 +70,7 @@ test("product quick registration keeps the page and supports existing books and 
   await expect(page).toHaveURL(/\/products\?/);
   const second = page.locator(".quick-add-item").nth(1);
   await second.getByLabel("카테고리", { exact: true }).fill("상품 분류");
-  await second.getByLabel("총 권수 메모", { exact: true }).fill("완결 15권");
+  await second.getByLabel("총 권수", { exact: true }).fill("완결 15권");
   await second.getByRole("button", { name: "이 권 저장" }).click();
   await second.getByRole("link", { name: "추가한 책 보기" }).click();
   await expect(page.locator(".book-hero")).toContainText("상품 분류");
@@ -99,9 +97,9 @@ test("used inventory restores source selection, minimum price and the correspond
 
 test("Java cover autocomplete works in search and direct-add with mouse and keyboard", async ({ page }, testInfo) => {
   await login(page);
-  for (const url of ["/aladin/search?query=autocomplete", "/books"]) {
+  for (const url of ["/aladin/search", "/aladin/search?query=autocomplete", "/books"]) {
     await page.goto(url);
-    if (url === "/books") await page.getByText("책 직접 추가", { exact: true }).click();
+    if (url === "/books") await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();
     await expect(page.getByLabel("등록 위치", { exact: true })).toHaveCount(0);
     const input = page.getByRole("combobox", { name: "기존 책 검색", exact: true });
     await input.fill("마이그레이션");
@@ -122,7 +120,21 @@ test("Java cover autocomplete works in search and direct-add with mouse and keyb
     await expect(page.getByRole("listbox")).toHaveCount(0);
     await expect(input).toHaveValue("마이그레이션 테스트 책");
     await expect(page.getByText("선택됨 · 마이그레이션 테스트 책", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "새 책으로 등록", exact: true }).click();
+    const selectedCover = page.getByRole("img", { name: "선택한 책 마이그레이션 테스트 책", exact: true });
+    await expect(selectedCover).toBeVisible();
+    await expect.poll(() => selectedCover.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+    const previewBox = await page.locator(".book-autocomplete-selected-cover").boundingBox();
+    const searchBox = await page.locator(".book-autocomplete-selected").boundingBox();
+    expect(previewBox!.width).toBeLessThanOrEqual(80);
+    expect(previewBox!.height).toBeLessThanOrEqual(108);
+    expect(previewBox!.x + previewBox!.width).toBeLessThanOrEqual(searchBox!.x + searchBox!.width + 1);
+    expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(searchBox!.y + searchBox!.height + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(url === "/books" ? "manual-selected-cover.png" : "aladin-selected-cover.png"), fullPage: true });
+    const newBookButton = page.getByRole("button", { name: "새 책으로 등록", exact: true });
+    await expect(newBookButton).toHaveCount(0);
+    await input.fill("");
+    await expect(selectedCover).toHaveCount(0);
     await expect(input).toHaveValue("");
     await input.fill("존재하지않는책");
     await expect(page.getByText("일치하는 기존 책이 없습니다.", { exact: false })).toBeVisible();
@@ -134,28 +146,27 @@ test("Java cover autocomplete works in search and direct-add with mouse and keyb
   }
 });
 
-test("advanced search filters survive paging and selected-item registration", async ({ page }, testInfo) => {
+test("author search survives paging and selected-item registration", async ({ page }, testInfo) => {
   await login(page); await page.goto("/aladin/search");
   const query = `필터 회귀 ${testInfo.project.name}`;
-  await page.getByLabel("제목", { exact: true }).fill(query);
-  await page.getByText("상세 검색 조건", { exact: true }).click();
+  await page.getByLabel("검색어", { exact: true }).fill(query);
+  await expect(page.getByText("상세 검색 조건", { exact: true })).toHaveCount(0);
   await page.getByRole("combobox", { name: "검색 기준", exact: true }).selectOption("Author");
-  await page.getByRole("combobox", { name: "검색 대상", exact: true }).selectOption("Foreign");
-  await page.getByRole("combobox", { name: "정렬", exact: true }).selectOption("SalesPoint");
-  await page.getByLabel("품절 제외", { exact: true }).check();
   await page.getByRole("button", { name: "검색", exact: true }).click();
   await expect(page).toHaveURL(/queryType=Author/);
   const nextPage = page.waitForRequest((request) => request.url().includes("/api/aladin/search?") && new URL(request.url()).searchParams.get("page") === "2");
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   const request = new URL((await nextPage).url());
   expect(request.searchParams.get("queryType")).toBe("Author");
-  expect(request.searchParams.get("outOfStockFilter")).toBe("true");
+  expect(request.searchParams.get("searchTarget")).toBe("Book");
   await page.getByLabel("선택 선택 샘플 2-1", { exact: true }).check();
   const importRequest = page.waitForRequest((request) => request.url().endsWith("/api/aladin/import") && request.method() === "POST");
   await page.getByRole("button", { name: "1권 추가", exact: true }).click();
-  expect((await importRequest).postDataJSON().searchOptions).toMatchObject({ queryType: "Author", searchTarget: "Foreign", sort: "SalesPoint", outOfStockFilter: true });
+  const categoryDialog = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
+  await categoryDialog.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("none");
+  await categoryDialog.getByRole("button", { name: "1권 추가", exact: true }).click();
+  expect((await importRequest).postDataJSON().searchOptions).toMatchObject({ queryType: "Author", searchTarget: "Book", sort: "PublishTime", outOfStockFilter: false });
   await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
-  await page.getByText("책 정보 수정", { exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books\?/);
@@ -209,7 +220,7 @@ test("profile and password edits persist and revoke an already logged-in session
 });
 
 
-test("book edits, metadata enrichment, side stories, purchase state, and batch deletion persist", async ({ page }, testInfo) => {
+test("book edits, metadata enrichment, purchase state and bulk deletion persist", async ({ page }, testInfo) => {
   await login(page);
   const name = `상세 회귀 ${testInfo.project.name}`;
   const response = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
@@ -218,40 +229,121 @@ test("book edits, metadata enrichment, side stories, purchase state, and batch d
   expect(response.status()).toBe(201);
   const { bookId } = await response.json();
   await page.goto(`/books/${bookId}`);
-  await page.getByText("책 정보 수정", { exact: true }).click();
   const bookForm = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
   await bookForm.getByLabel("저자", { exact: true }).fill("수동 저자");
-  await bookForm.getByLabel("총 권수 메모", { exact: true }).fill("완결 12권");
+  await bookForm.getByLabel("총 권수", { exact: true }).fill("완결 12권");
   await bookForm.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.locator(".book-hero")).toContainText("수동 저자");
   for (const [title, special] of [["선택 샘플 1-1", false], ["외전 회귀", true]] as const) {
-    const addDetails = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: "권 직접 추가" }) });
-    if ((await addDetails.getAttribute("open")) === null) await addDetails.locator("summary").click();
+    const addDetails = page.getByRole("region", { name: "권 직접 추가", exact: true });
+    if (!(await addDetails.isVisible())) await page.getByRole("button", { name: "직접 추가", exact: true }).click();
     const form = addDetails.locator("form");
     await form.getByLabel("권 제목", { exact: true }).fill(title);
     await form.getByLabel("외전·특별판", { exact: true }).setChecked(special);
     await form.getByRole("button", { name: "권 추가", exact: true }).click();
     await expect(page.getByRole("heading", { name: `${special ? "외전" : "1권"} · ${title}`, exact: true })).toBeVisible();
   }
+  await page.route(`**/books/${bookId}`, async route => {
+    if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 500));
+    await route.continue();
+  });
   await page.getByRole("button", { name: "저자/설명 넣기", exact: true }).click();
+  await expect(page.locator("#top-progress-bar")).toBeVisible();
   await expect(page.locator(".flash-success")).toContainText("정보 보강 완료");
-  const volume = page.locator(".volume-card").filter({ has: page.getByRole("heading", { name: "1권 · 선택 샘플 1-1", exact: true }) });
+  await expect(page.locator("#top-progress-bar")).toBeHidden();
+  await page.unrouteAll({ behavior: "wait" });
+  await expect(page.locator(".book-hero")).toContainText("수동 저자");
+  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
   await expect(volume).toContainText("fixture");
-  await volume.getByText("권 정보 수정", { exact: true }).click();
+  await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await volume.getByLabel("구매 완료", { exact: true }).check();
-  await volume.getByRole("button", { name: "권 저장", exact: true }).click();
+  await volume.getByLabel("저자", { exact: true }).press("Enter");
   await expect(volume.locator(".status-badge")).toHaveText("구매 완료");
+  await expect(volume.getByRole("dialog")).toBeHidden();
   await page.getByLabel("모든 권 선택", { exact: true }).check();
+  await expect(page.getByLabel(/삭제 선택/)).toHaveCount(2);
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "선택한 권 삭제 (2)", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(2);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "선택한 권 삭제 (2)", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(0);
-  const edit = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: "책 정보 수정" }) });
-  if ((await edit.getAttribute("open")) === null) await edit.locator("summary").click();
-  await expect(edit.getByLabel("총 권수 메모", { exact: true })).toHaveValue("완결 12권");
+  await expect(page.locator(".book-edit-form").getByLabel("총 권수", { exact: true })).toHaveValue("완결 12권");
+  // Deletion must remain available even if the edit form contains invalid unsaved input.
+  await page.locator(".book-edit-form").getByLabel("제목", { exact: true }).fill("");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books\?/);
+});
+
+test("profile categories can be added and removed while categories used by books are retained", async ({ page }, testInfo) => {
+  await login(page);
+  const category = `프로필 분류 ${testInfo.project.name}`;
+  await page.goto("/profile");
+  const panel = page.getByRole("region", { name: "카테고리 관리", exact: true });
+  await panel.getByLabel("새 카테고리", { exact: true }).fill(category);
+  await panel.getByRole("button", { name: "카테고리 추가", exact: true }).click();
+  await expect(page.locator(".flash-success")).toContainText("카테고리를 추가");
+  await page.reload();
+  const row = panel.locator("li").filter({ has: page.getByText(category, { exact: true }) });
+  await expect(row).toHaveCount(1);
+  const response = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
+    book: { name: category, author: "", description: "", type: category, totalVolume: "", coverUrl: "" }, direct: true, targetBookId: null, selection: []
+  }) } });
+  expect(response.status()).toBe(201);
+  const { bookId } = await response.json();
+  page.once("dialog", dialog => dialog.accept());
+  await row.getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(page.locator(".flash-error")).toContainText("책에 사용 중인 카테고리");
+  await expect(row).toHaveCount(1);
+  await page.goto(`/books/${bookId}`);
+  await expect(page.locator(".book-edit-form").getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:${category}`);
+  await deleteCurrentBook(page);
+  await page.goto("/profile");
+  page.once("dialog", dialog => dialog.dismiss());
+  await row.getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(row).toHaveCount(1);
+  page.once("dialog", dialog => dialog.accept());
+  await row.getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(page.locator(".flash-success")).toContainText("카테고리를 삭제");
+  await page.reload();
+  await expect(row).toHaveCount(0);
+});
+
+test("volume details modal keeps focus inside and resets unsaved edits when reopened", async ({ page }) => {
+  await login(page);
+  await page.goto("/books/1");
+  const trigger = page.locator(".volume-card").first().getByRole("button", { name: "상세정보", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const modal = page.getByRole("dialog", { name: "1권 · 테스트 1권", exact: true });
+  await expect(modal).toBeVisible();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+  const name = modal.getByLabel("권 제목", { exact: true });
+  await name.fill("저장하지 않은 수정");
+  for (let index = 0; index < 5; index++) {
+    await page.keyboard.press("Tab");
+    expect(await modal.evaluate(node => node.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
+  await trigger.click();
+  await expect(name).toHaveValue("테스트 1권");
+  await name.click();
+  await expect(modal).toBeVisible();
+  const bounds = await name.boundingBox();
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(4, 4);
+  await page.mouse.up();
+  await expect(modal).toBeVisible();
+  await page.mouse.click(4, 4);
+  await expect(modal).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
+  await trigger.click();
+  await modal.getByRole("button", { name: "상세정보 닫기", exact: true }).click();
+  await expect(trigger).toBeFocused();
 });

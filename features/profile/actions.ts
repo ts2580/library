@@ -11,6 +11,7 @@ import { createSession, destroyAllSessions } from "@/features/auth/session";
 import { passwordChangeSchema, profileSchema } from "@/features/profile/validation";
 import { regeneratePendingCovers } from "@/features/covers/regeneration";
 import { errorMessage } from "@/lib/errors";
+import { addCategory, removeCategory } from "@/features/books/categories";
 
 function v(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
@@ -18,6 +19,27 @@ function v(formData: FormData, key: string): string {
 
 function fail(message: string): never {
   redirect(`/profile?error=${encodeURIComponent(message)}`);
+}
+
+async function changeCategory(formData: FormData, remove: boolean): Promise<never> {
+  const user = await requireUser();
+  if (remove && user.role !== "ADMIN") fail("공용 카테고리 삭제는 관리자만 할 수 있습니다.");
+  try {
+    if (remove) removeCategory(v(formData, "category"));
+    else addCategory(v(formData, "category"));
+  } catch (error) { fail(errorMessage(error, "카테고리를 변경하지 못했습니다.")); }
+  revalidatePath("/books", "layout");
+  revalidatePath("/products");
+  revalidatePath("/profile");
+  redirect(`/profile?message=${encodeURIComponent(remove ? "카테고리를 삭제했습니다." : "카테고리를 추가했습니다.")}`);
+}
+
+export async function addProfileCategoryAction(formData: FormData): Promise<never> {
+  return changeCategory(formData, false);
+}
+
+export async function deleteProfileCategoryAction(formData: FormData): Promise<never> {
+  return changeCategory(formData, true);
 }
 
 export async function updateProfileAction(formData: FormData): Promise<never> {

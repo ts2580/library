@@ -36,7 +36,7 @@ npm run worker       # process 2
 
 Do not run Java and Next.js against the same writable SQLite database. SQLite WAL requires the web and worker to use the same host-local filesystem; do not share this database between hosts through NFS or an object-storage mount.
 
-Run from the repository root. Existing one-click local data under `next/data/` is still resolved when no root `data/active-migration.json` exists. Both Next development and production use port `25647`; stop the existing Java listener before starting Next directly. The Spring one-click handover explicitly starts Next on `25648` while Java remains on `25647`. `data/migration-check/` contains the isolated rehearsal copy. Configure both web and worker with that directory when reviewing the copied data.
+Run from the repository root. Move old local `next/data/` into the root `data/` before starting, preserving Java originals and logs under `data/legacy/`; see [the relocation steps](ONE_CLICK_MIGRATION.md). The application reads the active handover pointer only from the configured data root: local `data/` or Docker `/data`. Both Next development and production use port `25647`; stop the existing Java listener before starting Next directly. The ca2 Spring handover starts Next on `25648` while Java remains on `25647`. `data/migration-check/` contains the isolated rehearsal copy. Configure both web and worker with that directory when reviewing the copied data.
 
 Run one worker per database. The worker takes an exclusive SQLite lock before recovery; a second worker fails before changing running jobs. Stop old workers before upgrading from releases without that lock.
 
@@ -48,7 +48,7 @@ Both services must share exactly the same data volume. Existing installations us
 docker compose up -d --build
 ```
 
-For a bind mount, replace the named volume in **both** services with `./data:/app/data` and ensure UID/GID `1001:1001` can write it.
+For a bind mount, replace the named volume in **both** services with `./data:/data` and ensure UID/GID `1001:1001` can write it.
 
 ## Rollback
 
