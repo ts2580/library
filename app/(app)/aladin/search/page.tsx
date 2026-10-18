@@ -20,9 +20,10 @@ export default async function AladinSearchPage({ searchParams }: { searchParams:
   const options = getOwnedBookOptions(user.id, "", selectedBookId);
   const selectedTitle = params.query === undefined ? options.find(book => book.id === selectedBookId)?.name.trim().slice(0, 200) ?? "" : "";
   const query = params.query?.trim().slice(0, 200) ?? selectedTitle;
-  const searchOptions = aladinSearchOptionsSchema.parse({ queryType: !selectedTitle && params.queryType === "Author" ? "Author" : "Title" });
+  const parsedOptions = aladinSearchOptionsSchema.safeParse({ ...params, ...(selectedTitle ? { queryType: "Title" } : {}) });
+  const searchOptions = parsedOptions.success ? parsedOptions.data : aladinSearchOptionsSchema.parse({});
   let result: AladinSearchResult | null = null;
-  let searchError: string | null = null;
+  let searchError: string | null = parsedOptions.success ? null : "검색 조건을 확인해 주세요.";
   if (query && !searchError) {
     try { result = withOwnership(user.id, await searchAladinBooks({ ...searchOptions, query, page })); }
     catch (error) { searchError = errorMessage(error, "알라딘 검색 요청에 실패했습니다. 잠시 후 다시 시도해 주세요."); }

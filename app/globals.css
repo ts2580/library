@@ -343,6 +343,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .aladin-search-form .field { min-width: 0; }
 .aladin-search-form .button-row { flex-wrap: nowrap; }
 .aladin-search-form > .loading-status { grid-column: 1 / -1; }
+.aladin-search-options { grid-column: 1 / -1; }
+.aladin-search-options fieldset { margin: 0; border-inline: 0; border-bottom: 0; }
 @media (max-width: 760px) {
   .aladin-search-form { grid-template-columns: minmax(0, 1fr) auto; }
   .aladin-search-form .search-fields > .field:first-child { grid-column: 1 / -1; }

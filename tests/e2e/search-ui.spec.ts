@@ -133,7 +133,8 @@ test("simplified search keeps the selected database book across title and author
   await expect(page.getByRole("link", { name: "ISBN 재고 조회", exact: true })).toBeVisible();
   await expect(page.locator(".aladin-page-header").getByRole("combobox", { name: "기존 책 검색", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "기존 책 검색", exact: true })).toHaveCount(1);
-  await expect(form.getByRole("combobox").locator("option")).toHaveText(["제목", "저자"]);
+  await expect(form.getByRole("combobox", { name: "검색 기준", exact: true }).locator("option")).toHaveText(["제목", "저자", "키워드", "출판사"]);
+  await expect(form.locator("details")).toHaveJSProperty("open", false);
 
   const input = page.getByRole("combobox", { name: "기존 책 검색", exact: true });
   const lookup = page.waitForResponse((response) => response.url().includes("/api/books/options?query="));

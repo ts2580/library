@@ -32,6 +32,7 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
     setKeyword(title); setQueryType("Title");
     if (result?.items.length) return;
     const params = new URLSearchParams({ queryType: "Title", query: title, bookId: String(book.id) });
+    for (const [key, value] of Object.entries(searchOptions)) if (key !== "queryType" && value != null) params.set(key, String(value));
     startSearch(() => router.push(`/aladin/search?${params}`, { scroll: false }));
   }
   return <>
@@ -41,17 +42,32 @@ export function AladinSearchPanel({ query, result, searchOptions, options, selec
     </header>
     {children}
     <section className="panel panel-soft stack-md">
-    <SearchForm key={`${query}:${searchOptions.queryType}:${resetVersion}`} className="aladin-search-form" action="/aladin/search">
-      <div className="field"><label htmlFor="aladin-query-type">검색 기준</label><select className="select" id="aladin-query-type" name="queryType" value={queryType} onChange={event => setQueryType(event.target.value === "Author" ? "Author" : "Title")} disabled={searching}>
-        <option value="Title">제목</option><option value="Author">저자</option>
+    <SearchForm key={`${query}:${JSON.stringify(searchOptions)}:${resetVersion}`} className="aladin-search-form" action="/aladin/search">
+      <div className="field"><label htmlFor="aladin-query-type">검색 기준</label><select className="select" id="aladin-query-type" name="queryType" value={queryType} onChange={event => setQueryType(event.target.value as AladinSearchOptions["queryType"])} disabled={searching}>
+        <option value="Title">제목</option><option value="Author">저자</option><option value="Keyword">키워드</option><option value="Publisher">출판사</option>
       </select></div>
       <div className="field"><label htmlFor="aladin-query">검색어</label><input className="input" id="aladin-query" name="query" value={keyword} onChange={event => setKeyword(event.target.value)} disabled={searching} maxLength={200} placeholder="제목 또는 저자 검색" required/></div>
       {target && <input type="hidden" name="bookId" value={target.id}/>}
       <div className="button-row"><button className="button" type="submit" disabled={searching}>검색</button><Link className="button button-outline" href="/aladin/search" onClick={() => { setTarget(null); setKeyword(""); setQueryType("Title"); setResetVersion((previous) => previous + 1); }}>초기화</Link></div>
+      <details className="details-card aladin-search-options"><summary>검색 조건</summary><fieldset className="details-body form-grid" disabled={searching}>
+        <div className="field"><label htmlFor="aladin-target">검색 대상</label><select id="aladin-target" name="searchTarget" className="select" defaultValue={searchOptions.searchTarget}>
+          {Object.entries({ Book: "국내 도서", Foreign: "외국 도서", Music: "음반", DVD: "DVD", Used: "중고", eBook: "전자책", All: "전체" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></div>
+        <div className="field"><label htmlFor="aladin-sort">정렬</label><select id="aladin-sort" name="sort" className="select" defaultValue={searchOptions.sort}>
+          {Object.entries({ PublishTime: "출간일", Accuracy: "정확도", Title: "제목", SalesPoint: "판매량", CustomerRating: "평점", MyReviewCount: "리뷰 수" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></div>
+        <div className="field"><label htmlFor="aladin-limit">페이지당 결과</label><input id="aladin-limit" name="maxResults" className="input" type="number" min={1} max={100} defaultValue={searchOptions.maxResults}/></div>
+        <div className="field"><label htmlFor="aladin-recent">최근 출간 개월 (0: 전체)</label><input id="aladin-recent" name="recentPublishFilter" className="input" type="number" min={0} max={60} defaultValue={searchOptions.recentPublishFilter}/></div>
+        <div className="field"><label htmlFor="aladin-category">알라딘 카테고리 ID</label><input id="aladin-category" name="categoryId" className="input" type="number" min={1} defaultValue={searchOptions.categoryId ?? ""}/></div>
+        <div className="field"><label htmlFor="aladin-cover">표지 크기</label><select id="aladin-cover" name="cover" className="select" defaultValue={searchOptions.cover}>
+          {Object.entries({ Big: "크게", MidBig: "중간 크게", Mid: "중간", Small: "작게", Mini: "아주 작게", None: "없음" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></div>
+        <label className="check"><input type="checkbox" name="outOfStockFilter" defaultChecked={searchOptions.outOfStockFilter}/>품절 도서 제외</label>
+      </fieldset></details>
     </SearchForm>
     {searching && <ProgressIndicator label="알라딘 검색 중"/>}
     </section>
-    {result && <AladinSelection key={`${query}:${searchOptions.queryType}:${result.page}:${resetVersion}`} query={query} initial={result} searchOptions={searchOptions}
+    {result && <AladinSelection key={`${query}:${JSON.stringify(searchOptions)}:${result.page}:${resetVersion}`} query={query} initial={result} searchOptions={searchOptions}
       initialOptions={options} selectedBookId={selectedBookId} selectedTarget={target} onTargetChange={setTarget} showTargetPicker={false} categories={categories}/>}
   </>;
 }
