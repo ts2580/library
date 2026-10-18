@@ -1,4 +1,5 @@
 import { SearchForm } from "@/components/ui/search-form";
+import { Pagination } from "@/components/ui/pagination";
 import Link from "next/link";
 import { CoverImage } from "@/components/ui/cover-image";
 import { ExternalLink } from "@/components/ui/external-link";
@@ -27,9 +28,6 @@ export function InventoryResults({ result, branch }: { result: ReturnType<typeof
       </div><div className="button-row"><ExternalLink className="button button-secondary button-small" href={item.purchaseUrl}>구매</ExternalLink></div>
     </article>)}</div>
     {!result.items.length && <p className="empty">검색 결과가 없습니다.</p>}
-    <nav className="button-row" aria-label="재고 페이지">
-      {result.page > 1 && <Link className="button button-outline" href={href(result.page - 1)}>이전 페이지</Link>}
-      {result.page < result.totalPages && <Link className="button button-outline" href={href(result.page + 1)}>다음 페이지</Link>}
-    </nav>
+    <Pagination page={result.page} totalPages={result.totalPages} href={href} label="재고 페이지"/>
   </section>;
 }

@@ -125,8 +125,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .book-card-copy p { margin: 0; color: var(--muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .book-card-meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: .76rem; }
 .pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.page-link { display: grid; place-items: center; min-width: 38px; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 11px; background: white; font-size: .84rem; }
+.page-link { display: grid; place-items: center; min-width: 38px; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 11px; background: white; font-size: .84rem; cursor: pointer; }
 .page-link-current { color: white; background: var(--accent); border-color: var(--accent); }
+.page-link:disabled { cursor: default; }
+.page-link:disabled:not(.page-link-current) { opacity: .45; }
+@media (max-width: 560px) {
+  .pagination { flex-wrap: nowrap; gap: 4px; }
+  .page-link { min-width: 28px; padding-inline: 6px; font-size: .75rem; }
+}
 .empty { padding: 50px 20px; text-align: center; border: 1px dashed #cbd4dd; border-radius: 22px; color: var(--muted); background: rgba(255,255,255,.55); }
 
 .details-card { border: 1px solid var(--line); border-radius: 18px; background: white; }
@@ -299,12 +305,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .aladin-results-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
 .aladin-pagination { grid-column: 2; justify-content: center; flex-wrap: nowrap; white-space: nowrap; }
 .aladin-import-action { grid-column: 3; justify-self: end; }
-.aladin-page-label-compact { display: none; }
 @media (max-width: 600px) {
-  .aladin-results-footer { gap: 8px; }
-  .aladin-pagination { gap: 4px; font-size: .75rem; }
-  .aladin-page-label { display: none; }
-  .aladin-page-label-compact { display: inline; }
+  .aladin-results-footer { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .aladin-pagination, .aladin-import-action { grid-column: 1; }
   .aladin-results-footer .button { padding-inline: 8px; font-size: .75rem; }
 }
 .aladin-page-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, min(54%, 520px)); align-items: start; }

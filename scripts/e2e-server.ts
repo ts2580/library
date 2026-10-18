@@ -26,6 +26,15 @@ sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(4,'책별 재고 대�
 sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name,isbn13,ispurchased) VALUES(6,4,1,'책별 재고 대상 1','9780000000111',0),(7,4,2,'책별 재고 구매한 권','9780000000112',1),(8,5,1,'다른 책 권','9780000000113',0)").run();
 for (let id = 1; id <= 28; id++) sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(?,1,1,1,'SEOUL','서울점','테스트 100%_!','1,000')").run(id);
 sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(29,4,6,1,'OLD','기존점','책별 기존 재고','900'),(30,5,8,1,'OTHER','다른점','다른 책 기존 재고','800'),(31,4,7,2,'OLD','기존점','구매한 권 기존 재고','700')").run();
+sqlite.prepare("INSERT INTO member(id,username,password_hash,role) VALUES(5,'fixture-pagination',?,'ADMIN')").run(passwordHash);
+sqlite.transaction(() => {
+  for (let index = 1; index <= 130; index++) {
+    const id = 1000 + index;
+    sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(?,?,5)").run(id, `페이지 책 ${index}`);
+    sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name) VALUES(?,?,1,?)").run(id, id, `페이지 권 ${index}`);
+    sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(?,?,?,1,'PAGING','페이지점',?,'1000')").run(id, id, id, `페이지 재고 ${index}`);
+  }
+})();
 for (const ownerId of [1, 2]) {
   const directory = path.join(env.coversDir, String(ownerId));
   mkdirSync(directory, { recursive: true });

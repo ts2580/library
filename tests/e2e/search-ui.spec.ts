@@ -181,8 +181,10 @@ test("Aladin pagination stays centered beside the right-aligned import action", 
     const action = await page.getByRole("button", { name: "0권 추가", exact: true }).boundingBox();
     expect(Math.abs(pager!.x + pager!.width / 2 - footer!.x - footer!.width / 2)).toBeLessThan(1);
     expect(Math.abs(action!.x + action!.width - footer!.x - footer!.width)).toBeLessThan(1);
-    expect(Math.abs(action!.y + action!.height / 2 - pager!.y - pager!.height / 2)).toBeLessThan(1);
-    expect(action!.x).toBeGreaterThanOrEqual(pager!.x + pager!.width);
+    if (width > 600) {
+      expect(Math.abs(action!.y + action!.height / 2 - pager!.y - pager!.height / 2)).toBeLessThan(1);
+      expect(action!.x).toBeGreaterThanOrEqual(pager!.x + pager!.width);
+    } else expect(action!.y).toBeGreaterThanOrEqual(pager!.y + pager!.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`aladin-footer-${width}.png`), fullPage: true });
   }

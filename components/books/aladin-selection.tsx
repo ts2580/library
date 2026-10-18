@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CoverImage } from "@/components/ui/cover-image";
 import { Spinner } from "@/components/ui/spinner";
+import { Pagination } from "@/components/ui/pagination";
 import { CategorySelect } from "@/components/books/category-select";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
 import { formatWon } from "@/lib/format";
@@ -195,11 +196,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
         {!result.items.length && <p className="empty">{target ? "기존 책에 추가할 알라딘 항목이 없습니다." : "검색 결과가 없습니다. 입력한 정보로 책만 추가할 수 있습니다."}</p>}
         <p className="muted small">출간일이 빠른 책부터 권차를 붙입니다. 출간일이 없으면 마지막에 배치하며, 외전은 정규 권차에서 제외합니다.</p>
         <div className={`aladin-results-footer${manual ? " aladin-results-footer-manual" : ""}`}>
-        <nav className="button-row aladin-pagination" aria-label="알라딘 검색 페이지">
-          <button type="button" className="button button-outline" aria-label="이전 페이지" disabled={loading || saving || result.page <= 1} onClick={() => loadPage(result.page - 1)}><span className="aladin-page-label">이전 페이지</span><span className="aladin-page-label-compact">이전</span></button>
-          <span>{result.page} / {Math.max(1, totalPages)}</span>
-          <button type="button" className="button button-outline" aria-label="다음 페이지" disabled={loading || saving || result.page >= totalPages} onClick={() => loadPage(result.page + 1)}><span className="aladin-page-label">다음 페이지</span><span className="aladin-page-label-compact">다음</span></button>
-        </nav>
+        <Pagination page={result.page} totalPages={totalPages} label="알라딘 검색 페이지" className="aladin-pagination" disabled={loading || saving} onPageChange={page => void loadPage(page)}/>
         {!manual && <div className="aladin-import-action">{submitButton}</div>}
         </div>
       </div>}

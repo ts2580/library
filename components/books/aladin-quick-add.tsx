@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
 import { CoverImage } from "@/components/ui/cover-image";
 import { Spinner } from "@/components/ui/spinner";
+import { Pagination } from "@/components/ui/pagination";
 import { formatWon } from "@/lib/format";
 import type { AladinBookItem, AladinSearchResult } from "@/features/aladin/types";
 
@@ -96,8 +97,7 @@ export function AladinQuickAdd({ initialQuery = "", initial = null, targetBook, 
       <p className="muted" role="status">검색 결과 {result.totalResults}건 · {result.page}페이지</p>
       <div className="stack-md">{result.items.map((item, index) => <QuickAddItem key={`${searched}:${result.page}:${item.isbn13 ?? item.isbn ?? index}`} item={item} query={searched} page={result.page} targetBook={targetBook} categories={categories}/>)}</div>
       {!result.items.length && <p className="empty">검색 결과가 없습니다. 직접 입력으로 권을 추가할 수 있습니다.</p>}
-      <div className="button-row"><button type="button" className="button button-outline" disabled={loading || result.page <= 1} onClick={() => void search(searched, result.page - 1)}>이전 검색 페이지</button>
-        <button type="button" className="button button-outline" disabled={loading || result.page >= Math.min(50, Math.ceil(result.totalResults / result.pageSize))} onClick={() => void search(searched, result.page + 1)}>다음 검색 페이지</button></div>
+      <Pagination page={result.page} totalPages={Math.min(50, Math.ceil(result.totalResults / Math.max(1, result.pageSize)))} label="알라딘 한 권 검색 페이지" disabled={loading} onPageChange={page => void search(searched, page)}/>
     </>}
   </section>;
 }
