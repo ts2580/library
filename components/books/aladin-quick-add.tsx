@@ -57,7 +57,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
         <label className="check"><input type="checkbox" checked={sideStory} disabled={busy} onChange={(event) => setSideStory(event.target.checked)}/> 외전·특별판</label>
         {!target && <><div className="field"><label htmlFor={`${id}-category`}>카테고리</label><input className="input" id={`${id}-category`} name="category" list={`${id}-categories`}
           maxLength={120} disabled={busy} defaultValue={item.categoryName?.split(/>+/).at(-1)?.trim().slice(0, 120) ?? ""}/><datalist id={`${id}-categories`}>{categories.map((category) => <option key={category} value={category}/>)}</datalist></div>
-          <div className="field"><label htmlFor={`${id}-total`}>총 권수 메모</label><input className="input" id={`${id}-total`} name="totalVolume" maxLength={30} disabled={busy}/></div></>}
+          <div className="field"><label htmlFor={`${id}-total`}>총 권수</label><input className="input" id={`${id}-total`} name="totalVolume" maxLength={30} disabled={busy}/></div></>}
         {error && <p className="flash flash-error span-2" role="alert">{error}</p>}
         <div className="button-row span-2"><button className="button" disabled={busy}>{busy ? <Spinner label="등록 중"/> : "이 권 저장"}</button></div>
       </form>}

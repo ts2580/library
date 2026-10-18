@@ -10,7 +10,8 @@ globalThis.fetch = async function fixtureFetch(input, init) {
     const namespace = String(parseInt(createHash("sha256").update(url.searchParams.get("Query") ?? "").digest("hex").slice(0, 8), 16) % 1000000).padStart(6, "0");
     return Response.json({ totalResults: 40, startIndex: page, itemsPerPage: 20, item: [1, 2].map((index) => ({
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
-      author: "테스트 저자", description: "fixture", priceSales: 1000
+      author: "테스트 저자", description: "fixture", priceSales: 1000,
+      pubDate: new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
     })) });
   }
   if (url.pathname.endsWith("ItemLookUp.aspx")) {

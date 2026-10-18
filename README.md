@@ -6,7 +6,7 @@ Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장�
 
 Node.js 22 이상이 필요합니다. 기존 설정이 없다면 `.env.example`을 `.env`로 복사하고 `ALADIN_TTB_KEY`를 설정합니다. SQLite 네이티브 모듈을 직접 빌드하는 환경에는 Python 3·make·g++도 필요합니다.
 
-기존 `next/`에서 실행 중인 웹·워커는 종료한 뒤 루트에서 다시 실행합니다.
+기존 `next/`에서 실행 중인 웹·워커는 종료하고, 데이터가 남아 있으면 [로컬 데이터 이동 절차](docs/ONE_CLICK_MIGRATION.md#이전-완료한-로컬-실행)를 먼저 진행합니다.
 
 ```bash
 npm ci
@@ -28,18 +28,26 @@ npm run worker
 
 웹·워커·DB CLI는 루트의 `.env`와 동일한 데이터 경로를 사용합니다. 개발 프록시는 `next.config.ts`의 `allowedDevOrigins`로 허용하며, 운영 HTTPS 프록시는 `X-Forwarded-Proto`를 전달합니다. 필요하면 `BOOKSHELF_COOKIE_SECURE=true` 또는 내부 HTTP의 `false`를 지정합니다.
 
+책별 재고 검색을 포함한 업데이트에서는 웹과 워커를 같은 코드로 함께 재시작합니다. DB 버전 2는 작업 범위 컬럼만 추가하며 기존 재고·권차·사용자 권한을 변경하지 않습니다.
+
+개발 모드는 `experimental.reactDebugChannel=false`로 설정합니다. HMR 웹소켓을 전달하지 못하는 프록시에서도 화면의 버튼과 입력 이벤트가 활성화되도록 하기 위한 설정입니다.
+
+Nginx Proxy Manager로 개발 서버에 접속하면 해당 Proxy Host의 `Edit → Details → Websockets Support`를 켜고 저장합니다. `/_next/hmr`은 개발 중 코드 변경을 전달하는 WebSocket 연결이며, 책 검색·추가 API는 HTTP를 사용합니다. 프록시가 WebSocket 업그레이드를 전달하지 않으면 `GET /_next/hmr?... 404`가 반복되고 개발 클라이언트의 재연결 실패로 페이지가 새로고침될 수 있습니다. 정상 연결은 브라우저 개발자 도구의 Network → WS에서 `101 Switching Protocols`로 확인합니다. 프록시 변경 후 기존 페이지를 새로고침합니다.
+
+알라딘 추가 예정 미리보기는 연결 끊김 또는 HTTP 502·503·504에 한해 GET 요청을 한 번 재시도합니다. 계속 실패하면 선택한 기존 책과 입력값을 유지하고 오류를 표시합니다. 책을 저장하는 POST 요청은 자동 재시도하지 않습니다.
+
 ## 기존 ca2 데이터로 전환
 
-소스 위치만 바뀌며 DB 스키마와 Docker 데이터 위치는 유지합니다.
+DB·표지·업로드·백업은 한 데이터 루트에 보관합니다. 로컬은 프로젝트의 `data/`, Docker 내부는 `/data`입니다. DB 스키마와 기존 Docker 볼륨 이름은 유지하며 컨테이너의 연결 위치만 바꿉니다.
 
 | 환경 | 새 앱 데이터 | 원본 정리용 Java 데이터 |
 |---|---|---|
-| Docker | 웹·워커 모두 `Bookshelf-next:/app/data` | 웹에 `Bookshelf:/data` |
-| 로컬 원클릭 이전 | `data/active-migration.json`, 없으면 기존 `next/data/active-migration.json` | `BOOKSHELF_LEGACY_DATA_DIR`로 지정 |
+| Docker | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
+| 로컬 | 프로젝트 루트 `data/` | `data/legacy/` |
 
-**Next 전용 이미지에 `/app/next/data`를 연결하면 이전 DB를 읽지 못합니다.** 항상 `/app/data`에 연결합니다. 새 빈 볼륨을 만들거나 이전 기록 파일만 따로 옮기지 않습니다. 실제 DB·표지·백업과 `active-migration.json`을 함께 유지합니다.
+**이 소스로 빌드한 이미지에는 새 데이터 볼륨을 `/data`에 연결합니다.** 기존 ca2 Next 전용 이미지는 `/app/data`, ca2 이전용 이미지는 `/app/next/data`를 사용했으므로 이미지 버전과 연결 위치를 함께 변경합니다. 새 빈 볼륨을 만들거나 이전 기록 파일만 따로 옮기지 않습니다. 실제 DB·표지·백업과 `active-migration.json`을 함께 유지합니다.
 
-로컬 `next/data` 이전본은 그대로 두어도 루트 실행 시 인식합니다. 기존 `next/.env`의 설정은 루트 `.env`로 옮기되 사용자 지정 상대 경로를 확인합니다. 기본 DB·데이터 경로는 `.env.example`처럼 `./data/bookshelf.sqlite`·`./data`를 사용해야 이전 기록을 자동 선택합니다. 원본이 루트 `data/`에 남아 있다면 `BOOKSHELF_LEGACY_DATA_DIR=./data`로 지정합니다. 원클릭 이전 기록 없이 직접 운영하던 `next/data`는 `BOOKSHELF_DB_PATH=./next/data/bookshelf.sqlite`, `BOOKSHELF_DATA_DIR=./next/data`를 명시합니다.
+`BOOKSHELF_DATA_DIR` 기본값은 `./data`이며 DB는 그 안의 `bookshelf.sqlite`를 사용합니다. 원클릭 이전 기록이 있으면 같은 데이터 루트의 `migrations/handover-*`를 선택합니다. `BOOKSHELF_DB_PATH`는 별도 DB를 명시할 때만 설정합니다. `.env`도 루트에서 읽으며, 이동을 마치면 `next/` 폴더는 필요하지 않습니다. 이전 `next/data`만 남은 상태에서 새 빈 DB를 만드는 대신 이동 안내와 함께 시작을 중단합니다.
 
 Java 소스·Gradle·이전용 실행기는 ca3에서 제거했습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
 
@@ -53,7 +61,7 @@ Java 소스·Gradle·이전용 실행기는 ca3에서 제거했습니다. 아직
 docker compose up -d --build
 ```
 
-컨테이너 내부 웹 포트는 항상 `25647`이며, 호스트 포트는 `SERVER_PORT`로 바꿉니다. 웹·워커는 같은 `/app/data` 볼륨을 공유하고 UID/GID `1001:1001`로 실행합니다.
+컨테이너 내부 웹 포트는 항상 `25647`이며, 호스트 포트는 `SERVER_PORT`로 바꿉니다. 웹·워커는 같은 `/data` 볼륨을 공유하고 UID/GID `1001:1001`로 실행합니다. Compose가 컨테이너 경로를 지정하므로 로컬 `.env`의 `./data` 설정을 그대로 사용할 수 있습니다.
 
 ### 기존 Bookshelf-next 볼륨 사용
 
@@ -77,12 +85,15 @@ BOOKSHELF_IMAGE=bookshelf:3.0.0-ca3-local docker compose -f docker-compose.relea
 - 계정별 도서·권 CRUD와 SQL 수준 `owner_id` 소유권 검사
 - 기존 BCrypt 및 레거시 SHA-256 로그인 호환, 로그인 성공 시 BCrypt 승격
 - SQLite 기반 서버 세션, 전체 세션 폐기형 비밀번호 변경
+- 프로필에서 카테고리 추가·삭제. 책에 사용 중인 카테고리는 분류를 변경한 뒤 삭제
 - 알라딘 도서 검색·등록, ISBN 중고 재고 조회, 지점 상품 등급별 가격 파싱
-- 직접 추가 안에서 기존 책 검색·알라딘 미리보기·새 책 등록 또는 기존 책에 이어 넣기
-- 최대 10개 페이지 선택, 서버 재조회 검증, 뒤 페이지부터 화면 순서대로 일괄 권 등록 및 항목별 외전 지정
+- 직접 추가 팝업의 알라딘 검색·책 수동 추가 탭: 알라딘 미리보기 후 새 책 등록 또는 기존 책에 이어 넣기, ISBN 없는 오래된 책·동인지의 수동 등록
+- 알라딘 검색 페이지에서 새 책 등록 전 카테고리 선택, 기존 책에 추가할 때는 저장된 분류 유지
+- 최대 10개 페이지 선택, 서버 재조회 검증, 출간일이 빠른 순서대로 권차 부여 및 항목별 외전 지정. 출간일이 없는 항목은 마지막에 배치하며 같은 날짜의 항목은 기존 검색 순서를 유지
 - 모든 검색 화면과 기존 책 검색·알라딘 페이지 이동의 요청 중 스피너
 - 보유 권의 제목·ISBN 검색, 지점 재고의 제목·ISBN·지점 검색 및 페이지 이동
 - 별도 워커 기반 중고 재고 일괄 갱신과 SQLite 진행 상태
+- 책 상세의 재고 검색은 해당 책의 구매 필요 권만 대상으로 기존 재고를 유지하며 새 상품을 추가. 중복 상품과 기존 가격은 변경하지 않으며, 기존 재고 관리 권한 적용
 - 지점별 재고 집계·상세 화면
 - 런타임 표지를 `data/covers`에 저장하고 인증된 Route Handler로 제공
 - 원격 표지 SSRF 방어, MIME·크기·픽셀 제한, WebP 정규화

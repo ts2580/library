@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["book.sfdcinsight.xyz"],
+  allowedDevOrigins: ["127.0.0.1", "book.sfdcinsight.xyz"],
   serverExternalPackages: ["better-sqlite3", "sharp", "unzipper", "archiver", "exceljs"],
   turbopack: { root: process.cwd() },
   outputFileTracingRoot: process.cwd(),
@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   poweredByHeader: false,
   experimental: {
+    // Hydration must work when a reverse proxy cannot forward the HMR socket.
+    reactDebugChannel: false,
     serverActions: {
       bodySizeLimit: "10mb"
     }

@@ -31,6 +31,7 @@ const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/
 const { AladinRateLimitError } = await import("@/features/aladin/client");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
 const { createManualBook } = await import("@/features/books/manual-create");
+const { addCategory, removeCategory } = await import("@/features/books/categories");
 const { withOwnership } = await import("@/features/aladin/ownership");
 const { exportExcelBackup, importExcelBackup } = await import("@/features/backup/excel");
 const { getCurrentUser } = await import("@/features/auth/session");
@@ -65,6 +66,23 @@ function item(key: string) {
 }
 
 describe("legacy SQLite adoption", () => {
+  it("adds trimmed categories once and deletes unused categories", () => {
+    const name = "프로필 추가 삭제 검증";
+    addCategory(` ${name} `); addCategory(name);
+    expect(sqlite.prepare("SELECT COUNT(*) count FROM book_categories WHERE name=?").get(name)).toEqual({ count: 1 });
+    removeCategory(name);
+    expect(getManualBookCategories()).not.toContain(name);
+  });
+  it("rejects invalid category names and preserves categories used by any owner", () => {
+    expect(() => addCategory("   ")).toThrow("1~120");
+    expect(() => removeCategory("x".repeat(121))).toThrow("1~120");
+    const name = "다른 소유자 사용 분류";
+    addCategory(name);
+    sqlite.prepare("UPDATE books SET type=? WHERE id=2").run(name);
+    expect(() => removeCategory(name)).toThrow("사용 중");
+    expect(getManualBookCategories()).toContain(name);
+    expect(sqlite.prepare("SELECT type FROM books WHERE id=2").get()).toEqual({ type: name });
+  });
   it("offers saved categories even when no current book uses them", () => {
     sqlite.prepare("INSERT OR IGNORE INTO book_categories(name) VALUES (?)").run("저장만 한 카테고리");
     expect(getManualBookCategories()).toContain("저장만 한 카테고리");

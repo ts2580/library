@@ -7,12 +7,14 @@ import { Spinner } from "@/components/ui/spinner";
 export function SearchForm({ action, className, children }: { action: string; className?: string; children: React.ReactNode }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  return <form action={action} method="get" className={className} aria-busy={pending} onSubmit={(event) => {
+  return <form action={action} method="get" className={className} aria-busy={pending} onKeyDown={(event) => {
+    if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault();
+  }} onSubmit={(event) => {
     event.preventDefault();
     if (pending) return;
     const query = new URLSearchParams();
     for (const [key, value] of new FormData(event.currentTarget)) if (typeof value === "string") query.append(key, value);
-    startTransition(() => router.push(`${action}?${query}`));
+    startTransition(() => router.push(`${action}?${query}`, { scroll: false }));
   }}>
     <fieldset className="search-fields" disabled={pending}>{children}</fieldset>
     {pending && <Spinner/>}

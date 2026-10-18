@@ -47,16 +47,16 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
     setOptions([]); setHighlight(-1); setError("");
     if (!expanded) { setLoading(false); return; }
     setLoading(true);
-    const timer = setTimeout(async () => {
+    void (async () => {
       try {
-        const response = await fetch(`/api/books/options?query=${encodeURIComponent(query)}`, { cache: "no-store", signal: controller.signal });
+        const response = await fetch(`/api/books/options?query=${encodeURIComponent(query.normalize("NFC").trim())}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("기존 책을 불러오지 못했습니다. 다시 검색해 주세요.");
         const found = await response.json() as BookOption[];
         if (!controller.signal.aborted) { setOptions(found); setHighlight(found.length ? 0 : -1); }
       } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "기존 책 검색에 실패했습니다."); }
       finally { if (!controller.signal.aborted) setLoading(false); }
-    }, 180);
-    return () => { controller.abort(); clearTimeout(timer); };
+    })();
+    return () => controller.abort();
   }, [query, expanded]);
 
   useEffect(() => {
@@ -93,7 +93,10 @@ export function ExistingBookSelect({ selected, onChange, disabled = false }: {
           if (query.trim() && !selected) setOpen(true);
         }}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing) return;
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+            if (event.key === "Enter") event.preventDefault();
+            return;
+          }
           if (event.key === "Escape") { event.preventDefault(); setOpen(false); return; }
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault(); setOpen(true);

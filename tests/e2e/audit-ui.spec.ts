@@ -91,14 +91,15 @@ test("a stalled initial assembly response falls back to the saved job status", a
   expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBeNull();
 });
 
-test("mobile volume editing uses the card width rather than the cover side column", async ({ page }) => {
+test("mobile volume editing uses a dialog with enough width for the form", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await login(page); await page.goto("/books/1");
   const card = page.locator(".volume-card").first();
-  const details = card.locator("details").first();
-  await details.locator("summary").click();
+  await card.getByRole("button", { name: "상세정보", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
   const cardBox = await card.boundingBox();
-  const formBox = await details.locator("form").first().boundingBox();
+  const formBox = await dialog.locator("form.form-grid").boundingBox();
   expect(cardBox).not.toBeNull(); expect(formBox).not.toBeNull();
   expect(formBox!.width).toBeGreaterThan(cardBox!.width * 0.65);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

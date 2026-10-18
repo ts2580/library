@@ -5,7 +5,10 @@ import "@/app/volume-layout.css";
 
 export const metadata: Metadata = {
   title: { default: "Bookshelf", template: "%s · Bookshelf" },
-  description: "개인 책장과 중고 재고 관리"
+  description: "개인 책장과 중고 재고 관리",
+  icons: {
+    icon: { url: "/favicon.svg", type: "image/svg+xml", sizes: "any" }
+  }
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
