@@ -253,9 +253,14 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   await expect(page.locator("#top-progress-bar")).toBeHidden();
   await page.unrouteAll({ behavior: "wait" });
   await expect(page.locator(".book-hero")).toContainText("수동 저자");
+  const description = 'fixture <책> & "설명" 📚 <img src=x onerror=alert(1)>';
+  await expect(page.locator(".book-hero")).toContainText(description);
+  await expect(bookForm.getByLabel("설명", { exact: true })).toHaveValue(description);
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
-  await expect(volume).toContainText("fixture");
+  await expect(volume).toContainText(description);
+  await expect(page.locator('img[src="x"]')).toHaveCount(0);
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
+  await expect(volume.getByLabel("설명", { exact: true })).toHaveValue(description);
   await volume.getByLabel("구매 완료", { exact: true }).check();
   await volume.getByLabel("저자", { exact: true }).press("Enter");
   await expect(volume.locator(".status-badge")).toHaveText("구매 완료");
