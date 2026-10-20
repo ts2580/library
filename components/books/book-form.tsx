@@ -8,16 +8,18 @@ export function BookForm({
   book,
   categories = [],
   submitLabel = "저장",
-  deleteAction
+  deleteAction,
+  enrichAction
 }: {
   action: (formData: FormData) => void | Promise<void>;
   book?: BookDetail | null;
   categories?: string[];
   submitLabel?: string;
   deleteAction?: (formData: FormData) => void | Promise<void>;
+  enrichAction?: (formData: FormData) => void | Promise<void>;
 }) {
   return (
-    <div className="entity-edit-layout">
+    <div className="entity-edit-layout entity-edit-layout-book">
     <form action={action} className="entity-edit-form book-edit-form" aria-label="책 정보">
       <div className="form-grid entity-edit-fields">
       {book && <input type="hidden" name="bookId" value={book.id}/>}
@@ -31,6 +33,10 @@ export function BookForm({
       </div>
       <div className="button-row book-form-actions"><SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton></div>
     </form>
+    {book && enrichAction && <form action={enrichAction} className="book-enrichment-form">
+      <input type="hidden" name="bookId" value={book.id}/>
+      <SubmitButton pendingLabel="정보 검색 중" className="button button-outline" progress>저자/설명 알라딘에서 넣기</SubmitButton>
+    </form>}
     {book && deleteAction && <form action={deleteAction} className="entity-delete-form" aria-label="책 삭제">
       <input type="hidden" name="bookId" value={book.id}/>
       <ConfirmSubmitButton message="책과 모든 권, 연결된 재고를 삭제합니까?">책 삭제</ConfirmSubmitButton>

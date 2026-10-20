@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
 import { getBookDetail, getManualBookCategories } from "@/features/books/queries";
 import { addVolumeAction, deleteBookAction, deleteVolumeAction, updateBookAction, updateVolumeAction, enrichBookInfoAction } from "@/features/books/actions";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { VolumeSelection } from "@/components/books/volume-selection";
 import { BookForm } from "@/components/books/book-form";
 import { AladinQuickAdd } from "@/components/books/aladin-quick-add";
@@ -40,11 +39,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
         <div className="book-hero-cover"><CoverImage cover={book.cover} alt={book.name ?? "책"} className="h-full w-full object-cover"/></div>
         <div className="stack-md"><div><p className="eyebrow">Book detail</p><h1>{book.name ?? "제목 없음"}</h1><p className="page-subtitle">{book.author ?? "저자 미상"}</p></div><div className="button-row"><span className="chip">{book.type ?? "미분류"}</span><span className="chip">{book.volumeCount}권</span>{book.totalVolume && <span className="chip">총 권수 {book.totalVolume}</span>}</div>{book.description && <p className="muted">{book.description}</p>}</div>
       </section>
-      <section className="panel stack-md"><BookForm action={updateBookAction} deleteAction={deleteBookAction} book={book} categories={categories}/>
-        <form action={enrichBookInfoAction} className="stack-sm"><input type="hidden" name="bookId" value={book.id}/>
-          <p className="muted small">비어 있는 책과 권의 저자·설명을 알라딘에서 검색해 채웁니다.</p>
-          <SubmitButton pendingLabel="정보 검색 중" className="button button-outline" progress>저자/설명 넣기</SubmitButton>
-        </form>
+      <section className="panel stack-md"><BookForm action={updateBookAction} deleteAction={deleteBookAction} enrichAction={enrichBookInfoAction} book={book} categories={categories}/>
       </section>
       </div><section className="panel stack-md book-volumes-panel" aria-labelledby="volumes-heading"><div className="section-heading"><div><p className="eyebrow">Volumes</p><h2 id="volumes-heading">권 목록</h2></div><span className="chip">{book.volumes.length}권</span></div>
         <VolumeAddTools

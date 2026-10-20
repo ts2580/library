@@ -247,7 +247,7 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
     if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 500));
     await route.continue();
   });
-  await page.getByRole("button", { name: "저자/설명 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
   await expect(page.locator("#top-progress-bar")).toBeVisible();
   await expect(page.locator(".flash-success")).toContainText("정보 보강 완료");
   await expect(page.locator("#top-progress-bar")).toBeHidden();
