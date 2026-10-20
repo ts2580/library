@@ -314,7 +314,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .aladin-results-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
 .aladin-pagination { grid-column: 2; justify-content: center; flex-wrap: nowrap; white-space: nowrap; }
 .aladin-import-action { grid-column: 3; justify-self: end; }
+.aladin-import-action-top { display: none; }
 @media (max-width: 600px) {
+  .aladin-import-action-top { display: block; }
   .aladin-results-footer { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .aladin-pagination, .aladin-import-action { grid-column: 1; }
   .aladin-results-footer .button { padding-inline: 8px; font-size: .75rem; }

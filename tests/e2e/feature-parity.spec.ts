@@ -161,7 +161,7 @@ test("author search survives paging and selected-item registration", async ({ pa
   expect(request.searchParams.get("searchTarget")).toBe("Book");
   await page.getByLabel("선택 선택 샘플 2-1", { exact: true }).check();
   const importRequest = page.waitForRequest((request) => request.url().endsWith("/api/aladin/import") && request.method() === "POST");
-  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true }).click();
   const categoryDialog = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
   await categoryDialog.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("none");
   await categoryDialog.getByRole("button", { name: "1권 추가", exact: true }).click();

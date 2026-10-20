@@ -25,7 +25,7 @@ test("all Aladin filters survive initial search, form submission, paging and reg
   for (const [key, value] of Object.entries(filters)) expect(params.get(key)).toBe(value);
   await page.getByLabel("선택 선택 샘플 2-1", { exact: true }).check();
   const registration = page.waitForRequest(req => req.url().endsWith("/api/aladin/import") && req.method() === "POST");
-  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
   await dialog.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("none");
   await dialog.getByRole("button", { name: "1권 추가", exact: true }).click();

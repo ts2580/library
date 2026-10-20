@@ -28,9 +28,9 @@ test("a failed server search can be retried without reloading or losing the book
   await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await page.getByLabel("선택 선택 샘플 2-1", { exact: true }).check();
-  await expect(page.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator(".aladin-import-action").getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "이전 페이지", exact: true }).click();
   await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
-  await expect(page.getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator(".aladin-import-action").getByRole("button", { name: "2권 추가", exact: true })).toBeEnabled();
   expect(documents).toEqual([]);
 });

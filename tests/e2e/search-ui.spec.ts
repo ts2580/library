@@ -172,15 +172,26 @@ test("simplified search keeps the selected database book across title and author
   await expect(page.getByLabel("새 책 제목", { exact: true })).toBeVisible();
 });
 
-test("Aladin pagination stays centered beside the right-aligned import action", async ({ page }, testInfo) => {
+test("Aladin shows both import actions on mobile and only the footer action on desktop and tablet", async ({ page }, testInfo) => {
   await login(page);
   await page.goto("/aladin/search?query=footer");
   await expect(page.getByLabel("선택한 모든 권을 외전·특별판으로 추가")).toHaveCount(0);
-  for (const width of [1440, 412, 320]) {
+  const topAction = page.locator(".aladin-import-action-top button");
+  await expect(topAction).toBeDisabled();
+  await expect(page.locator(".aladin-import-action button")).toBeDisabled();
+  for (const width of [1440, 1024, 768, 601, 600, 412, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const footer = await page.locator(".aladin-results-footer").boundingBox();
     const pager = await page.getByRole("navigation", { name: "알라딘 검색 페이지", exact: true }).boundingBox();
-    const action = await page.getByRole("button", { name: "0권 추가", exact: true }).boundingBox();
+    const action = await page.locator(".aladin-import-action").getByRole("button", { name: "0권 추가", exact: true }).boundingBox();
+    await expect(page.getByRole("button", { name: "0권 추가", exact: true })).toHaveCount(width <= 600 ? 2 : 1);
+    if (width <= 600) {
+      await expect(topAction).toBeVisible();
+      const top = await topAction.boundingBox();
+      const firstResult = await page.locator(".search-result-card").first().boundingBox();
+      expect(top!.y + top!.height).toBeLessThanOrEqual(firstResult!.y);
+      expect(Math.abs(top!.x + top!.width - footer!.x - footer!.width)).toBeLessThan(1);
+    } else await expect(topAction).toBeHidden();
     expect(Math.abs(pager!.x + pager!.width / 2 - footer!.x - footer!.width / 2)).toBeLessThan(1);
     expect(Math.abs(action!.x + action!.width - footer!.x - footer!.width)).toBeLessThan(1);
     if (width > 600) {
@@ -190,6 +201,17 @@ test("Aladin pagination stays centered beside the right-aligned import action", 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`aladin-footer-${width}.png`), fullPage: true });
   }
+  await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
+  const actions = page.getByRole("button", { name: "1권 추가", exact: true });
+  await expect(actions).toHaveCount(2);
+  await expect(actions.nth(0)).toBeEnabled();
+  await expect(actions.nth(1)).toBeEnabled();
+  await actions.nth(0).click();
+  await expect(page.getByRole("dialog", { name: "새 책 카테고리", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("button", { name: "선택 초기화", exact: true }).click();
+  await expect(topAction).toBeDisabled();
+  await expect(page.locator(".aladin-import-action button")).toBeDisabled();
 });
 
 test("Korean composition confirmation does not search, register, or reset the current selection", async ({ page }) => {
@@ -213,7 +235,7 @@ test("Korean composition confirmation does not search, register, or reset the cu
   expect(requests).toEqual([]);
   await expect(page).toHaveURL(url);
   await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
-  await expect(page.getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
   await session.detach();
 });
 
@@ -270,7 +292,7 @@ test("selecting an existing book fills its title and only searches when there ar
   await expect(keyword).toHaveValue("마이그레이션 테스트 책");
   await expect(page.getByRole("img", { name: "선택한 책 마이그레이션 테스트 책", exact: true })).toBeVisible();
   await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
-  await expect(page.getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
   await expect(page.getByLabel("검색 대상", { exact: true })).toHaveValue("Foreign");
   await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("SalesPoint");
   await expect(page.getByLabel("품절 도서 제외", { exact: true })).toBeChecked();
@@ -292,7 +314,7 @@ test("new-book registration asks for a category and retains selection across can
     if (fail) await route.fulfill({ status: 503, json: { message: "등록 재시도 확인" } });
     else await route.continue();
   });
-  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
   const select = modal.getByRole("combobox", { name: "카테고리", exact: true });
   await expect(modal).toBeVisible();
@@ -302,7 +324,7 @@ test("new-book registration asks for a category and retains selection across can
   await modal.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByLabel("선택 선택 샘플 1-1", { exact: true })).toBeChecked();
   expect(requests).toHaveLength(0);
-  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true }).click();
   await select.selectOption("add");
   await modal.getByLabel("새 카테고리 이름", { exact: true }).fill(category);
   await modal.getByRole("button", { name: "추가", exact: true }).click();
