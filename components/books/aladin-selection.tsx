@@ -175,7 +175,10 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       {error && !categoryOpen && <p className="flash flash-error span-2" role="alert">{error}</p>}
       {loading && <div className="span-2"><ProgressIndicator label="알라딘 검색 중"/></div>}
       {result && !direct && <div className="stack-md span-2" aria-busy={loading}>
-        <div className="section-heading"><h2>{manual ? "추가 예정 도서" : "검색 결과"}</h2><span className="chip">{result.totalResults.toLocaleString("ko-KR")}건</span></div>
+        <div className="section-heading">
+          <div className="button-row"><h2>{manual ? "추가 예정 도서" : "검색 결과"}</h2><span className="chip">{result.totalResults.toLocaleString("ko-KR")}건</span></div>
+          {!manual && <div className="aladin-import-action-top">{submitButton}</div>}
+        </div>
         <div className="button-row"><button className="button button-outline" type="button" disabled={loading || saving || !keys.length} onClick={() => toggle(keys, true)}>현재 페이지 모두 선택</button>
           <button className="button button-outline" type="button" disabled={loading || saving} onClick={() => toggle(keys, false)}>현재 페이지 모두 제외</button>
           <button className="button button-outline" type="button" disabled={saving} onClick={() => setSelection([])}>선택 초기화</button><span role="status">{selection.length}권 선택</span></div>

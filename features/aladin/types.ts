@@ -2,6 +2,7 @@ export interface AladinBookItem {
   owned?: boolean;
   title: string;
   author: string | null;
+  /** Plain text, decoded once from the Aladin API response. */
   description: string | null;
   isbn: string | null;
   isbn13: string | null;
