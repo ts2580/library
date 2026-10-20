@@ -1,5 +1,6 @@
 import "server-only";
 import { load } from "cheerio";
+import { decodeHTMLStrict } from "entities";
 import { AladinRateLimitError, aladinHtml, aladinJson, isAladinConfigured } from "@/features/aladin/client";
 import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
 import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
@@ -16,6 +17,11 @@ function array(value: unknown): unknown[] {
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function aladinDescription(value: unknown): string | null {
+  const description = text(value);
+  return description == null ? null : decodeHTMLStrict(description);
 }
 
 function number(value: unknown): number | null {
@@ -123,7 +129,7 @@ export async function searchAladinBooks(input: unknown): Promise<AladinSearchRes
   const items = array(raw.item).map(object).filter((item): item is Record<string, unknown> => Boolean(item)).map((item): AladinBookItem => ({
     title: text(item.title) ?? "제목 없음",
     author: text(item.author),
-    description: text(item.description),
+    description: aladinDescription(item.description),
     isbn: text(item.isbn),
     isbn13: text(item.isbn13),
     cover: largeAladinCover(text(item.cover)),

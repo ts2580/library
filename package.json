@@ -1,6 +1,6 @@
 {
   "name": "bookshelf",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "allowScripts": {
     "better-sqlite3": true,
@@ -40,6 +40,7 @@
     "better-sqlite3": "13.0.3",
     "cheerio": "1.1.2",
     "drizzle-orm": "0.45.4",
+    "entities": "4.5.0",
     "exceljs": "4.4.0",
     "next": "16.4.2",
     "react": "19.3.0",

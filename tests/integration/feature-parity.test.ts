@@ -20,14 +20,14 @@ const directory = mkdtempSync(path.join(tmpdir(), "bookshelf-parity-"));
 process.env.BOOKSHELF_DB_PATH = path.join(directory, "bookshelf.sqlite");
 process.env.BOOKSHELF_DATA_DIR = directory;
 const { sqlite } = await import("@/db");
-const { updateVolume, addVolume, deleteVolumes } = await import("@/features/books/service");
+const { createBook, updateBook, updateVolume, addVolume, deleteVolumes } = await import("@/features/books/service");
 const { enrichMissingBookInfo } = await import("@/features/books/enrichment");
 const { getDashboardData } = await import("@/features/dashboard/queries");
 const { searchOwnedVolumes } = await import("@/features/books/queries");
 const { withOwnership } = await import("@/features/aladin/ownership");
 const { importExcelBackup, exportExcelBackup } = await import("@/features/backup/excel");
 const { regeneratePendingCovers } = await import("@/features/covers/regeneration");
-const { lookupUsedStocks } = await import("@/features/aladin/service");
+const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/service");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
 const { importAladinItem } = await import("@/features/aladin/import");
 const { getBookDetail } = await import("@/features/books/queries");
@@ -54,6 +54,78 @@ async function workbookFile(workbook: ExcelJS.Workbook) {
 }
 
 describe("Java feature parity regressions", () => {
+  it.each([
+    "&lt;책&gt; &amp; &quot;설명&quot; &#39;인용&#39; &#x1F4DA; &nbsp;",
+    "<책> <img src=x onerror=alert(1)> &unknown;",
+    "&amp;lt;책&amp;gt;",
+    null
+  ])("preserves stored book and volume descriptions verbatim: %s", (stored) => {
+    volume();
+    sqlite.prepare("UPDATE books SET description=? WHERE id=1").run(stored);
+    sqlite.prepare("UPDATE book_volumes SET description=? WHERE id=1").run(stored);
+    for (let read = 0; read < 2; read++) {
+      const detail = getBookDetail(1, 1)!;
+      expect(detail.description).toBe(stored);
+      expect(detail.volumes[0]?.description).toBe(stored);
+    }
+  });
+  it("preserves literal entities through manual edits, enrichment and repeated Excel restore", async () => {
+    const description = "&lt;code&gt; AT&amp;T &amp;lt;literal&amp;gt;";
+    const input = { name: "직접 입력 책", author: "", description, type: "", totalVolume: "", coverUrl: "" };
+    const bookId = await createBook(1, input);
+    await addVolume(1, bookId, { ...payload, description });
+    api.mockResolvedValue({ item: [{ title: payload.name, author: "보강 저자", description: "다른 &lt;설명&gt;" }] });
+    await enrichMissingBookInfo(1, bookId);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const detail = getBookDetail(1, bookId)!;
+      expect(detail.description).toBe(description);
+      expect(detail.volumes[0]?.description).toBe(description);
+      await updateBook(1, bookId, { ...input, author: "변경 저자", description: detail.description });
+      await updateVolume(1, bookId, detail.volumes[0]!.id, { ...payload, author: "변경 저자", description: detail.volumes[0]!.description });
+    }
+    const file = new File([new Uint8Array(await exportExcelBackup(1, "audit"))], "literal.xlsx");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await importExcelBackup(2, file);
+      const restored = sqlite.prepare("SELECT id FROM books WHERE owner_id=2 AND name=?").get(input.name) as { id: number };
+      const detail = getBookDetail(2, restored.id)!;
+      expect(detail.description).toBe(description);
+      expect(detail.volumes[0]?.description).toBe(description);
+    }
+    expect(sqlite.prepare("SELECT description FROM books WHERE id=?").get(bookId)).toEqual({ description });
+    expect(sqlite.prepare("SELECT description FROM book_volumes WHERE book=?").get(bookId)).toEqual({ description });
+  });
+  it.each([
+    ["&lt;책&gt; &amp; &quot;설명&quot; &#39;인용&#39; &#x1F4DA; &nbsp;끝", '<책> & "설명" \'인용\' 📚 \u00a0끝'],
+    ["&amp;lt;code&amp;gt; AT&amp;amp;T", "&lt;code&gt; AT&amp;T"],
+    ["<img src=x onerror=alert(1)> &unknown;", "<img src=x onerror=alert(1)> &unknown;"],
+    [null, null]
+  ])("decodes Aladin descriptions once before single and bulk registration: %s", async (description, expected) => {
+    const response = { startIndex: 1, itemsPerPage: 20, totalResults: 1, item: [{ title: "알라딘 권", isbn13: "9780000000111", description }] };
+    api.mockResolvedValue(response);
+    const item = (await searchAladinBooks({ query: "검색" })).items[0]!;
+    expect(item.description).toBe(expected);
+    const single = await importAladinItem(1, { title: item.title, author: "", description: item.description ?? "", isbn13: item.isbn13,
+      cover: "", price: "", link: "", pubDate: "", categoryName: "" });
+    api.mockResolvedValue({ ...response, item: [{ ...response.item[0], isbn13: "9780000000222" }] });
+    const bulk = await importAladinSelection(1, { query: "검색", seriesName: "일괄 등록", targetBookId: null, sideStory: false,
+      selection: [{ page: 1, key: "9780000000222" }] });
+    for (const { bookId } of [single, bulk]) {
+      const detail = getBookDetail(1, bookId)!;
+      const stored = expected;
+      expect(detail.description).toBe(stored);
+      expect(detail.volumes[0]?.description).toBe(stored);
+      expect(sqlite.prepare("SELECT description FROM books WHERE id=?").get(bookId)).toEqual({ description: stored });
+    }
+  });
+  it("keeps a manual description override while decoding selected Aladin volumes", async () => {
+    api.mockResolvedValue({ startIndex: 1, itemsPerPage: 20, totalResults: 1,
+      item: [{ title: "알라딘 권", isbn13: "9780000000111", description: "&amp;lt;code&amp;gt;" }] });
+    const description = "직접 입력 &lt;code&gt; AT&amp;T";
+    const { bookId } = await importAladinSelection(1, { query: "검색", seriesName: "수동 설명", targetBookId: null, sideStory: false,
+      selection: [{ page: 1, key: "9780000000111" }] },
+      { book: { name: "수동 설명", author: "", description, type: "", totalVolume: "", coverUrl: "" } });
+    expect(getBookDetail(1, bookId)).toMatchObject({ description, volumes: [{ description: "&lt;code&gt;" }] });
+  });
   it.each(["완결 12권", null])("preserves the total-volume memo %s across manual and Aladin changes", async (memo) => {
     sqlite.prepare("UPDATE books SET totalvolume=? WHERE id=1").run(memo);
     const manualId = await addVolume(1, 1, payload);
@@ -199,10 +271,14 @@ describe("Java feature parity regressions", () => {
   });
   it("enriches missing metadata without overwriting an existing author or purchase state", async () => {
     volume(); sqlite.exec("UPDATE books SET author='직접 입력 저자' WHERE id=1; UPDATE book_volumes SET ispurchased=1,originalUrl='https://example.com/cover.jpg'");
-    api.mockResolvedValue({ totalResults: 1, item: [{ title: "권 제목", author: "알라딘 저자", description: "조회한 설명" }] });
+    const description = "조회한 &lt;설명&gt; &amp; &#34;인용&#34;";
+    const decoded = '조회한 <설명> & "인용"';
+    api.mockResolvedValue({ totalResults: 1, item: [{ title: "권 제목", author: "알라딘 저자", description }] });
     expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 1, volumesUpdated: 1 });
-    expect(sqlite.prepare("SELECT author,description FROM books WHERE id=1").get()).toEqual({ author: "직접 입력 저자", description: "조회한 설명" });
-    expect(sqlite.prepare("SELECT author,description,ispurchased,originalUrl FROM book_volumes").get()).toEqual({ author: "알라딘 저자", description: "조회한 설명", ispurchased: 1, originalUrl: "https://example.com/cover.jpg" });
+    expect(sqlite.prepare("SELECT author,description FROM books WHERE id=1").get()).toEqual({ author: "직접 입력 저자", description: decoded });
+    expect(sqlite.prepare("SELECT author,description,ispurchased,originalUrl FROM book_volumes").get()).toEqual({ author: "알라딘 저자", description: decoded, ispurchased: 1, originalUrl: "https://example.com/cover.jpg" });
+    expect(getBookDetail(1, 1)?.description).toBe('조회한 <설명> & "인용"');
+    expect(getBookDetail(1, 1)?.volumes[0]?.description).toBe('조회한 <설명> & "인용"');
     api.mockClear(); await expect(enrichMissingBookInfo(1, 2)).rejects.toThrow(); expect(api).not.toHaveBeenCalled();
   });
   it("imports the real Java Korean sheets, keys, ISBN10, side stories, and metadata", async () => {

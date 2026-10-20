@@ -127,7 +127,7 @@ test("multi-page selection survives a failed page request and preserves import o
   await page.route("**/api/aladin/search?**", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "페이지 로딩 실패" }) }));
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "페이지 로딩 실패" })).toHaveText("페이지 로딩 실패");
-  await expect(page.getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
+  await expect(page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
   await page.unroute("**/api/aladin/search?**");
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await page.getByLabel("선택 선택 샘플 2-2", { exact: true }).check();
@@ -135,7 +135,7 @@ test("multi-page selection survives a failed page request and preserves import o
   await expect(page.locator(".search-result-card").filter({ hasText: "선택 샘플 2-2" }).getByText("1권으로 추가", { exact: true })).toBeVisible();
   await expect(page.locator(".search-result-card").filter({ hasText: "선택 샘플 2-1" }).getByText("2권으로 추가", { exact: true })).toBeVisible();
   await page.getByLabel("새 책 제목", { exact: true }).fill(`선택 등록 ${testInfo.project.name}`);
-  await page.getByRole("button", { name: "3권 추가", exact: true }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "3권 추가", exact: true }).click();
   const categoryDialog = page.getByRole("dialog", { name: "새 책 카테고리", exact: true });
   await categoryDialog.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("none");
   await categoryDialog.getByRole("button", { name: "3권 추가", exact: true }).click();
@@ -232,7 +232,7 @@ test("search page and manual preview both append to an existing series and exclu
   await page.goto(`/aladin/search?query=${encodeURIComponent(name)}&bookId=${bookId}`);
   await expect(page.getByLabel("기존 책 검색", { exact: true })).toHaveValue(name);
   await page.getByLabel("선택 선택 샘플 1-1", { exact: true }).check();
-  await page.getByRole("button", { name: "1권 추가", exact: true }).click();
+  await page.locator(testInfo.project.name === "mobile" ? ".aladin-import-action-top" : ".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "새 책 카테고리", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "5권 · 선택 샘플 1-1", exact: true })).toBeVisible();
   await page.goto("/books"); await page.getByRole("button", { name: "책 직접 추가", exact: true }).click();

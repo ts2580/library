@@ -1,6 +1,6 @@
 # Bookshelf
 
-Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **3.0.0은 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **3.1.0 개발 소스는 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
 ## 로컬 실행
 
@@ -71,7 +71,7 @@ docker compose up -d --build
 
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
-정식 릴리즈는 `trstyq/bookshelf:3.0.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
+현재 발행된 정식 릴리즈는 `trstyq/bookshelf:3.0.0`입니다. `3.1.0`은 canary 병합을 위한 개발 버전이며, 아래 발행용 Compose는 정식 이미지가 발행되기 전까지 `3.0.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
 
 ```bash
 docker compose -f docker-compose.release.yml pull
@@ -90,6 +90,7 @@ docker compose -f docker-compose.release.yml up -d
 - 신규·변경 비밀번호는 UTF-8 72바이트 이하. SQLite 트랜잭션으로 검증한 암호의 유효성 확인·비밀번호 변경·기존 세션 폐기·새 세션 발급 처리
 - 로그인 사용자는 프로필에서 공용 카테고리 추가 가능, 삭제는 관리자만 가능. 책에 사용 중인 카테고리는 분류를 변경한 뒤 삭제
 - 알라딘 도서 검색·등록, ISBN 중고 재고 조회, 지점 상품 등급별 가격 파싱
+- 알라딘 API 응답의 설명만 HTML 엔티티를 한 번 복원해 등록·정보 보강에 사용. 수동 입력·Excel 복원·기존 저장 설명은 원문 유지
 - 직접 추가 팝업의 알라딘 검색·책 수동 추가 탭: 알라딘 미리보기 후 새 책 등록 또는 기존 책에 이어 넣기, ISBN 없는 오래된 책·동인지의 수동 등록
 - 알라딘 검색 페이지에서 새 책 등록 전 카테고리 선택, 기존 책에 추가할 때는 저장된 분류 유지
 - 알라딘 검색과 책 직접 추가에서 기존 책 선택 시 작은 표지 표시. 알라딘 검색 페이지는 선택한 제목을 검색어에 채우고, 기존 결과가 없을 때만 자동 검색
@@ -122,9 +123,9 @@ npm run db:verify
 `db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-docker build -t bookshelf:3.0.0-local .
-npm run test:docker -- bookshelf:3.0.0-local
-CLEANUP_DOCKER_IMAGE=bookshelf:3.0.0-local npm run test:cleanup:docker
+docker build -t bookshelf:3.1.0-local .
+npm run test:docker -- bookshelf:3.1.0-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.1.0-local npm run test:cleanup:docker
 ```
 
 Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [인증·백업·재고 리뷰 수정](docs/CANARY_REVIEW_20261019.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
