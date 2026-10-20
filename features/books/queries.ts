@@ -1,5 +1,4 @@
 import "server-only";
-import { decodeHTMLStrict } from "entities";
 import { sqlite } from "@/db";
 import { escapeLike } from "@/lib/strings";
 import type { BookDetail, BookListFilters, BookListItem, BookListResult, VolumeDetail, BookOption } from "@/features/books/types";
@@ -127,11 +126,9 @@ export function getBookDetail(ownerId: number, bookId: number): BookDetail | nul
 
   return {
     ...book,
-    description: book.description == null ? null : decodeHTMLStrict(book.description),
     volumeCount: Number(book.volumeCount),
     volumes: volumes.map((volume) => ({
       ...volume,
-      description: volume.description == null ? null : decodeHTMLStrict(volume.description),
       stockCount: Number(volume.stockCount),
       minStockPrice: volume.minStockPrice == null ? null : Number(volume.minStockPrice),
       isPurchased: Boolean(volume.isPurchased),

@@ -23,7 +23,7 @@ globalThis.fetch = async function fixtureFetch(input, init) {
     return Response.json({ totalResults: query.startsWith("페이지검증") ? 200 : 40, startIndex: page, itemsPerPage: Number(url.searchParams.get("MaxResults") ?? 20), item: [1, 2].map((index) => ({
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
       author: "테스트 저자", description: query === "선택 샘플 1-1"
-        ? "fixture &lt;책&gt; &amp; &#34;설명&#34; &#x1F4DA; &lt;img src=x onerror=alert(1)&gt;" : "fixture", priceSales: 1000,
+        ? "fixture &lt;책&gt; &amp; &#34;설명&#34; &#x1F4DA; &lt;img src=x onerror=alert(1)&gt; &amp;lt;literal&amp;gt; AT&amp;amp;T" : "fixture", priceSales: 1000,
       pubDate: new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
     })) });
   }
