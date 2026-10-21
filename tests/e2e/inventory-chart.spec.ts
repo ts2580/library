@@ -111,3 +111,25 @@ test("branch amount chart handles empty, unpriced and zero-price inventory", asy
     await expect(chart.getByText("비교할 지점 재고가 없습니다.", { exact: true })).toBeVisible();
   } finally { fixture.close(); }
 });
+
+test("branch detail preserves literal percent sequences and distinct encoded-looking identifiers", async ({ page }) => {
+  const fixture = inventoryFixture();
+  const branches = ["50% OFF", "A%20B", "A B", "한글 % 지점", "A%2520B"];
+  try {
+    for (const [index, branch] of branches.entries()) fixture.add(branch, `특수 지점 ${index}`, String(1000 + index));
+    await login(page, fixture.username);
+    for (const [index, branch] of branches.entries()) {
+      await page.goto("/inventory");
+      const chart = page.getByRole("region", { name: "지점별 재고 금액 비교", exact: true });
+      const link = chart.getByRole("link").filter({ hasText: `특수 지점 ${index}` });
+      await expect(link).toHaveAttribute("href", `/inventory/branches/${encodeURIComponent(branch)}`);
+      await link.click();
+      await expect(page.getByRole("heading", { level: 1, name: `특수 지점 ${index}`, exact: true })).toBeVisible();
+      await expect(page.locator(".stock-card")).toHaveCount(1);
+      await expect(page.locator(".stock-card")).toContainText(`${(1000 + index).toLocaleString("ko-KR")}원`);
+      const response = await page.reload();
+      expect(response?.status()).toBe(200);
+      await expect(page.getByRole("heading", { level: 1, name: `특수 지점 ${index}`, exact: true })).toBeVisible();
+    }
+  } finally { fixture.close(); }
+});
