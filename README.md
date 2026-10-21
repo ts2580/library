@@ -1,6 +1,6 @@
 # Bookshelf
 
-Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **3.1.0은 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **개발 소스 버전은 3.2.0이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
 [3.1.0 변경 내용과 업데이트 안내](docs/RELEASE_3.1.0.md)를 참고하세요.
 
@@ -73,7 +73,7 @@ docker compose up -d --build
 
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
-정식 릴리즈는 `trstyq/bookshelf:3.1.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
+소스·로컬 빌드 버전은 `3.2.0`이며, 발행용 Compose는 `trstyq/bookshelf:3.1.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
 
 ```bash
 docker compose -f docker-compose.release.yml pull
@@ -125,9 +125,9 @@ npm run db:verify
 `db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-docker build -t bookshelf:3.1.0-local .
-npm run test:docker -- bookshelf:3.1.0-local
-CLEANUP_DOCKER_IMAGE=bookshelf:3.1.0-local npm run test:cleanup:docker
+docker build -t bookshelf:3.2.0-local .
+npm run test:docker -- bookshelf:3.2.0-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.2.0-local npm run test:cleanup:docker
 ```
 
 Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [인증·백업·재고 리뷰 수정](docs/CANARY_REVIEW_20261019.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
