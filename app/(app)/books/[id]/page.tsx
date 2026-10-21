@@ -49,6 +49,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
         />
         {book.volumes.length ? <VolumeSelection key={book.volumes.map(volume => volume.id).join(",")} bookId={book.id} items={book.volumes.map((volume) => {
           const title = `${volume.seq != null ? `${volume.seq}권 · ` : "외전 · "}${volume.name ?? "제목 없음"}`;
+          const publicationDate = volume.pubDate?.trim().match(/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/)?.[0];
           return { id: volume.id, name: volume.name ?? "제목 없음", content: <article className="volume-card" key={volume.id}>
             <div className="volume-cover-section">
               <div className="volume-cover"><CoverImage cover={volume.cover} alt={volume.name ?? "권"} className="h-full w-full object-cover"/></div>
@@ -65,6 +66,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
                 {volume.noNeedToBuy && <span className="status-badge">구매 불필요</span>}
               </div>}
               <div className="volume-meta"><span>{volume.author ?? "저자 미상"}</span>{volume.isbn13 && <span>ISBN {volume.isbn13}</span>}
+                {publicationDate && <span>출간일 <time dateTime={publicationDate}>{publicationDate}</time></span>}
                 <span>{volume.price ? formatWon(volume.price) : "가격 미등록"}</span><span>재고 {volume.stockCount}건</span>
                 {volume.minStockPrice != null && <span>최저 {formatWon(volume.minStockPrice)}</span>}
               </div>
