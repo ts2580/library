@@ -10,11 +10,12 @@ export default async function BranchPage({ params, searchParams }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const user = await requireAdmin();
-  // This Next.js version passes URL-encoded dynamic segments to page components.
-  const branch = decodeURIComponent((await params).branch);
+  const { branch: branchParam } = await params;
   const query = await searchParams;
-  const summary = getBranchInventory(user.id).find((item) => item.branch === branch);
+  // Next.js 16.4 encodes page params. Compare encoded identifiers without decoding user input.
+  const summary = getBranchInventory(user.id).find((item) => encodeURIComponent(item.branch) === branchParam);
   if (!summary) notFound();
+  const branch = summary.branch;
   const result = searchInventory(user.id, { branch, query: query.q, page: Number(query.page) });
   return <div className="page"><header className="page-header"><div><p className="eyebrow">Branch inventory</p>
     <h1 className="page-title">{summary.branchName}</h1><p className="page-subtitle">{summary.stockCount.toLocaleString("ko-KR")}건</p>

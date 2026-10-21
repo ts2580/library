@@ -281,6 +281,98 @@ describe("Java feature parity regressions", () => {
     expect(getBookDetail(1, 1)?.volumes[0]?.description).toBe('조회한 <설명> & "인용"');
     api.mockClear(); await expect(enrichMissingBookInfo(1, 2)).rejects.toThrow(); expect(api).not.toHaveBeenCalled();
   });
+  it.each([null, "", "   ", "\t", "\r\n", "\u00a0", "\u3000", " \t\r\n\u00a0\u3000\ufeff"])("enriches a missing purchase link %s when author and description are already complete", async (link) => {
+    volume(); volume(2, 1, 2); volume(3, 2, 1);
+    sqlite.exec("UPDATE books SET author='직접 저자',description='직접 &lt;설명&gt;'; UPDATE book_volumes SET author='권 저자',description='권 &amp; 설명',ispurchased=1");
+    sqlite.prepare("UPDATE book_volumes SET link=? WHERE id=1").run(link);
+    sqlite.exec("UPDATE book_volumes SET link='https://example.com/existing' WHERE id=2");
+    api.mockResolvedValue({ item: [{ title: "권 제목", author: "새 저자", description: "새 설명", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=123" }] });
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 0, volumesUpdated: 1 });
+    expect(sqlite.prepare("SELECT author,description,link,ispurchased FROM book_volumes WHERE id=1").get()).toEqual({
+      author: "권 저자", description: "권 &amp; 설명", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=123", ispurchased: 1
+    });
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=2").get()).toEqual({ link: "https://example.com/existing" });
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=3").get()).toEqual({ link: null });
+    api.mockClear();
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 0, volumesUpdated: 0 });
+    expect(api).not.toHaveBeenCalled();
+  });
+  it("fills purchase links together with metadata and preserves links entered during the lookup", async () => {
+    volume(); volume(2, 1, 2);
+    api.mockImplementation(async () => {
+      sqlite.exec("UPDATE book_volumes SET link='https://example.com/entered-during-search' WHERE id=2");
+      return { item: [{ title: "권 제목", author: "보강 저자", description: "보강 설명", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=123" }] };
+    });
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 1, volumesUpdated: 2 });
+    expect(sqlite.prepare("SELECT author,description,link FROM book_volumes WHERE id=1").get()).toEqual({
+      author: "보강 저자", description: "보강 설명", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=123"
+    });
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=2").get()).toEqual({ link: "https://example.com/entered-during-search" });
+  });
+  it.each([null, "", "javascript:alert(1)", "https://user:password@example.com/book"])("ignores unusable purchase links from Aladin: %s", async (link) => {
+    volume();
+    sqlite.exec("UPDATE books SET author='저자',description='설명'; UPDATE book_volumes SET author='저자',description='설명'");
+    api.mockResolvedValue({ item: [{ title: "권 제목", link }] });
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 0, volumesUpdated: 0 });
+    expect(api).toHaveBeenCalled();
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=1").get()).toEqual({ link: null });
+  });
+  it.each(["isbn13", "isbn"])("uses an exact %s lookup before a same-title edition for purchase links", async (column) => {
+    volume();
+    const isbn = column === "isbn13" ? "9781234567890" : "123456789X";
+    sqlite.exec("UPDATE books SET author='저자',description='설명'; UPDATE book_volumes SET author='저자',description='설명'");
+    sqlite.prepare(`UPDATE book_volumes SET ${column}=? WHERE id=1`).run(isbn);
+    api.mockImplementation(async (_endpoint, params) => ({ item: [params.Query === isbn && params.QueryType === "Keyword"
+      ? { title: "다른 표기의 정확한 판본", [column]: isbn, link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=correct" }
+      : { title: "권 제목", isbn13: "9789999999999", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=wrong" }] }));
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ volumesUpdated: 1 });
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=1").get()).toEqual({ link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=correct" });
+    expect(api).toHaveBeenCalledWith("ItemSearch.aspx", expect.objectContaining({ Query: isbn, QueryType: "Keyword" }));
+  });
+  it("leaves a purchase link blank when a same-title result has a different ISBN", async () => {
+    volume();
+    sqlite.exec("UPDATE books SET author='저자',description='설명'; UPDATE book_volumes SET author='저자',description='설명',isbn13='9781234567890'");
+    api.mockResolvedValue({ item: [{ title: "권 제목", isbn13: "9789999999999", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=wrong" }] });
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ volumesUpdated: 0 });
+    expect(api).toHaveBeenCalled();
+    expect(sqlite.prepare("SELECT link FROM book_volumes WHERE id=1").get()).toEqual({ link: null });
+  });
+  it.each([
+    ["isbn13", "9781234567890", "9789999999999"],
+    ["isbn", "123456789X", "9999999999"],
+    ["isbn13", null, "9789999999999"]
+  ] as const)("rechecks the current %s before saving a purchase link after an in-flight edit", async (column, initial, edited) => {
+    volume();
+    sqlite.exec("UPDATE books SET author='저자',description='설명'; UPDATE book_volumes SET author='저자',description='설명'");
+    sqlite.prepare(`UPDATE book_volumes SET ${column}=? WHERE id=1`).run(initial);
+    let complete!: (value: unknown) => void;
+    api.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    const pending = enrichMissingBookInfo(1, 1);
+    expect(api).toHaveBeenCalledTimes(1);
+    sqlite.prepare(`UPDATE book_volumes SET ${column}=? WHERE id=1`).run(edited);
+    complete({ item: [{ title: "권 제목", [column]: initial ?? "9781234567890", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=stale" }] });
+    expect(await pending).toMatchObject({ booksUpdated: 0, volumesUpdated: 0 });
+    expect(sqlite.prepare(`SELECT ${column},link FROM book_volumes WHERE id=1`).get()).toEqual({ [column]: edited, link: null });
+  });
+  it.each([
+    ["isbn13", "978-1-234-56789-0", "9781234567890", "9781234567890"],
+    ["isbn", "1-234-56789-x", "123456789X", "123456789X"],
+    ["isbn13", "9781234567890", "978 1 234 56789 0", "9781234567890"],
+    ["isbn", "123456789X", "1-234-56789-x", "123456789X"]
+  ])("normalizes stored and response ISBNs for %s: %s / %s", async (column, stored, response, canonical) => {
+    volume();
+    sqlite.exec("UPDATE books SET author='저자',description='설명'; UPDATE book_volumes SET author='저자',description='설명'");
+    sqlite.prepare(`UPDATE book_volumes SET ${column}=? WHERE id=1`).run(stored);
+    const item = { title: "권 제목", [column]: response, link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=normalized" };
+    for (const keywordOnly of [false, true]) {
+      sqlite.exec("UPDATE book_volumes SET link=NULL WHERE id=1");
+      api.mockClear().mockImplementation(async (_endpoint, params) => ({ item: !keywordOnly || (params.Query === canonical && params.QueryType === "Keyword")
+        ? [item] : [{ title: "권 제목", isbn13: "9789999999999", link: "https://example.com/wrong-edition" }] }));
+      expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 0, volumesUpdated: 1 });
+      expect(sqlite.prepare(`SELECT ${column},link FROM book_volumes WHERE id=1`).get()).toEqual({ [column]: stored, link: item.link });
+      if (keywordOnly) expect(api).toHaveBeenCalledWith("ItemSearch.aspx", expect.objectContaining({ Query: canonical, QueryType: "Keyword" }));
+    }
+  });
   it("imports the real Java Korean sheets, keys, ISBN10, side stories, and metadata", async () => {
     const book = new ExcelJS.Workbook();
     book.addWorksheet("안내").addRow(["형식", "bookshelf-excel-backup"]);
