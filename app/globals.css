@@ -305,6 +305,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .manual-book-dialog-header, .volume-detail-dialog-header, .new-book-category-dialog-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .manual-book-dialog-header h2, .volume-detail-dialog-header h2, .new-book-category-dialog-header h2 { margin: 0; font-size: 1.1rem; }
 .manual-book-dialog-body, .volume-detail-dialog-body, .new-book-category-dialog-body { min-width: 0; padding: clamp(16px, 3vw, 28px); }
+/* The fixed-width dialog must size result columns by its own available space. */
+.manual-book-dialog .search-results { grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
+.manual-book-dialog .search-result-card > .stack-sm { min-width: 0; overflow-wrap: anywhere; }
+.manual-book-dialog .search-result-card .check input { flex-shrink: 0; }
 .manual-book-tabs { display: flex; gap: 8px; padding: 4px; border-radius: 16px; background: var(--surface-soft); }
 .manual-book-tab { flex: 1; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 12px; color: var(--muted); font-weight: 750; cursor: pointer; }
 .manual-book-tab[aria-selected="true"] { border-color: var(--line); background: var(--surface); color: var(--accent-strong); box-shadow: 0 2px 6px rgba(29, 42, 59, .06); }

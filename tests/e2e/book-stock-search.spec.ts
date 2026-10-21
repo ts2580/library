@@ -11,7 +11,7 @@ async function login(page: Page, username: string) {
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
-test("book stock search appends through the worker without replacing old or unrelated inventory", async ({ page }) => {
+test("book stock search appends through the worker without replacing old or unrelated inventory", async ({ page }, testInfo) => {
   const directory = process.env.BOOKSHELF_E2E_DATA;
   if (!directory || path.dirname(directory) !== tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");
   const db = new Database(path.join(directory, "bookshelf.sqlite"), { readonly: true });
@@ -21,15 +21,17 @@ test("book stock search appends through the worker without replacing old or unre
     await login(page, "fixture-book-stock");
     await page.goto("/books/4");
     const toolbar = page.locator(".volume-add-actions");
-    await expect(toolbar.getByRole("button")).toHaveText(["직접 추가", "알라딘에서 검색", "재고 검색"]);
-    for (const width of [1440, 412, 320]) {
+    await expect(toolbar.locator(".button")).toHaveText(["직접 추가", "알라딘에서 추가", "재고 검색"]);
+    await expect(toolbar.getByRole("link", { name: "알라딘에서 추가", exact: true })).toHaveAttribute("href", "/aladin/search?bookId=4");
+    for (const width of [1440, 1920, 2560, 412, 320]) {
       await page.setViewportSize({ width, height: 900 });
-      const buttons = await toolbar.getByRole("button").all();
+      const buttons = await toolbar.locator(".button").all();
       const rects = await Promise.all(buttons.map(button => button.boundingBox()));
       const toolbarRect = await toolbar.boundingBox();
       expect(Math.abs(rects[0]!.y - rects[2]!.y)).toBeLessThan(1);
       expect(Math.abs(rects[2]!.x + rects[2]!.width - toolbarRect!.x - toolbarRect!.width)).toBeLessThan(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await toolbar.screenshot({ path: testInfo.outputPath(`volume-add-actions-${width}.png`) });
     }
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = page.waitForResponse(value => value.url().endsWith("/api/books/4/stock-search") && value.request().method() === "POST");

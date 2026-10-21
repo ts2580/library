@@ -322,6 +322,9 @@ test("real stock worker refreshes inventory, progress, and visible results witho
   await expect(page.locator(".stock-card")).toHaveCount(2);
   await expect(page.getByText("갱신 서울점", { exact: true }).first()).toBeVisible();
   await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
+  const chart = page.getByRole("region", { name: "지점별 재고 금액 비교", exact: true });
+  await expect(chart.getByRole("link", { name: "갱신 서울점 1,700원", exact: true })).toBeVisible();
+  await expect(chart.getByRole("link", { name: "알라딘 직배송 2,300원", exact: true })).toBeVisible();
   const progress = await (await page.request.get("/api/stock-refresh")).json();
   expect(progress).toMatchObject({ status: "COMPLETED", processed: 1, total: 1, success: 1, empty: 0, fail: 0, percent: 100 });
   await page.screenshot({ path: testInfo.outputPath("stock-completed.png"), fullPage: true });
