@@ -22,30 +22,29 @@ async function deleteCurrentBook(page: Page) {
   await expect(page).toHaveURL(/\/books\?/);
 }
 
-test("book detail searches Aladin inline, saves explicit numbering and side stories, and edits the parent category", async ({ page }, testInfo) => {
+test("book detail opens Aladin search, imports side stories, and edits numbering and the parent category", async ({ page }, testInfo) => {
   await login(page);
   const name = `상세 검색 복원 ${testInfo.project.name}`;
   const bookId = await emptyBook(page, name);
   await page.goto(`/books/${bookId}`);
-  await page.getByRole("button", { name: "알라딘에서 검색", exact: true }).click();
-  const panel = page.getByRole("region", { name: "알라딘 한 권 추가" });
-  await panel.getByRole("button", { name: "알라딘 검색", exact: true }).click();
-  const first = panel.locator(".quick-add-item").first();
-  await first.getByLabel("권 번호", { exact: true }).fill("7");
+  await page.locator(".volume-add-actions").getByRole("link", { name: "알라딘에서 추가", exact: true }).click();
+  await expect(page.getByLabel("검색어", { exact: true })).toHaveValue(name);
+  await expect(page.getByRole("combobox", { name: "기존 책 검색", exact: true })).toHaveValue(name);
+  await page.getByRole("checkbox", { name: "선택 선택 샘플 1-1", exact: true }).check();
+  await page.getByRole("checkbox", { name: "선택 선택 샘플 1-2", exact: true }).check();
+  await page.getByRole("checkbox", { name: "외전 선택 샘플 1-2", exact: true }).check();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("detail-aladin-search.png"), fullPage: true });
-  await first.getByRole("button", { name: "이 권 저장" }).click();
-  await expect(first.locator(".flash-success")).toContainText("권을 추가");
-  await expect(page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true })).toBeVisible();
-  const second = panel.locator(".quick-add-item").nth(1);
-  await expect(second.getByLabel("권 번호", { exact: true })).toHaveValue("8");
-  await second.getByLabel("외전·특별판", { exact: true }).check();
-  await second.getByRole("button", { name: "이 권 저장" }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "2권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1권 · 선택 샘플 1-1", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "외전 · 선택 샘플 1-2", exact: true })).toBeVisible();
-  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "7권 · 선택 샘플 1-1" }) });
+  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "선택 샘플 1-1" }) });
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
+  await volume.getByLabel("권차", { exact: true }).fill("7");
   await volume.getByLabel("책 카테고리", { exact: true }).fill("복원 분류");
   await volume.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true })).toBeVisible();
   await expect(page.locator(".book-hero")).toContainText("복원 분류");
   await page.goto("/dashboard");
   await page.getByLabel("비교 기준", { exact: true }).selectOption("amount");
