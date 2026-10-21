@@ -320,8 +320,12 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   await expect(page).toHaveURL(/\/books\?/);
 });
 
-test("book enrichment fills only missing purchase links when all authors and descriptions are complete", async ({ page }, testInfo) => {
+test("book enrichment matches a formatted ISBN and fills only missing purchase links when metadata is complete", async ({ page }, testInfo) => {
   await login(page);
+  const search = await page.request.get("/api/aladin/search", { params: { query: "선택 샘플 1-1" } });
+  expect(search.ok()).toBe(true);
+  const canonicalIsbn = (await search.json()).items[0].isbn13 as string;
+  const formattedIsbn = `${canonicalIsbn.slice(0, 3)}-${canonicalIsbn.slice(3, 7)}-${canonicalIsbn.slice(7)}`;
   const response = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
     book: { name: `링크만 보강 ${testInfo.project.name}`, author: "기존 책 저자", description: "기존 책 설명", type: "", totalVolume: "", coverUrl: "" },
     direct: true, targetBookId: null, selection: []
@@ -333,6 +337,7 @@ test("book enrichment fills only missing purchase links when all authors and des
     const section = page.getByRole("region", { name: "권 직접 추가", exact: true });
     if (!(await section.isVisible())) await page.getByRole("button", { name: "직접 추가", exact: true }).click();
     await section.getByLabel("권 제목", { exact: true }).fill(title);
+    if (!link) await section.getByLabel("ISBN13", { exact: true }).fill(formattedIsbn);
     await section.getByLabel("저자", { exact: true }).fill("기존 권 저자");
     await section.getByLabel("설명", { exact: true }).fill("기존 권 &lt;설명&gt;");
     await section.getByLabel("상품 링크", { exact: true }).fill(link);
@@ -353,6 +358,9 @@ test("book enrichment fills only missing purchase links when all authors and des
   await missing.screenshot({ path: testInfo.outputPath("enriched-product-link.png") });
   await page.reload();
   await expect(productLink).toBeVisible();
+  await missing.getByRole("button", { name: "상세정보", exact: true }).click();
+  await expect(missing.getByLabel("ISBN13", { exact: true })).toHaveValue(formattedIsbn);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
   await expect(page.locator(".flash-success")).toHaveText("채울 저자/설명/상품 링크가 없습니다.");
   await deleteCurrentBook(page);

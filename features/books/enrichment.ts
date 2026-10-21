@@ -7,10 +7,12 @@ import type { AladinBookItem } from "@/features/aladin/types";
 import { normalizeHttpUrl } from "@/lib/urls";
 
 interface Metadata { id: number; name: string | null; author: string | null; description: string | null }
-interface Volume extends Metadata { isbn13: string | null; isbn: string | null; link: string | null }
+interface VolumeLink { isbn13: string | null; isbn: string | null; link: string | null }
+interface Volume extends Metadata, VolumeLink {}
 const blank = (value: string | null) => !value?.trim();
-const isbnKeys = (volume: Volume) => [volume.isbn13, volume.isbn].map(value => value?.trim()).filter((value): value is string => Boolean(value));
-const matchesIsbn = (keys: string[], item: AladinBookItem) => keys.some(key => key === item.isbn13 || key === item.isbn);
+const normalizeIsbn = (value: string | null) => value?.replace(/[-\s]/g, "").toUpperCase() ?? "";
+const isbnKeys = (volume: Pick<VolumeLink, "isbn13" | "isbn">) => [volume.isbn13, volume.isbn].map(normalizeIsbn).filter(Boolean);
+const matchesIsbn = (keys: string[], item: AladinBookItem) => isbnKeys(item).some(key => keys.includes(key));
 
 export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
   const book = sqlite.prepare("SELECT id,name,author,description FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as Metadata | undefined;
@@ -34,22 +36,19 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
     const exact = items.find((item) => matchesIsbn(keys, item));
     if (exact) return exact;
     for (const key of keys) {
-      const found = (await search(key, "Keyword")).find((item) => key === item.isbn13 || key === item.isbn);
+      const found = (await search(key, "Keyword")).find((item) => matchesIsbn([key], item));
       if (found) return found;
     }
     return items.find((item) => item.title.normalize("NFC").trim() === volume.name?.normalize("NFC").trim()) ?? null;
   }
-  const patches: Array<{ id: number; item: AladinBookItem; link: string | null }> = [];
+  const patches: Array<{ id: number; item: AladinBookItem }> = [];
   let bookSource: AladinBookItem | undefined;
   for (const volume of volumes) {
     if (!blank(volume.author) && !blank(volume.description) && !blank(volume.link) && (bookSource || (!blank(book.author) && !blank(book.description)))) continue;
     const item = await match(volume);
     if (item) {
       bookSource ??= item;
-      const keys = isbnKeys(volume);
-      // A same-title edition can supply metadata, but must not supply a different ISBN's purchase link.
-      const link = !keys.length || matchesIsbn(keys, item) ? normalizeHttpUrl(item.link) : null;
-      patches.push({ id: volume.id, item, link });
+      patches.push({ id: volume.id, item });
     }
   }
   if (!bookSource && (blank(book.author) || blank(book.description))) {
@@ -61,16 +60,23 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
       author=CASE WHEN TRIM(COALESCE(author,''))='' THEN COALESCE(?,author) ELSE author END,
       description=CASE WHEN TRIM(COALESCE(description,''))='' THEN COALESCE(?,description) ELSE description END
       WHERE id=? AND owner_id=? AND ((TRIM(COALESCE(author,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(description,''))='' AND ? IS NOT NULL))`);
+    const currentVolume = sqlite.prepare("SELECT isbn13,isbn,link FROM book_volumes WHERE id=? AND book=?");
     const updateVolume = sqlite.prepare(`UPDATE book_volumes SET
       author=CASE WHEN TRIM(COALESCE(author,''))='' THEN COALESCE(?,author) ELSE author END,
       description=CASE WHEN TRIM(COALESCE(description,''))='' THEN COALESCE(?,description) ELSE description END,
-      link=CASE WHEN TRIM(COALESCE(link,''))='' THEN COALESCE(?,link) ELSE link END
-      WHERE id=? AND book=? AND ((TRIM(COALESCE(author,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(description,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(link,''))='' AND ? IS NOT NULL))`);
+      link=COALESCE(?,link)
+      WHERE id=? AND book=? AND ((TRIM(COALESCE(author,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(description,''))='' AND ? IS NOT NULL) OR ? IS NOT NULL)`);
     const author = bookSource?.author?.trim() || null;
     const description = bookSource?.description?.trim() || null;
     const booksUpdated = updateBook.run(author, description, bookId, ownerId, author, description).changes;
     let volumesUpdated = 0;
-    for (const { id, item, link } of patches) {
+    for (const { id, item } of patches) {
+      // Recheck under the write lock: both the ISBN and link may have changed during lookup.
+      const current = currentVolume.get(id, bookId) as VolumeLink | undefined;
+      if (!current) continue;
+      const keys = isbnKeys(current);
+      // Use the same JavaScript whitespace rules as the initial enrichment check.
+      const link = blank(current.link) && (!keys.length || matchesIsbn(keys, item)) ? normalizeHttpUrl(item.link) : null;
       const author = item.author?.trim() || null, description = item.description?.trim() || null;
       volumesUpdated += updateVolume.run(author, description, link, id, bookId, author, description, link).changes;
     }
