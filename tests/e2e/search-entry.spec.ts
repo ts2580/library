@@ -21,7 +21,12 @@ test("regular users can navigate from search to ISBN lookup", async ({ page }) =
 
 test("book-detail search links initialize the title once and preserve explicit queries", async ({ page }) => {
   await login(page); await page.goto("/books/2");
-  await page.getByRole("link", { name: "알라딘에서 권 추가", exact: true }).click();
+  await expect(page.getByRole("link", { name: "알라딘에서 권 추가", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "알라딘에서 검색", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "알라딘에서 추가", exact: true })).toHaveCount(1);
+  const addLink = page.locator(".volume-add-actions").getByRole("link", { name: "알라딘에서 추가", exact: true });
+  await expect(addLink).toHaveAttribute("href", "/aladin/search?bookId=2");
+  await addLink.click();
   await expect(page.getByLabel("검색어", { exact: true })).toHaveValue("다른 계정 비공개 도서");
   await expect(page.getByLabel("검색 기준", { exact: true })).toHaveValue("Title");
   await expect(page.locator(".search-result-card")).toHaveCount(2);

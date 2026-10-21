@@ -1,0 +1,92 @@
+.list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.row, .axis {
+  display: grid;
+  grid-template-columns: minmax(100px, 180px) minmax(0, 1fr) minmax(100px, 150px);
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+}
+
+.row {
+  min-height: 52px;
+  border-radius: 12px;
+}
+
+.row:hover, .row:focus-visible {
+  background: var(--accent-soft);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.name, .amount {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  display: block;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--surface-soft);
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #477b6c, #8cb5a8);
+}
+
+.axis {
+  padding-top: 4px;
+  padding-bottom: 0;
+}
+
+.scale {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .row, .axis {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 12px;
+    padding-inline: 0;
+  }
+
+  .amount {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .track, .scale {
+    grid-column: 1 / -1;
+  }
+
+  .track {
+    grid-row: 2;
+  }
+}

@@ -5,7 +5,6 @@ import { getBookDetail, getManualBookCategories } from "@/features/books/queries
 import { addVolumeAction, deleteBookAction, deleteVolumeAction, updateBookAction, updateVolumeAction, enrichBookInfoAction } from "@/features/books/actions";
 import { VolumeSelection } from "@/components/books/volume-selection";
 import { BookForm } from "@/components/books/book-form";
-import { AladinQuickAdd } from "@/components/books/aladin-quick-add";
 import { VolumeAddTools } from "@/components/books/volume-add-tools";
 import { VolumeDetailDialog } from "@/components/books/volume-detail-dialog";
 import { VolumeForm } from "@/components/books/volume-form";
@@ -32,7 +31,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
   const nextVolume = Math.max(0, ...book.volumes.map((volume) => volume.seq ?? 0)) + 1;
   return (
     <div className="page">
-      <div className="button-row"><Link className="button button-outline button-small" href="/books">← 책장</Link><Link className="button button-secondary button-small" href={`/aladin/search?bookId=${book.id}`}>알라딘에서 권 추가</Link></div>
+      <div className="button-row"><Link className="button button-outline button-small" href="/books">← 책장</Link></div>
       <FlashMessage message={query.message} error={query.error}/>
       <div className="book-detail-layout"><div className="book-detail-sidebar">
       <section className="panel book-hero">
@@ -43,12 +42,13 @@ export default async function BookDetailPage({ params, searchParams }: { params:
       </section>
       </div><section className="panel stack-md book-volumes-panel" aria-labelledby="volumes-heading"><div className="section-heading"><div><p className="eyebrow">Volumes</p><h2 id="volumes-heading">권 목록</h2></div><span className="chip">{book.volumes.length}권</span></div>
         <VolumeAddTools
+          bookId={book.id}
           stockSearch={user.role === "ADMIN" ? { bookId: book.id, initial: getStockRefreshProgress(user.id) } : undefined}
           manual={<VolumeForm action={addVolumeAction} bookId={book.id} nextVolume={nextVolume} submitLabel="권 추가"/>}
-          search={<AladinQuickAdd initialQuery={book.name ?? ""} targetBook={{ id: book.id, name: book.name ?? "", author: book.author, cover: book.cover, type: book.type, nextVolume }}/>}
         />
         {book.volumes.length ? <VolumeSelection key={book.volumes.map(volume => volume.id).join(",")} bookId={book.id} items={book.volumes.map((volume) => {
           const title = `${volume.seq != null ? `${volume.seq}권 · ` : "외전 · "}${volume.name ?? "제목 없음"}`;
+          const publicationDate = volume.pubDate?.trim().match(/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/)?.[0];
           return { id: volume.id, name: volume.name ?? "제목 없음", content: <article className="volume-card" key={volume.id}>
             <div className="volume-cover-section">
               <div className="volume-cover"><CoverImage cover={volume.cover} alt={volume.name ?? "권"} className="h-full w-full object-cover"/></div>
@@ -65,6 +65,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
                 {volume.noNeedToBuy && <span className="status-badge">구매 불필요</span>}
               </div>}
               <div className="volume-meta"><span>{volume.author ?? "저자 미상"}</span>{volume.isbn13 && <span>ISBN {volume.isbn13}</span>}
+                {publicationDate && <span>출간일 <time dateTime={publicationDate}>{publicationDate}</time></span>}
                 <span>{volume.price ? formatWon(volume.price) : "가격 미등록"}</span><span>재고 {volume.stockCount}건</span>
                 {volume.minStockPrice != null && <span>최저 {formatWon(volume.minStockPrice)}</span>}
               </div>
