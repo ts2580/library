@@ -1,6 +1,6 @@
 # Java → Next.js 기능 대조 점검
 
-> ca2까지의 구현·검증 당시 기록입니다. 아래 `next/`·Java 실행 경로와 결과는 해당 시점 기준이며, ca3 현재 실행·검증은 [루트 전환 기록](CA3_ROOT_LAYOUT.md)을 참고하세요.
+> 본문의 2026-10-17 기록은 ca2까지의 구현·검증 당시 기준입니다. `next/`·Java 실행 경로와 결과는 해당 시점 기준이며, ca3 실행·검증은 [루트 전환 기록](CA3_ROOT_LAYOUT.md)을 참고하세요. 마지막 후속 복원 기록은 별도 날짜와 검증 범위를 따릅니다.
 
 2026-10-17 KST, `feat/nextjs-migration` 로컬 소스 기준입니다. Java의 컨트롤러·서비스·Thymeleaf·브라우저 JavaScript를 기준으로 기능을 대조했습니다. 기존 단위·통합 50건과 브라우저 28건이 통과해도 실제 표지 다운로드와 Java 백업 형식은 실패하는 것을 확인했습니다.
 
@@ -107,3 +107,16 @@ BOOKSHELF_E2E_SIGNUP=true npm run test:e2e
 ```
 
 추가 회귀 검사는 `tests/integration/feature-parity.test.ts`, `tests/unit/remote-cover.test.ts`, `tests/e2e/feature-parity.spec.ts`, `tests/e2e/signup.spec.ts`에 있습니다. 가입 검사는 비어 있는 별도 임시 DB와 활성 가입 설정으로 실행하며 실제 회원가입 설정을 변경하지 않습니다. 브라우저 스크린샷은 `test-results/feature-parity-*/`에 생성됩니다.
+
+## 후속 복원: 지점별 재고 금액 그래프 (2026-10-22)
+
+`IMPLEMENTED_LOCAL`: v2.10.0의 `branch_inventory_dashboard.html`에 있던 가로 막대그래프가 Next.js 이전에서 누락된 것을 확인하고 `/inventory`에 복원했습니다. 현재 계정의 전체 지점 집계를 금액순으로 표시하며, 검색·페이지 이동과 무관하게 같은 집계를 유지합니다. 지점 선택으로 상세 재고에 이동하고, 공백·한글이 들어간 지점 코드도 올바르게 조회합니다.
+
+배포용 빌드와 타입·문법·구조 검사, 관련 E2E **8/8** 통과. 1440·768·412·320px 화면, 금액 비율·계정 격리·지점 이동·빈 재고·가격 미확인·0원·실제 테스트 워커 완료·전체 삭제 반영을 확인했습니다. 테스트 DB와 알라딘 응답은 격리 fixture이며, 원격 배포 검증은 포함하지 않습니다. 개발 모드에서는 자동 새로고침 반복으로 검사가 중단되어 배포용 빌드에서 검증했습니다.
+
+현재 저장소 루트에서 재현합니다.
+
+```bash
+npm run build
+npx playwright test tests/e2e/inventory-chart.spec.ts tests/e2e/smoke.spec.ts --grep 'branch amount chart|real stock worker refreshes|inventory literal search'
+```

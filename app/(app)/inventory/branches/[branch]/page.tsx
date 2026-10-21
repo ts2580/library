@@ -10,7 +10,8 @@ export default async function BranchPage({ params, searchParams }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const user = await requireAdmin();
-  const { branch } = await params;
+  // This Next.js version passes URL-encoded dynamic segments to page components.
+  const branch = decodeURIComponent((await params).branch);
   const query = await searchParams;
   const summary = getBranchInventory(user.id).find((item) => item.branch === branch);
   if (!summary) notFound();
