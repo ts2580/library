@@ -24,6 +24,7 @@ globalThis.fetch = async function fixtureFetch(input, init) {
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
       author: "테스트 저자", description: query === "선택 샘플 1-1"
         ? "fixture &lt;책&gt; &amp; &#34;설명&#34; &#x1F4DA; &lt;img src=x onerror=alert(1)&gt; &amp;lt;literal&amp;gt; AT&amp;amp;T" : "fixture", priceSales: 1000,
+      link: query === "선택 샘플 1-1" ? `https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-${page}-${index}` : null,
       pubDate: new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
     })) });
   }

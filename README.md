@@ -1,6 +1,6 @@
 # Bookshelf
 
-Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **3.1.0은 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **개발 소스 버전은 3.2.0이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
 [3.1.0 변경 내용과 업데이트 안내](docs/RELEASE_3.1.0.md)를 참고하세요.
 
@@ -73,7 +73,7 @@ docker compose up -d --build
 
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
-정식 릴리즈는 `trstyq/bookshelf:3.1.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
+소스·로컬 빌드 버전은 `3.2.0`이며, 발행용 Compose는 `trstyq/bookshelf:3.1.0`을 사용합니다. 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
 
 ```bash
 docker compose -f docker-compose.release.yml pull
@@ -87,7 +87,7 @@ docker compose -f docker-compose.release.yml up -d
 ## 구현 범위
 
 - 계정별 도서·권 CRUD와 SQL 수준 `owner_id` 소유권 검사
-- 책장에서 보유 권 검색으로 이동, 책 상세에서 비어 있는 저자·설명 자동 보강 및 선택한 권 일괄 삭제
+- 책장에서 보유 권 검색으로 이동, 책 상세에서 비어 있는 저자·설명·각 권의 상품 링크를 알라딘 정보로 보강 및 선택한 권 일괄 삭제. 기존 값은 유지하며 ISBN이 있는 권의 링크는 ISBN이 일치할 때만 보강
 - 기존 BCrypt 및 레거시 SHA-256 로그인 호환. UTF-8 72바이트 이하의 레거시 암호는 로그인 성공 시 BCrypt로 승격하며, 더 긴 기존 SHA-256 암호는 전체 문자열 검증을 유지
 - 신규·변경 비밀번호는 UTF-8 72바이트 이하. SQLite 트랜잭션으로 검증한 암호의 유효성 확인·비밀번호 변경·기존 세션 폐기·새 세션 발급 처리
 - 로그인 사용자는 프로필에서 공용 카테고리 추가 가능, 삭제는 관리자만 가능. 책에 사용 중인 카테고리는 분류를 변경한 뒤 삭제
@@ -96,7 +96,7 @@ docker compose -f docker-compose.release.yml up -d
 - 직접 추가 팝업의 알라딘 검색·책 수동 추가 탭: 알라딘 미리보기 후 새 책 등록 또는 기존 책에 이어 넣기, ISBN 없는 오래된 책·동인지의 수동 등록
 - 알라딘 검색 페이지에서 새 책 등록 전 카테고리 선택, 기존 책에 추가할 때는 저장된 분류 유지
 - 알라딘 검색과 책 직접 추가에서 기존 책 선택 시 작은 표지 표시. 알라딘 검색 페이지는 선택한 제목을 검색어에 채우고, 기존 결과가 없을 때만 자동 검색
-- 책 상세의 알라딘 검색 링크로 진입할 때도 선택한 책 제목으로 검색. 일반 사용자도 검색 화면에서 ISBN 재고 조회로 이동 가능
+- 책 상세 권 목록의 `알라딘에서 추가` 링크로 이동하면 해당 책을 선택하고 책 제목으로 검색. 일반 사용자도 검색 화면에서 ISBN 재고 조회로 이동 가능
 - 최대 10개 페이지 선택, 서버 재조회 검증, 출간일이 빠른 순서대로 권차 부여 및 항목별 외전 지정. 출간일이 없는 항목은 마지막에 배치하며 같은 날짜의 항목은 기존 검색 순서를 유지
 - 책장·보유 권·재고·알라딘 검색의 페이지 이동은 이전·최대 5개 페이지 번호·다음으로 통일하며 검색·정렬 조건 유지
 - 모든 검색 화면·기존 책 조회·알라딘 페이지 이동·재고 검색 중 화면 상단의 3px 진행 막대 표시. 겹친 요청이 모두 끝나면 숨기며 직접 추가 창에서도 표시
@@ -104,7 +104,7 @@ docker compose -f docker-compose.release.yml up -d
 - 별도 워커 기반 중고 재고 일괄 갱신과 SQLite 진행 상태
 - 다른 탭에서 시작한 재고 작업도 책 상세에서 10초 간격 및 탭 복귀 시 확인. 계정별 완료 ID로 다른 계정이 전역 작업 행을 재사용한 뒤에도 재고 수·최저가 갱신
 - 책 상세의 재고 검색은 해당 책의 구매 필요 권만 대상으로 기존 재고를 유지하며 새 상품을 추가. 중복 상품과 기존 가격은 변경하지 않으며, 기존 재고 관리 권한 적용
-- 지점별 재고 집계·상세 화면
+- 지점별 재고 집계·상세 화면과 재고 금액 비교 그래프. 그래프의 지점을 누르면 상세 재고로 이동
 - 런타임 표지를 `data/covers`에 저장하고 인증된 Route Handler로 제공
 - 원격 표지 SSRF 방어, MIME·크기·픽셀 제한, WebP 정규화
 - 미생성·유실 표지 재생성
@@ -125,9 +125,9 @@ npm run db:verify
 `db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-docker build -t bookshelf:3.1.0-local .
-npm run test:docker -- bookshelf:3.1.0-local
-CLEANUP_DOCKER_IMAGE=bookshelf:3.1.0-local npm run test:cleanup:docker
+docker build -t bookshelf:3.2.0-local .
+npm run test:docker -- bookshelf:3.2.0-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.2.0-local npm run test:cleanup:docker
 ```
 
 Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [인증·백업·재고 리뷰 수정](docs/CANARY_REVIEW_20261019.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.

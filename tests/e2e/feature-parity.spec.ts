@@ -22,30 +22,29 @@ async function deleteCurrentBook(page: Page) {
   await expect(page).toHaveURL(/\/books\?/);
 }
 
-test("book detail searches Aladin inline, saves explicit numbering and side stories, and edits the parent category", async ({ page }, testInfo) => {
+test("book detail opens Aladin search, imports side stories, and edits numbering and the parent category", async ({ page }, testInfo) => {
   await login(page);
   const name = `상세 검색 복원 ${testInfo.project.name}`;
   const bookId = await emptyBook(page, name);
   await page.goto(`/books/${bookId}`);
-  await page.getByRole("button", { name: "알라딘에서 검색", exact: true }).click();
-  const panel = page.getByRole("region", { name: "알라딘 한 권 추가" });
-  await panel.getByRole("button", { name: "알라딘 검색", exact: true }).click();
-  const first = panel.locator(".quick-add-item").first();
-  await first.getByLabel("권 번호", { exact: true }).fill("7");
+  await page.locator(".volume-add-actions").getByRole("link", { name: "알라딘에서 추가", exact: true }).click();
+  await expect(page.getByLabel("검색어", { exact: true })).toHaveValue(name);
+  await expect(page.getByRole("combobox", { name: "기존 책 검색", exact: true })).toHaveValue(name);
+  await page.getByRole("checkbox", { name: "선택 선택 샘플 1-1", exact: true }).check();
+  await page.getByRole("checkbox", { name: "선택 선택 샘플 1-2", exact: true }).check();
+  await page.getByRole("checkbox", { name: "외전 선택 샘플 1-2", exact: true }).check();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("detail-aladin-search.png"), fullPage: true });
-  await first.getByRole("button", { name: "이 권 저장" }).click();
-  await expect(first.locator(".flash-success")).toContainText("권을 추가");
-  await expect(page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true })).toBeVisible();
-  const second = panel.locator(".quick-add-item").nth(1);
-  await expect(second.getByLabel("권 번호", { exact: true })).toHaveValue("8");
-  await second.getByLabel("외전·특별판", { exact: true }).check();
-  await second.getByRole("button", { name: "이 권 저장" }).click();
+  await page.locator(".aladin-import-action").getByRole("button", { name: "2권 추가", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1권 · 선택 샘플 1-1", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "외전 · 선택 샘플 1-2", exact: true })).toBeVisible();
-  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "7권 · 선택 샘플 1-1" }) });
+  const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "선택 샘플 1-1" }) });
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
+  await volume.getByLabel("권차", { exact: true }).fill("7");
   await volume.getByLabel("책 카테고리", { exact: true }).fill("복원 분류");
   await volume.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true })).toBeVisible();
   await expect(page.locator(".book-hero")).toContainText("복원 분류");
   await page.goto("/dashboard");
   await page.getByLabel("비교 기준", { exact: true }).selectOption("amount");
@@ -297,6 +296,7 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   await expect(bookForm.getByLabel("설명", { exact: true })).toHaveValue(description);
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
   await expect(volume).toContainText(description);
+  await expect(volume.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
   await expect(page.locator('img[src="x"]')).toHaveCount(0);
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await expect(volume.getByLabel("설명", { exact: true })).toHaveValue(description);
@@ -318,6 +318,52 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books\?/);
+});
+
+test("book enrichment matches a formatted ISBN and fills only missing purchase links when metadata is complete", async ({ page }, testInfo) => {
+  await login(page);
+  const search = await page.request.get("/api/aladin/search", { params: { query: "선택 샘플 1-1" } });
+  expect(search.ok()).toBe(true);
+  const canonicalIsbn = (await search.json()).items[0].isbn13 as string;
+  const formattedIsbn = `${canonicalIsbn.slice(0, 3)}-${canonicalIsbn.slice(3, 7)}-${canonicalIsbn.slice(7)}`;
+  const response = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
+    book: { name: `링크만 보강 ${testInfo.project.name}`, author: "기존 책 저자", description: "기존 책 설명", type: "", totalVolume: "", coverUrl: "" },
+    direct: true, targetBookId: null, selection: []
+  }) } });
+  expect(response.status()).toBe(201);
+  const { bookId } = await response.json();
+  await page.goto(`/books/${bookId}`);
+  for (const [title, link] of [["선택 샘플 1-1", ""], ["기존 링크 권", "https://example.com/keep"]] as const) {
+    const section = page.getByRole("region", { name: "권 직접 추가", exact: true });
+    if (!(await section.isVisible())) await page.getByRole("button", { name: "직접 추가", exact: true }).click();
+    await section.getByLabel("권 제목", { exact: true }).fill(title);
+    if (!link) await section.getByLabel("ISBN13", { exact: true }).fill(formattedIsbn);
+    await section.getByLabel("저자", { exact: true }).fill("기존 권 저자");
+    await section.getByLabel("설명", { exact: true }).fill("기존 권 &lt;설명&gt;");
+    await section.getByLabel("상품 링크", { exact: true }).fill(link);
+    await section.getByRole("button", { name: "권 추가", exact: true }).click();
+    await expect(page.locator(".volume-card").filter({ hasText: title })).toBeVisible();
+  }
+  const missing = page.locator(".volume-card").filter({ hasText: "선택 샘플 1-1" });
+  const existing = page.locator(".volume-card").filter({ hasText: "기존 링크 권" });
+  const productLink = missing.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true });
+  await expect(productLink).toHaveCount(0);
+  await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
+  await expect(page.locator(".flash-success")).toHaveText("정보 보강 완료: 책 0건, 권 1건");
+  await expect(productLink).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
+  await expect(productLink).toHaveAttribute("target", "_blank");
+  await expect(existing.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://example.com/keep");
+  await expect(missing).toContainText("기존 권 저자");
+  await expect(missing).toContainText("기존 권 &lt;설명&gt;");
+  await missing.screenshot({ path: testInfo.outputPath("enriched-product-link.png") });
+  await page.reload();
+  await expect(productLink).toBeVisible();
+  await missing.getByRole("button", { name: "상세정보", exact: true }).click();
+  await expect(missing.getByLabel("ISBN13", { exact: true })).toHaveValue(formattedIsbn);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
+  await expect(page.locator(".flash-success")).toHaveText("채울 저자/설명/상품 링크가 없습니다.");
+  await deleteCurrentBook(page);
 });
 
 test("profile categories can be added and removed while categories used by books are retained", async ({ page }, testInfo) => {

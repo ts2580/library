@@ -33,7 +33,7 @@ export function BookForm({
       </div>
       <div className="button-row book-form-actions"><SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton></div>
     </form>
-    {book && enrichAction && <form action={enrichAction} className="book-enrichment-form">
+    {book && enrichAction && <form action={enrichAction} className="book-enrichment-form" title="빈 저자·설명과 각 권의 상품 링크를 알라딘에서 채웁니다.">
       <input type="hidden" name="bookId" value={book.id}/>
       <SubmitButton pendingLabel="정보 검색 중" className="button button-outline" progress>저자/설명 알라딘에서 넣기</SubmitButton>
     </form>}
