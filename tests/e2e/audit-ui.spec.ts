@@ -69,6 +69,7 @@ test("repeated assembly errors stop automatic retries and allow a manual status 
   expect(attempts).toBe(3);
   expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBe("assembly-retry-job");
   recovered = true;
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   await retry.click();
   await expect(page.getByText("수동 확인으로 복원 완료", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem("bookshelf.cover-restore-job"))).toBeNull();

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api-fetch";
 import { abortable } from "@/lib/abortable";
 import type { AladinSearchResult } from "@/features/aladin/types";
 
@@ -10,9 +11,11 @@ export async function fetchSearchPreview(params: URLSearchParams, signal: AbortS
     signal.throwIfAborted();
     let response: Response;
     try {
-      response = await fetch(`/api/aladin/search?${params}`, { cache: "no-store", signal });
+      response = await apiFetch(`/api/aladin/search?${params}`, { cache: "no-store", signal }, {
+        silentStatuses: attempt === 0 ? [...TEMPORARY_STATUSES] : [], reportNetworkErrors: attempt > 0
+      });
     } catch (error) {
-      if (signal.aborted) throw error;
+      signal.throwIfAborted();
       if (error instanceof TypeError && attempt === 0) continue;
       throw new Error(CONNECTION_ERROR);
     }

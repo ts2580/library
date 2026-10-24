@@ -1,7 +1,7 @@
 import { requireApiUser } from "@/features/auth/authorization";
 import { importExcelBackup } from "@/features/backup/excel";
 import { assertSameOrigin } from "@/lib/http";
-import { AppError, errorMessage } from "@/lib/errors";
+import { AppError, errorParams } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { boundedFormData } from "@/lib/form-data";
 
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       });
     }
     return Response.redirect(
-      new URL(`/profile?error=${encodeURIComponent(errorMessage(error, "엑셀 백업을 가져오지 못했습니다."))}`, request.url),
+      new URL(`/profile?${errorParams(error, "엑셀 백업을 가져오지 못했습니다.")}`, request.url),
       303
     );
   }

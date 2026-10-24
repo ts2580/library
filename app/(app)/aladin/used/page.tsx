@@ -5,6 +5,7 @@ import { lookupUsedStocks } from "@/features/aladin/service";
 import { isAladinConfigured } from "@/features/aladin/client";
 import { formatWon } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import { ErrorReporter } from "@/components/ui/error-dialog";
 import type { StockLookupResult } from "@/features/aladin/types";
 import { ExternalLink } from "@/components/ui/external-link";
 
@@ -29,7 +30,7 @@ export default async function UsedSearchPage({ searchParams }: { searchParams: P
         <option value="all">전체 중고 재고</option><option value="dropshipping">알라딘 직배송</option><option value="offstore">알라딘 지점 중고</option>
       </select></div><button className="button" type="submit">조회</button>
     </SearchForm></section>
-    {result && (!result.successful ? <div className="flash flash-error" role="alert">{result.errorMessage}</div> : <>
+    {result && (!result.successful ? <div className="flash flash-error" role="alert">{result.errorMessage}<ErrorReporter message={result.errorMessage} code="ALADIN_LOOKUP_FAILED" source="aladin-used"/></div> : <>
       {result.partial && <p className="flash flash-error" role="status">{result.warning}</p>}
       <section className="stack-md"><div className="section-heading"><h2>{result.partial ? "부분 확인 결과" : "조회 결과"}</h2><span className="chip">{result.stocks.length}건 · 최저 {minimum == null ? "가격 미상" : formatWon(minimum)}</span></div>
         {result.stocks.length ? <div className="inventory-grid">{result.stocks.map((stock, index) => <article className="branch-card" key={`${stock.branch}-${index}`}>

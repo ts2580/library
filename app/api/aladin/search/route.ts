@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireApiUser();
-    if (!isAladinConfigured()) throw new AppError("알라딘 검색을 사용할 수 없습니다. 관리자에게 문의해 주세요.");
+    if (!isAladinConfigured()) throw new AppError("알라딘 검색을 사용할 수 없습니다. 관리자에게 문의해 주세요.", "ALADIN_NOT_CONFIGURED");
     const url = new URL(request.url);
     const result = await searchAladinBooks({ ...Object.fromEntries(url.searchParams), query: url.searchParams.get("query") ?? "", page: url.searchParams.get("page") ?? url.searchParams.get("start") ?? "1" });
     return Response.json(withOwnership(user.id, result), { headers: { "cache-control": "no-store" } });

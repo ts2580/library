@@ -79,6 +79,7 @@ test("manual preview recovers a dropped request and keeps the selected book afte
     await expect(target).toHaveValue("마이그레이션 테스트 책");
     await expect(modal.getByLabel("제목", { exact: true })).toHaveValue("마이그레이션 테스트 책");
     await expect(modal.getByRole("button", { name: "추가 예정 확인", exact: true })).toBeEnabled();
+    await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   }
   mode = "online";
   await modal.getByRole("button", { name: "추가 예정 확인", exact: true }).click();
@@ -331,6 +332,7 @@ test("new-book registration asks for a category and retains selection across can
   await expect(select).toHaveValue(`saved:${category}`);
   await modal.getByRole("button", { name: "1권 추가", exact: true }).click();
   await expect(modal.getByRole("alert")).toContainText("등록 재시도 확인");
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   expect(requests).toHaveLength(1);
   expect(requests[0]?.category).toBe(category);
   await expect(select).toHaveValue(`saved:${category}`);

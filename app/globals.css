@@ -98,6 +98,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .flash { padding: 13px 16px; border-radius: 14px; font-weight: 650; }
 .flash-success { color: #215b48; background: #e5f5ee; border: 1px solid #b8dece; }
 .flash-error { color: #8f2727; background: #fff0f0; border: 1px solid #efc2c2; }
+.error-dialog { width: min(520px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: clamp(20px, 4vw, 28px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: var(--shadow); overflow: auto; overflow-wrap: anywhere; }
+.error-dialog::backdrop { background: rgba(15, 23, 42, .5); backdrop-filter: blur(3px); }
+.error-dialog h2 { margin: 0; font-size: 1.2rem; }
+.error-dialog-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .85rem; }
+.error-dialog-code code { padding: 4px 8px; border-radius: 6px; background: #fff0f0; color: #8f2727; font-weight: 700; }
+.error-dialog-details { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
+.error-dialog .button-row { justify-content: flex-end; }
 .chip, .status-badge { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: 999px; background: #edf1f5; color: #526072; font-size: .72rem; font-weight: 750; }
 .status-running, .status-queued { color: #7a4c06; background: #fff2cf; }
 .status-completed { color: #1f654c; background: #ddf3ea; }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createCategoryAction } from "@/features/books/category-actions";
+import { reportClientError } from "@/lib/client-errors";
 
 export function CategorySelect({ id, categories, initialValue = "", required = false }: { id: string; categories: string[]; initialValue?: string; required?: boolean }) {
   const [options, setOptions] = useState(() => [...new Set([...categories, ...(initialValue ? [initialValue] : [])])]);
@@ -26,11 +27,11 @@ export function CategorySelect({ id, categories, initialValue = "", required = f
       <button type="button" className="button button-outline" disabled={pending || !name.trim()} onClick={() => startTransition(async () => {
         try {
           const result = await createCategoryAction(name);
-          if (result.error) { setMessage(result.error); return; }
+          if (result.error) { setMessage(result.error); reportClientError({ code: result.code ?? "CATEGORY_CREATE_FAILED", message: result.error, source: "category-create" }); return; }
           if (!result.name) return;
           setOptions((previous) => [...new Set([...previous, result.name!])]);
           setSelected(`saved:${result.name}`); setName(""); setMessage("카테고리를 추가했습니다.");
-        } catch { setMessage("카테고리를 추가하지 못했습니다. 다시 시도해 주세요."); }
+        } catch { const message = "카테고리를 추가하지 못했습니다. 다시 시도해 주세요."; setMessage(message); reportClientError({ code: "CATEGORY_CREATE_FAILED", message, source: "category-create" }); }
       })}>{pending ? "추가 중" : "추가"}</button>
     </div>}
     {message && <span className="muted small" role="status">{message}</span>}

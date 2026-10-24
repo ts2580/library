@@ -17,7 +17,8 @@ test("anonymous, expired-cookie, and disabled-signup requests remain safe", asyn
   await context.addCookies([{ name: "bookshelf_session", value: "expired-fixture", url: "http://127.0.0.1:25648" }]);
   await page.goto("/books"); await expect(page).toHaveURL(/\/login/);
   await page.goto("/signup"); await expect(page).toHaveURL(/\/login/);
-  await expect(page.getByText("현재 회원가입이 비활성화되어 있습니다.")).toBeVisible();
+  await expect(page.locator(".flash-error")).toHaveText("현재 회원가입이 비활성화되어 있습니다.");
+  await expect(page.getByRole("alertdialog")).toBeVisible();
 });
 
 test("authenticated pages render on desktop and mobile without overflow", async ({ page }, testInfo) => {
@@ -127,6 +128,7 @@ test("multi-page selection survives a failed page request and preserves import o
   await page.route("**/api/aladin/search?**", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "페이지 로딩 실패" }) }));
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "페이지 로딩 실패" })).toHaveText("페이지 로딩 실패");
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   await expect(page.locator(".aladin-import-action").getByRole("button", { name: "1권 추가", exact: true })).toBeEnabled();
   await page.unroute("**/api/aladin/search?**");
   await page.getByRole("button", { name: "다음 페이지", exact: true }).click();

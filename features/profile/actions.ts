@@ -10,24 +10,24 @@ import { hashPassword, verifyPassword } from "@/features/auth/password";
 import { createSession, CredentialsChangedError } from "@/features/auth/session";
 import { passwordChangeSchema, profileSchema } from "@/features/profile/validation";
 import { regeneratePendingCovers } from "@/features/covers/regeneration";
-import { errorMessage } from "@/lib/errors";
+import { errorCode, errorMessage, errorParams } from "@/lib/errors";
 import { addCategory, removeCategory } from "@/features/books/categories";
 
 function v(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
 }
 
-function fail(message: string): never {
-  redirect(`/profile?error=${encodeURIComponent(message)}`);
+function fail(message: string, code = "VALIDATION_ERROR"): never {
+  redirect(`/profile?${new URLSearchParams({ error: message, errorCode: code }).toString().replaceAll("+", "%20")}`);
 }
 
 async function changeCategory(formData: FormData, remove: boolean): Promise<never> {
   const user = await requireUser();
-  if (remove && user.role !== "ADMIN") fail("공용 카테고리 삭제는 관리자만 할 수 있습니다.");
+  if (remove && user.role !== "ADMIN") fail("공용 카테고리 삭제는 관리자만 할 수 있습니다.", "FORBIDDEN");
   try {
     if (remove) removeCategory(v(formData, "category"));
     else addCategory(v(formData, "category"));
-  } catch (error) { fail(errorMessage(error, "카테고리를 변경하지 못했습니다.")); }
+  } catch (error) { fail(errorMessage(error, "카테고리를 변경하지 못했습니다."), errorCode(error)); }
   revalidatePath("/books", "layout");
   revalidatePath("/products");
   revalidatePath("/profile");
@@ -87,7 +87,7 @@ export async function regenerateCoversAction(): Promise<never> {
     const result = await regeneratePendingCovers(user.id);
     summary = result.summary;
   } catch (error) {
-    redirect(`/profile?error=${encodeURIComponent(errorMessage(error, "커버를 재생성하지 못했습니다."))}`);
+    redirect(`/profile?${errorParams(error, "커버를 재생성하지 못했습니다.")}`);
   }
   revalidatePath("/books", "layout");
   revalidatePath("/dashboard");

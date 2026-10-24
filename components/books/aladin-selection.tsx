@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CoverImage } from "@/components/ui/cover-image";
@@ -101,9 +103,9 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       if (manual) {
         const book = Object.fromEntries(["author", "description", "type", "totalVolume", "coverUrl"].map((key) => [key, String(form.get(key) ?? "")]));
         form.set("payload", JSON.stringify({ book: { ...book, name: seriesName }, direct, targetBookId: direct ? null : target?.id ?? null, selection }));
-        response = await fetch("/api/books/manual", { method: "POST", body: form });
+        response = await apiFetch("/api/books/manual", { method: "POST", body: form });
       } else {
-        response = await fetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" },
+        response = await apiFetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ query, targetBookId: target?.id ?? null, seriesName, sideStory: false, selection, searchOptions,
             category: target ? undefined : String(form.get("type") ?? "") }) });
       }
