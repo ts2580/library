@@ -57,7 +57,7 @@ export function requestStockRefresh(ownerId: number): { started: boolean; messag
 function queueStockJob(ownerId: number, bookId: number | null): { started: boolean; message: string } {
   return sqlite.transaction(() => {
     if (bookId != null) assertScopedBook(ownerId, bookId);
-    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.");
+    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
     const total = (sqlite.prepare(`
       SELECT COUNT(*) AS count
       FROM book_volumes bv JOIN books b ON b.id = bv.book
@@ -223,7 +223,7 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
   let total = claimed.total;
   try {
     // A queued job can survive a restart with a different environment.
-    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.");
+    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
     if (!["REPLACE_ALL", "APPEND_BOOK"].includes(claimed.mode)) throw new AppError("알 수 없는 재고 작업입니다.");
     const append = claimed.mode === "APPEND_BOOK";
     if (append) assertScopedBook(claimed.ownerId, claimed.bookId);

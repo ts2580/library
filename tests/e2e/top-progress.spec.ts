@@ -39,6 +39,7 @@ test("overlapping lookups keep the top progress bar until failure or cancellatio
     finishPreview();
     await expect(modal.getByRole("alert")).toContainText("진행 막대 실패 검증");
     await expect(bar).toBeHidden();
+    await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
 
     // An outstanding lookup must release its token when the dialog is closed.
     await page.unrouteAll({ behavior: "wait" });

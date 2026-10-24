@@ -1,5 +1,9 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+import { ErrorReporter } from "@/components/ui/error-dialog";
+import { reportClientError } from "@/lib/client-errors";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProgressIndicator } from "@/components/ui/top-progress";
@@ -15,8 +19,13 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
   const router = useRouter();
   const [progress, setProgress] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
   const active = progress.status === "QUEUED" || progress.status === "RUNNING";
   const wasActive = useRef(active);
+  const initialKey = JSON.stringify(initial);
+  const previousInitial = useRef(initialKey);
+  const revision = useRef(0);
 
   useEffect(() => {
     if (wasActive.current && !active) router.refresh();
@@ -24,44 +33,71 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
   }, [active, router]);
 
   useEffect(() => {
-    if (!active) return;
+    const changed = previousInitial.current !== initialKey;
+    previousInitial.current = initialKey;
+    if ((!active && (!changed || initialKey === JSON.stringify(progress))) || unavailable) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    let request: AbortController | undefined;
+    let stopped = false;
     const refresh = async () => {
+      if (controller.signal.aborted || stopped || request) return;
+      clearTimeout(timer);
+      const currentRequest = new AbortController();
+      request = currentRequest;
+      const requestRevision = revision.current;
+      const abort = () => currentRequest.abort();
+      controller.signal.addEventListener("abort", abort, { once: true });
+      const timeout = setTimeout(abort, 10_000);
       try {
-        const response = await fetch("/api/stock-refresh", { cache: "no-store", signal: controller.signal });
+        const response = await apiFetch("/api/stock-refresh", { cache: "no-store", signal: currentRequest.signal });
+        if (controller.signal.aborted || requestRevision !== revision.current) return;
+        if ([401, 403].includes(response.status)) {
+          stopped = true;
+          setUnavailable(true);
+          setError("로그인 또는 접근 권한을 확인할 수 없어 재고 상태 조회를 중단했습니다. 다시 로그인해 주세요.");
+          return;
+        }
         const body = await responseBody<StockRefreshProgress>(response);
+        if (controller.signal.aborted || currentRequest.signal.aborted || requestRevision !== revision.current) return;
+        stopped = body.status !== "QUEUED" && body.status !== "RUNNING";
         setProgress(body);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        setProgress((current) => ({
-          ...current,
-          failed: true,
-          message: error instanceof Error ? error.message : "진행 상태를 확인하지 못했습니다."
-        }));
-      } finally { if (!controller.signal.aborted) timer = setTimeout(() => void refresh(), 1500); }
+        setError("");
+      } catch (cause) {
+        if (controller.signal.aborted || requestRevision !== revision.current) return;
+        if (currentRequest.signal.aborted) reportClientError({ code: "CLIENT_TIMEOUT", message: "재고 상태 조회 시간이 초과되었습니다. 다시 시도합니다.", source: "GET /api/stock-refresh" });
+        setError(currentRequest.signal.aborted ? "재고 상태 조회 시간이 초과되었습니다. 다시 시도합니다."
+          : cause instanceof Error ? cause.message : "진행 상태를 확인하지 못했습니다.");
+      } finally {
+        clearTimeout(timeout);
+        controller.signal.removeEventListener("abort", abort);
+        request = undefined;
+        if (!controller.signal.aborted && !stopped) timer = setTimeout(() => void refresh(), 1500);
+      }
     };
-    timer = setTimeout(() => void refresh(), 1500);
+    const wake = () => { if (document.visibilityState === "visible") void refresh(); };
+    window.addEventListener("focus", wake);
+    document.addEventListener("visibilitychange", wake);
+    // Re-read new server props instead of overwriting a newer local job response.
+    timer = setTimeout(() => void refresh(), changed ? 0 : 1500);
     return () => {
       controller.abort();
       clearTimeout(timer);
+      window.removeEventListener("focus", wake);
+      document.removeEventListener("visibilitychange", wake);
     };
-  }, [active]);
+  }, [active, initialKey, unavailable]);
 
   async function start(): Promise<void> {
+    revision.current++;
     setBusy(true);
+    setError("");
     try {
-      const response = await fetch("/api/stock-refresh", { method: "POST" });
+      const response = await apiFetch("/api/stock-refresh", { method: "POST" });
       const body = await responseBody<{ progress: StockRefreshProgress }>(response);
       setProgress(body.progress);
     } catch (error) {
-      setProgress((current) => ({
-        ...current,
-        running: false,
-        failed: true,
-        status: "FAILED",
-        message: error instanceof Error ? error.message : "작업을 등록하지 못했습니다."
-      }));
+      setError(error instanceof Error ? error.message : "작업을 등록하지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -69,9 +105,10 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
 
   async function clearInventory(): Promise<void> {
     if (!window.confirm("현재 계정의 지점 재고를 모두 삭제합니까?")) return;
+    revision.current++;
     setBusy(true);
     try {
-      const response = await fetch("/api/stock-refresh", { method: "DELETE" });
+      const response = await apiFetch("/api/stock-refresh", { method: "DELETE" });
       const body = await responseBody<{ progress: StockRefreshProgress }>(response);
       setProgress(body.progress);
       window.location.reload();
@@ -89,10 +126,12 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
     <section className="panel stack-md" aria-labelledby="stock-refresh-title">
       <div className="section-heading"><div><p className="eyebrow">Background worker</p><h2 id="stock-refresh-title">중고 재고 일괄 갱신</h2></div><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
       <p className="muted" aria-live="polite">{progress.message}</p>
-      {(busy || active) && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
+      {error && <p className="flash flash-error" role="alert">{error}</p>}
+      <ErrorReporter message={progress.status === "FAILED" ? progress.message : null} code="STOCK_REFRESH_FAILED" source="stock-worker"/>
+      {(busy || active) && !unavailable && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
       <div className="progress-track" aria-label={`진행률 ${progress.percent}%`}><div style={{ width: `${progress.percent}%` }}/></div>
       <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>
-      <div className="button-row stock-refresh-actions"><button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={busy || active}>전체 삭제</button><button className="button" type="button" onClick={start} disabled={busy || active}>{active ? "진행 중" : "갱신 시작"}</button></div>
+      <div className="button-row stock-refresh-actions"><button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={busy || active || unavailable}>전체 삭제</button><button className="button" type="button" onClick={start} disabled={busy || active || unavailable}>{unavailable ? "상태 확인 불가" : active ? "진행 중" : "갱신 시작"}</button></div>
     </section>
   );
 }

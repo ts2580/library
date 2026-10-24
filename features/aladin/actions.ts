@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
 import { importAladinItem } from "@/features/aladin/import";
-import { errorMessage } from "@/lib/errors";
+import { errorCode, errorMessage } from "@/lib/errors";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
@@ -30,7 +30,7 @@ export async function importAladinItemAction(formData: FormData): Promise<never>
   } catch (error) {
     const query = value(formData, "returnQuery");
     const bookId = value(formData, "returnBookId");
-    const params = new URLSearchParams({ query, error: errorMessage(error) });
+    const params = new URLSearchParams({ query, error: errorMessage(error), errorCode: errorCode(error) });
     if (bookId) params.set("bookId", bookId);
     redirect(`/aladin/search?${params.toString()}`);
   }

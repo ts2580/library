@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
 import { addVolume, createBook, deleteBook, deleteVolume, deleteVolumes, updateBook, updateVolume } from "@/features/books/service";
 import { enrichMissingBookInfo } from "@/features/books/enrichment";
-import { errorMessage } from "@/lib/errors";
+import { errorParams } from "@/lib/errors";
 import { entityIdSchema } from "@/features/books/validation";
 
 function text(formData: FormData, key: string): string {
@@ -25,7 +25,7 @@ function entityIdOrRedirect(formData: FormData, key: string, fallbackPath: strin
   try {
     return entityId(formData, key);
   } catch (error) {
-    redirect(`${fallbackPath}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`${fallbackPath}?${errorParams(error)}`);
   }
 }
 
@@ -63,7 +63,7 @@ export async function createBookAction(formData: FormData): Promise<never> {
   try {
     id = await createBook(user.id, bookPayload(formData), file(formData, "coverFile"));
   } catch (error) {
-    redirect(`/books?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books?${errorParams(error)}`);
   }
   revalidatePath("/books");
   revalidatePath("/dashboard");
@@ -76,7 +76,7 @@ export async function updateBookAction(formData: FormData): Promise<never> {
   try {
     await updateBook(user.id, id, bookPayload(formData), file(formData, "coverFile"));
   } catch (error) {
-    redirect(`/books/${id}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books/${id}?${errorParams(error)}`);
   }
   revalidatePath(`/books/${id}`);
   revalidatePath("/books");
@@ -89,7 +89,7 @@ export async function deleteBookAction(formData: FormData): Promise<never> {
   try {
     deleteBook(user.id, id);
   } catch (error) {
-    redirect(`/books/${id}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books/${id}?${errorParams(error)}`);
   }
   revalidatePath("/books");
   revalidatePath("/dashboard");
@@ -103,7 +103,7 @@ export async function addVolumeAction(formData: FormData): Promise<never> {
   try {
     await addVolume(user.id, bookId, volumePayload(formData), file(formData, "coverFile"));
   } catch (error) {
-    redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books/${bookId}?${errorParams(error)}`);
   }
   revalidatePath(`/books/${bookId}`);
   revalidatePath("/books");
@@ -118,7 +118,7 @@ export async function updateVolumeAction(formData: FormData): Promise<never> {
   try {
     await updateVolume(user.id, bookId, volumeId, volumePayload(formData), file(formData, "coverFile"));
   } catch (error) {
-    redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books/${bookId}?${errorParams(error)}`);
   }
   revalidatePath(`/books/${bookId}`);
   revalidatePath("/dashboard");
@@ -135,7 +135,7 @@ export async function deleteVolumeAction(formData: FormData): Promise<never> {
   try {
     deleteVolume(user.id, bookId, volumeId);
   } catch (error) {
-    redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/books/${bookId}?${errorParams(error)}`);
   }
   revalidatePath(`/books/${bookId}`);
   revalidatePath("/books");
@@ -149,7 +149,7 @@ export async function deleteVolumesAction(formData: FormData): Promise<never> {
   const bookId = entityIdOrRedirect(formData, "bookId", "/books");
   let count: number;
   try { count = deleteVolumes(user.id, bookId, formData.getAll("volumeIds")); }
-  catch (error) { redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`); }
+  catch (error) { redirect(`/books/${bookId}?${errorParams(error)}`); }
   for (const route of [`/books/${bookId}`, "/books", "/products", "/dashboard", "/inventory"]) revalidatePath(route);
   redirect(`/books/${bookId}?message=${encodeURIComponent(`${count}개 권을 삭제했습니다.`)}`);
 }
@@ -159,7 +159,7 @@ export async function enrichBookInfoAction(formData: FormData): Promise<never> {
   const bookId = entityIdOrRedirect(formData, "bookId", "/books");
   let summary: string;
   try { summary = (await enrichMissingBookInfo(user.id, bookId)).summary; }
-  catch (error) { redirect(`/books/${bookId}?error=${encodeURIComponent(errorMessage(error))}`); }
+  catch (error) { redirect(`/books/${bookId}?${errorParams(error)}`); }
   revalidatePath(`/books/${bookId}`); revalidatePath("/books");
   redirect(`/books/${bookId}?message=${encodeURIComponent(summary)}`);
 }
