@@ -14,8 +14,8 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
 }
 
-function withError(path: string, message: string): never {
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+function withError(path: string, message: string, code = "VALIDATION_ERROR"): never {
+  redirect(`${path}?${new URLSearchParams({ error: message, errorCode: code }).toString().replaceAll("+", "%20")}`);
 }
 
 export async function loginAction(formData: FormData): Promise<never> {
@@ -28,7 +28,7 @@ export async function loginAction(formData: FormData): Promise<never> {
 
   const member = db.select().from(members).where(eq(members.username, parsed.data.username)).get();
   const valid = member ? await verifyPassword(parsed.data.password, member.passwordHash) : false;
-  if (!member || !valid) withError("/login", "아이디 또는 비밀번호가 올바르지 않습니다.");
+  if (!member || !valid) withError("/login", "아이디 또는 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS");
 
   // Long SHA-256 passwords retain full-string verification until explicitly changed.
   const nextPasswordHash = isLegacyPasswordHash(member.passwordHash) && fitsBcrypt(parsed.data.password)
@@ -43,7 +43,7 @@ export async function loginAction(formData: FormData): Promise<never> {
 }
 
 export async function signupAction(formData: FormData): Promise<never> {
-  if (!env.REGISTRATION) withError("/login", "현재 회원가입이 비활성화되어 있습니다.");
+  if (!env.REGISTRATION) withError("/login", "현재 회원가입이 비활성화되어 있습니다.", "REGISTRATION_DISABLED");
   const parsed = signupSchema.safeParse({
     username: value(formData, "username"),
     password: value(formData, "password"),
@@ -74,7 +74,7 @@ export async function signupAction(formData: FormData): Promise<never> {
     id = transaction.immediate();
   } catch (error) {
     if (error instanceof Error && (error.message === "USERNAME_EXISTS" || /UNIQUE constraint failed: member\.username/.test(error.message))) {
-      withError("/signup", "이미 사용 중인 아이디입니다.");
+      withError("/signup", "이미 사용 중인 아이디입니다.", "USERNAME_EXISTS");
     }
     throw error;
   }

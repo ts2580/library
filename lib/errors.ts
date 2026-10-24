@@ -39,3 +39,12 @@ export function errorMessage(error: unknown, fallback = "처리 중 오류가 �
   if (error instanceof AppError && error.message) return error.message;
   return firstValidationIssue(error) ?? fallback;
 }
+
+export function errorCode(error: unknown): string {
+  if (error instanceof AppError) return error.code;
+  return firstValidationIssue(error) ? "VALIDATION_ERROR" : "INTERNAL_ERROR";
+}
+
+export function errorParams(error: unknown, fallback?: string): string {
+  return new URLSearchParams({ error: errorMessage(error, fallback), errorCode: errorCode(error) }).toString().replaceAll("+", "%20");
+}

@@ -19,6 +19,7 @@ test("a failed server search can be retried without reloading or losing the book
   await expect(error).toContainText("알라딘 API가 요청을 거절했습니다");
   await expect(page.locator(".search-result-card")).toHaveCount(0);
   const failedUrl = page.url();
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
 
   await form.getByRole("button", { name: "검색", exact: true }).click();
   await expect(error).toHaveCount(0);

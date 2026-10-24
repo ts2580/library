@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTopProgress } from "@/components/ui/top-progress";
@@ -73,7 +75,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
       const timeout = setTimeout(abort, 10_000);
       const requestRevision = revision.current;
       try {
-        const response = await fetch(`/api/books/${bookId}/stock-search`, { cache: "no-store", signal: currentRequest.signal });
+        const response = await apiFetch(`/api/books/${bookId}/stock-search`, { cache: "no-store", signal: currentRequest.signal });
         if (controller.signal.aborted || requestRevision !== revision.current) return;
         if ([401, 403, 404].includes(response.status)) {
           stopped = true;
@@ -115,7 +117,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch(`/api/books/${bookId}/stock-search`, { method: "POST", signal: controller.signal });
+      const response = await apiFetch(`/api/books/${bookId}/stock-search`, { method: "POST", signal: controller.signal });
       const body = await response.json() as { message?: string; progress?: StockRefreshProgress };
       if (body.progress) accept(body.progress);
       if (!response.ok) throw new Error(body.message ?? "재고 검색을 시작하지 못했습니다.");

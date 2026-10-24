@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { TopProgressBar } from "@/components/ui/top-progress";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 import "@/app/globals.css";
 import "@/app/volume-layout.css";
 
@@ -13,5 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html lang="ko"><body>{children}<TopProgressBar/></body></html>;
+  return <html lang="ko"><body>{children}<TopProgressBar/><ErrorDialog/></body></html>;
 }

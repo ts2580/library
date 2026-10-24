@@ -10,6 +10,7 @@ import { errorMessage } from "@/lib/errors";
 import type { AladinSearchResult } from "@/features/aladin/types";
 import { CoverImage } from "@/components/ui/cover-image";
 import { formatWon } from "@/lib/format";
+import { FlashMessage } from "@/components/ui/flash-message";
 
 export const metadata = { title: "보유 권 검색" };
 export default async function ProductsPage({ searchParams }: {
@@ -30,7 +31,7 @@ export default async function ProductsPage({ searchParams }: {
   return <div className="page"><header className="page-header"><div><h1 className="page-title">보유 권 검색</h1>
     <p className="page-subtitle">등록한 권의 제목과 ISBN으로 검색합니다.</p></div><Link className="button button-outline" href="/aladin/search">알라딘 검색</Link></header>
     <details className="details-card" open={Boolean(params.q)}><summary>알라딘 상품 검색·한 권씩 등록</summary><div className="details-body stack-md">
-      {error && <p className="flash flash-error" role="alert">{error}</p>}
+      <FlashMessage error={error}/>
       <AladinQuickAdd key={`${params.q}:${params.aladinPage}`} initialQuery={params.q ?? ""} initial={aladin} categories={getManualBookCategories()}/>
     </div></details>
     <SearchForm className="panel search-form" action="/products">

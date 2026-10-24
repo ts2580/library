@@ -1,5 +1,8 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+import { reportClientError } from "@/lib/client-errors";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -60,7 +63,7 @@ export function BackupPanel() {
     const check = async (): Promise<void> => {
       let retry = true;
       try {
-        const response = await fetch(`/api/backup/covers/uploads/${uploadId}/status`, {
+        const response = await apiFetch(`/api/backup/covers/uploads/${uploadId}/status`, {
           cache: "no-store",
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
         });
@@ -70,15 +73,16 @@ export function BackupPanel() {
           // Recover a refresh between the last chunk and the idempotent complete request.
           setPhase("ASSEMBLING");
           setMessage("업로드가 완료된 ZIP의 조립을 요청합니다.");
-          await responseBody(await fetch(`/api/backup/covers/uploads/${uploadId}/complete`, {
+          await responseBody(await apiFetch(`/api/backup/covers/uploads/${uploadId}/complete`, {
             method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
-          }));
+          }, { deduplicate: true }));
           failures = 0;
           return;
         }
         failures = 0;
         setPhase(status.status);
         setMessage(status.message ?? "표지 ZIP 작업 상태를 확인하고 있습니다.");
+        if (status.status === "FAILED") reportClientError({ code: "COVER_RESTORE_FAILED", message: status.message ?? "표지 복원에 실패했습니다.", source: "cover-worker" });
         if (status.status === "UPLOADING") setPercent(status.percent);
         if (status.completed || status.status === "FAILED") {
           retry = false;
@@ -135,7 +139,7 @@ export function BackupPanel() {
       if (!file.name.toLowerCase().endsWith(".zip")) throw new Error("ZIP 파일만 업로드할 수 있습니다.");
       if (file.size <= 0 || file.size > MAX_ARCHIVE_SIZE) throw new Error("표지 ZIP은 2GiB 이하여야 합니다.");
       const totalChunks = Math.ceil(file.size / CHUNK);
-      const create = await fetch("/api/backup/covers/uploads", {
+      const create = await apiFetch("/api/backup/covers/uploads", {
         method: "POST", signal: controller.signal,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ filename: file.name, totalSize: file.size, totalChunks })
@@ -145,7 +149,7 @@ export function BackupPanel() {
       setJobId(created.uploadId);
       for (let index = 0; index < totalChunks; index += 1) {
         const part = file.slice(index * CHUNK, Math.min(file.size, (index + 1) * CHUNK));
-        const response = await fetch(`/api/backup/covers/uploads/${created.uploadId}/chunks/${index}`, {
+        const response = await apiFetch(`/api/backup/covers/uploads/${created.uploadId}/chunks/${index}`, {
           method: "PUT", body: part, signal: controller.signal
         });
         await responseBody(response);
@@ -158,7 +162,7 @@ export function BackupPanel() {
       rememberJob(acceptedJob);
       setPhase("ASSEMBLING");
       setMessage("업로드가 끝났습니다. ZIP 조립 후 복원을 시작합니다.");
-      const complete = await fetch(`/api/backup/covers/uploads/${acceptedJob}/complete`, {
+      const complete = await apiFetch(`/api/backup/covers/uploads/${acceptedJob}/complete`, {
         method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
       });
       await responseBody(complete);

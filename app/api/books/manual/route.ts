@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const form = await boundedFormData(request, 8 * 1024 * 1024 + 64 * 1024);
     let payload: unknown;
     try { payload = JSON.parse(String(form.get("payload") ?? "")); }
-    catch { return Response.json({ message: "등록 정보를 확인해 주세요." }, { status: 400 }); }
+    catch { return Response.json({ code: "VALIDATION_ERROR", message: "등록 정보를 확인해 주세요." }, { status: 400 }); }
     const file = form.get("coverFile");
     const result = await createManualBook(user.id, payload, file instanceof File && file.size ? file : null);
     for (const path of ["/books", "/dashboard", `/books/${result.bookId}`]) revalidatePath(path);

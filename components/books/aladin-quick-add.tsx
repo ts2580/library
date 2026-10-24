@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -31,7 +33,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
     const form = new FormData(event.currentTarget);
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+      const response = await apiFetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
         query, targetBookId: target?.id ?? null, seriesName: item.title.slice(0, 300), sideStory,
         startVolume: sideStory ? undefined : Number(sequence),
         category: target ? undefined : String(form.get("category") ?? ""),
@@ -80,7 +82,7 @@ export function AladinQuickAdd({ initialQuery = "", initial = null, targetBook, 
     request.current?.abort(); const controller = new AbortController(); request.current = controller;
     setLoading(true); setError("");
     try {
-      const response = await fetch(`/api/aladin/search?${new URLSearchParams({ query: value, page: String(page) })}`, { signal: controller.signal, cache: "no-store" });
+      const response = await apiFetch(`/api/aladin/search?${new URLSearchParams({ query: value, page: String(page) })}`, { signal: controller.signal, cache: "no-store" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "검색하지 못했습니다.");
       if (!controller.signal.aborted) { setResult(body); setSearched(value); }

@@ -15,12 +15,14 @@ test("enabled signup stores the introduction and rejects password mismatch and d
   await fill("fixture-wrong-password");
   await page.getByRole("button", { name: "계정 만들기" }).click();
   await expect(page.locator(".flash-error")).toContainText("일치하지 않습니다");
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   await fill("fixture-signup-password");
   const longPassword = "가".repeat(24) + "A1!";
   await page.getByLabel("비밀번호", { exact: true }).fill(longPassword);
   await page.getByLabel("비밀번호 확인", { exact: true }).fill(longPassword);
   await page.getByRole("button", { name: "계정 만들기" }).click();
   await expect(page.locator(".flash-error")).toContainText("72바이트");
+  await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
   await fill("fixture-signup-password");
   await page.getByRole("button", { name: "계정 만들기" }).click();
   await expect(page).toHaveURL(/\/dashboard/);

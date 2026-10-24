@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+
 import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
 import { ProgressIndicator } from "@/components/ui/top-progress";
 import { CoverImage } from "@/components/ui/cover-image";
@@ -49,7 +51,7 @@ export function ExistingBookSelect({ selected, onChange, disabled = false, showN
     setLoading(true);
     void (async () => {
       try {
-        const response = await fetch(`/api/books/options?query=${encodeURIComponent(query.normalize("NFC").trim())}`, { cache: "no-store", signal: controller.signal });
+        const response = await apiFetch(`/api/books/options?query=${encodeURIComponent(query.normalize("NFC").trim())}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("기존 책을 불러오지 못했습니다. 다시 검색해 주세요.");
         const found = await response.json() as BookOption[];
         if (!controller.signal.aborted) { setOptions(found); setHighlight(found.length ? 0 : -1); }

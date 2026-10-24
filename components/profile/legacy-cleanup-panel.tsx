@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
+
 import { useEffect, useRef, useState } from "react";
 import type { CleanupStatus } from "@/features/migration/types";
 
@@ -37,7 +39,7 @@ export function LegacyCleanupPanel({ initialStatus }: { initialStatus: CleanupSt
     setChecking(true); setMessage("");
     const timer = window.setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch("/api/migration/legacy-cleanup", { cache: "no-store", signal: controller.signal });
+      const response = await apiFetch("/api/migration/legacy-cleanup", { cache: "no-store", signal: controller.signal });
       const value = await responseStatus(response);
       if (requestRef.current === controller && !controller.signal.aborted) setStatus(value);
     } catch (error) {
@@ -55,7 +57,7 @@ export function LegacyCleanupPanel({ initialStatus }: { initialStatus: CleanupSt
     if (!window.confirm("Java에서 쓰던 원본 DB와 표지를 삭제합니까? 새 책장 데이터와 이전 전 DB 백업은 유지됩니다.")) return;
     setBusy(true); setMessage("이전본·백업·표지를 확인하고 원본을 정리하고 있습니다.");
     try {
-      const response = await fetch("/api/migration/legacy-cleanup", { method: "POST" });
+      const response = await apiFetch("/api/migration/legacy-cleanup", { method: "POST" });
       const value = await responseStatus(response);
       setStatus(value); setMessage("");
     } catch (error) { setStatus(null); setMessage(error instanceof Error ? error.message : "원본 데이터를 삭제하지 못했습니다."); }
