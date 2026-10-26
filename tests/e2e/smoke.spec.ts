@@ -13,6 +13,8 @@ async function login(page: Page, username = "fixture-admin") {
 test("anonymous, expired-cookie, and disabled-signup requests remain safe", async ({ page, context }) => {
   await page.goto("/books"); await expect(page).toHaveURL(/\/login/);
   expect((await page.request.get("/api/stock-refresh")).status()).toBe(401);
+  expect((await page.request.get("/api/stock-refresh/logs")).status()).toBe(401);
+  expect((await page.request.post("/api/stock-refresh/retry", { data: {} })).status()).toBe(401);
   expect((await page.request.post("/api/books/manual", { multipart: { payload: "{}" } })).status()).toBe(401);
   await context.addCookies([{ name: "bookshelf_session", value: "expired-fixture", url: "http://127.0.0.1:25648" }]);
   await page.goto("/books"); await expect(page).toHaveURL(/\/login/);
@@ -24,7 +26,7 @@ test("anonymous, expired-cookie, and disabled-signup requests remain safe", asyn
 test("authenticated pages render on desktop and mobile without overflow", async ({ page }, testInfo) => {
   const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
   await login(page);
-  for (const route of ["/dashboard", "/books", "/books/1", "/products", "/inventory", "/inventory/branches/SEOUL", "/profile", "/aladin/search", "/aladin/used"]) {
+  for (const route of ["/dashboard", "/books", "/books/1", "/products", "/inventory", "/inventory/logs", "/inventory/branches/SEOUL", "/profile", "/aladin/search", "/aladin/used"]) {
     expect((await page.goto(route))?.status(), route).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${route} overflow`).toBe(true);
@@ -57,6 +59,8 @@ test("other-owner books, covers, and administrator actions are isolated", async 
   expect((await page.request.get("/api/covers/1/fixture.webp")).status()).toBe(404);
   expect((await page.request.get("/api/covers/2/fixture.webp")).status()).toBe(200);
   expect((await page.request.post("/api/stock-refresh")).status()).toBe(403);
+  expect((await page.request.get("/api/stock-refresh/logs")).status()).toBe(403);
+  expect((await page.request.post("/api/stock-refresh/retry", { data: {} })).status()).toBe(403);
   expect((await page.request.get("/api/migration/legacy-cleanup")).status()).toBe(403);
   expect((await page.request.post("/api/migration/legacy-cleanup")).status()).toBe(403);
   expect((await page.request.delete("/api/stock-refresh")).status()).toBe(403);

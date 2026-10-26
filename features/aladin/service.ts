@@ -6,6 +6,7 @@ import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookup
 import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
 import { largeAladinCover } from "@/features/aladin/cover-url";
 import { logger } from "@/lib/logger";
+import { AppError } from "@/lib/errors";
 
 function object(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -149,7 +150,7 @@ export async function searchAladinBooks(input: unknown): Promise<AladinSearchRes
 export async function lookupUsedStocks(isbnInput: string, sourceInput?: string): Promise<StockLookupResult> {
   const isbn13 = isbn13Schema.parse(isbnInput);
   const source = usedSourceSchema.parse(sourceInput);
-  if (!isAladinConfigured()) return { successful: false, stocks: [], errorMessage: "알라딘 API 키가 없습니다." };
+  if (!isAladinConfigured()) return { successful: false, stocks: [], errorCode: "ALADIN_NOT_CONFIGURED", errorMessage: "알라딘 API 키가 없습니다." };
   try {
     const lookupRaw = await aladinJson("ItemLookUp.aspx", {
       ItemId: isbn13,
@@ -210,6 +211,7 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
       warning: partial ? "일부 지점의 상세 재고를 확인하지 못했습니다. 해당 지점의 가격은 미확인이며, 이 권의 조회 결과는 일괄 재고 저장에서 제외됩니다." : undefined };
   } catch (error) {
     const rateLimited = error instanceof AladinRateLimitError;
+    const httpStatus = error instanceof Error ? /^Aladin HTTP (\d{3})$/.exec(error.message)?.[1] : undefined;
     logger.warn("Aladin used stock lookup failed", {
       isbn13,
       error: error instanceof Error ? error.message : String(error)
@@ -217,8 +219,16 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
     return {
       successful: false,
       stocks: [],
+      errorCode: rateLimited ? "ALADIN_RATE_LIMIT" : error instanceof AppError ? error.code
+        : httpStatus ? "ALADIN_HTTP_ERROR"
+        : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "ALADIN_TIMEOUT"
+        : error instanceof TypeError ? "ALADIN_NETWORK_ERROR" : "ALADIN_LOOKUP_FAILED",
       errorMessage: rateLimited
         ? "알라딘 API 호출 제한(429)으로 조회하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        : error instanceof AppError ? error.message
+        : httpStatus ? `알라딘 API 응답 오류(HTTP ${httpStatus})로 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.`
+        : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "알라딘 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요."
+        : error instanceof TypeError ? "알라딘 서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요."
         : "알라딘 중고 재고 조회에 실패했습니다."
     };
   }

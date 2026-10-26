@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 4;
+const BOOTSTRAP_VERSION = 5;
 
 type Database = BetterSqlite3.Database;
 
@@ -304,15 +304,43 @@ export function bootstrapDatabase(sqlite: Database): void {
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (3, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
-    sqlite.exec(`CREATE TABLE IF NOT EXISTS stock_refresh_completion (
-      owner_id INTEGER PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
-      run_id TEXT NOT NULL
-    )`);
-    sqlite.exec(`INSERT OR IGNORE INTO stock_refresh_completion(owner_id, run_id)
-      SELECT requested_by, run_id FROM stock_refresh_job
-      WHERE requested_by IS NOT NULL AND run_id IS NOT NULL AND status IN ('COMPLETED','FAILED')`);
-    sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (4, ?, ?)")
-      .run(new Date().toISOString(), backup);
+    if (!isApplied(4)) {
+      sqlite.exec(`CREATE TABLE IF NOT EXISTS stock_refresh_completion (
+        owner_id INTEGER PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL
+      )`);
+      sqlite.exec(`INSERT OR IGNORE INTO stock_refresh_completion(owner_id, run_id)
+        SELECT requested_by, run_id FROM stock_refresh_job
+        WHERE requested_by IS NOT NULL AND run_id IS NOT NULL AND status IN ('COMPLETED','FAILED')`);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (4, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(5)) {
+      sqlite.exec(`
+        CREATE TABLE stock_refresh_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_id INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+          book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+          volume_id INTEGER NOT NULL REFERENCES book_volumes(id) ON DELETE CASCADE,
+          run_id TEXT NOT NULL,
+          isbn13 TEXT,
+          status TEXT NOT NULL,
+          code TEXT NOT NULL,
+          message TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(run_id, volume_id)
+        );
+        CREATE INDEX idx_stock_refresh_log_owner_volume ON stock_refresh_log(owner_id, volume_id, id DESC);
+        CREATE INDEX idx_stock_refresh_log_owner_id ON stock_refresh_log(owner_id, id DESC);
+        CREATE TABLE stock_refresh_job_target (
+          job_id INTEGER NOT NULL REFERENCES stock_refresh_job(id) ON DELETE CASCADE,
+          volume_id INTEGER NOT NULL REFERENCES book_volumes(id) ON DELETE CASCADE,
+          PRIMARY KEY(job_id, volume_id)
+        );
+      `);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (5, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
   });
   transaction.immediate();
 
