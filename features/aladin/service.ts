@@ -159,11 +159,10 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
     });
     const lookup = object(lookupRaw) ?? {};
     const first = object(array(lookup.item)[0]);
-    if (!first && source !== "offstore") return { successful: true, stocks: [], raw: lookupRaw };
+    if (!first && source === "dropshipping") return { successful: true, stocks: [], raw: lookupRaw };
     const subInfo = object(first?.subInfo);
     const usedList = object(subInfo?.usedList);
     const aladinUsed = object(usedList?.aladinUsed);
-    const spaceUsed = object(usedList?.spaceUsed);
     const title = text(first?.title);
     const stocks: AladinBranchStock[] = [];
     let raw = lookupRaw;
@@ -182,7 +181,8 @@ export async function lookupUsedStocks(isbnInput: string, sourceInput?: string):
       });
     }
 
-    if (source === "offstore" || (source === "all" && (number(spaceUsed?.itemCount) ?? 0) > 0)) {
+    // Off-store inventory is independent of the item lookup's used-list summary.
+    if (source !== "dropshipping") {
       const offRaw = await aladinJson("ItemOffStoreList.aspx", {
         ItemId: isbn13,
         itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",

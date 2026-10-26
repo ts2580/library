@@ -32,7 +32,7 @@ globalThis.fetch = async function fixtureFetch(input, init) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     return Response.json({ item: [{ title: "갱신된 테스트 재고", subInfo: { usedList: {
       aladinUsed: { itemCount: 1, minPrice: 2300, link: "https://www.aladin.co.kr/shop/test" },
-      spaceUsed: { itemCount: 1, minPrice: 1700 }
+      spaceUsed: { itemCount: url.searchParams.get("ItemId") === "9780000000194" ? 0 : 1, minPrice: 1700 }
     } } }] });
   }
   if (url.pathname.endsWith("ItemOffStoreList.aspx")) return Response.json({ itemOffStoreList: [{ offCode: "SEOUL", offName: "갱신 서울점", link: "/shop/usedshop/test" }] });
