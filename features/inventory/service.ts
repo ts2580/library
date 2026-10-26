@@ -136,15 +136,14 @@ export function recoverInterruptedStockJob(): void {
 
 function claimStockJob(): { ownerId: number; total: number; lockToken: string; mode: string; bookId: number | null } | null {
   const lockToken = randomUUID();
-  const result = sqlite.prepare(`
+  const row = sqlite.prepare(`
     UPDATE stock_refresh_job SET status = 'RUNNING', running = 1, lock_token = ?,
       started_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
       message = CASE WHEN mode='APPEND_BOOK' THEN '이 책의 재고 검색을 준비 중입니다.' ELSE '재고 초기화를 준비 중입니다.' END
     WHERE id = 1 AND status = 'QUEUED'
-  `).run(lockToken);
-  if (result.changes !== 1) return null;
-  const row = sqlite.prepare("SELECT requested_by AS ownerId, total, mode, scope_book_id AS bookId FROM stock_refresh_job WHERE id = 1 AND lock_token = ?")
-    .get(lockToken) as { ownerId: number | null; total: number; mode: string; bookId: number | null };
+    RETURNING requested_by AS ownerId, total, mode, scope_book_id AS bookId
+  `).get(lockToken) as { ownerId: number | null; total: number; mode: string; bookId: number | null } | undefined;
+  if (!row) return null;
   if (!row.ownerId) throw new Error("재고 작업 요청 사용자가 없습니다.");
   return { ownerId: row.ownerId, total: row.total, lockToken, mode: row.mode, bookId: row.bookId };
 }

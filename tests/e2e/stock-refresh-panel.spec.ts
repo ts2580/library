@@ -253,6 +253,10 @@ test("unchanged worker progress opens a delay popup and leaves cancellation avai
 test("a lost start response times out with a popup and reconciles the real worker result", async ({ page }, testInfo) => {
   test.setTimeout(35_000);
   await withInventory(page, `batch-start-timeout-${testInfo.project.name}`, async () => {
+    let refreshes = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === "/inventory" && request.headers().rsc === "1") refreshes++;
+    });
     await page.route("**/api/stock-refresh", async route => {
       if (route.request().method() === "POST") { await route.fetch(); return; }
       return route.continue();
@@ -265,5 +269,47 @@ test("a lost start response times out with a popup and reconciles the real worke
     await expect(page.locator("#top-progress-bar")).toBeHidden();
     await dialog.getByRole("button", { name: "확인", exact: true }).click();
     await expect(page.getByRole("button", { name: "갱신 시작", exact: true })).toBeEnabled();
+    await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
+    await expect(page.locator(".stock-card")).toHaveCount(2);
+    await expect(page.locator(".branch-card")).toHaveCount(2);
+    await expect(page.locator(".kpi-value").nth(1)).toHaveText("2");
+    await expect(page.locator(".kpi-value").nth(2)).toHaveText("4,000원");
+    await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(2);
+    expect(refreshes).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("lost-start-inventory-reconciled.png"), fullPage: true });
+  });
+});
+
+test("a lost delete response reconciles server-rendered inventory, totals and branches", async ({ page }, testInfo) => {
+  test.setTimeout(35_000);
+  await withInventory(page, `batch-delete-timeout-${testInfo.project.name}`, async (db, owner) => {
+    const book = (db.prepare("SELECT id FROM books WHERE owner_id=?").get(owner) as { id: number }).id;
+    db.prepare("INSERT INTO branchbook(book,volume,branch,branchname,price) VALUES(?,1,'DELETE','삭제 대상 지점','1200')").run(book);
+    await page.reload();
+    await expect(page.locator(".stock-card")).toHaveCount(1);
+    await expect(page.locator(".branch-card")).toHaveCount(1);
+    let refreshes = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === "/inventory" && request.headers().rsc === "1") refreshes++;
+    });
+    await page.route("**/api/stock-refresh", async route => {
+      if (route.request().method() === "DELETE") { await route.fetch(); return; }
+      return route.continue();
+    });
+    page.once("dialog", dialog => dialog.accept());
+    await page.getByRole("button", { name: "전체 삭제", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible({ timeout: 18_000 });
+    await expect(dialog).toContainText("CLIENT_TIMEOUT");
+    await expect(page.locator(".status-badge")).toHaveText("IDLE");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(page.locator(".stock-card")).toHaveCount(0);
+    await expect(page.locator(".branch-card")).toHaveCount(0);
+    await expect(page.locator(".kpi-value").nth(1)).toHaveText("0");
+    await expect(page.locator(".kpi-value").nth(2)).toHaveText("0원");
+    await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(0);
+    expect(refreshes).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("lost-delete-inventory-reconciled.png"), fullPage: true });
   });
 });

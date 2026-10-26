@@ -24,15 +24,18 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
   const [stalled, setStalled] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const active = progress.status === "QUEUED" || progress.status === "RUNNING";
-  const wasActive = useRef(active);
+  const previousProgress = useRef(progress);
   const initialKey = JSON.stringify(initial);
   const previousInitial = useRef(initialKey);
   const revision = useRef(0);
 
   useEffect(() => {
-    if (wasActive.current && !active) router.refresh();
-    wasActive.current = active;
-  }, [active, router]);
+    const previous = previousProgress.current;
+    const wasActive = previous.status === "QUEUED" || previous.status === "RUNNING";
+    const completionChanged = progress.completionId && progress.completionId !== previous.completionId;
+    if ((wasActive && !active) || completionChanged) router.refresh();
+    previousProgress.current = progress;
+  }, [active, progress, router]);
 
   useEffect(() => {
     setStalled("");

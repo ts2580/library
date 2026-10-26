@@ -197,6 +197,28 @@ describe("owned queries and changes", () => {
 });
 
 describe("stock job lifecycle", () => {
+  it("survives cancellation at claim time and processes the next job", async () => {
+    volume(1); stock(1, 1, 1);
+    jobs.requestStockRefresh(1);
+    // Revoke the claim at the SQL boundary, before a separate SELECT can read it.
+    sqlite.exec(`CREATE TEMP TRIGGER cancel_stock_claim AFTER UPDATE OF status ON stock_refresh_job
+      WHEN OLD.status='QUEUED' AND NEW.status='RUNNING'
+      BEGIN
+        UPDATE stock_refresh_job SET status='CANCELLED',running=0,lock_token=NULL WHERE id=NEW.id;
+      END`);
+    try {
+      await expect(jobs.processNextStockRefreshJob()).resolves.toBe(true);
+      expect(getStockRefreshProgress(1)).toMatchObject({ status: "CANCELLED", running: false });
+      expect(lookupUsedStocks).not.toHaveBeenCalled();
+      expect(sqlite.prepare("SELECT COUNT(*) n FROM branchbook").get()).toEqual({ n: 1 });
+    } finally {
+      sqlite.exec("DROP TRIGGER cancel_stock_claim");
+    }
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [] });
+    expect(jobs.requestStockRefresh(1).started).toBe(true);
+    await expect(jobs.processNextStockRefreshJob()).resolves.toBe(true);
+    expect(getStockRefreshProgress(1).status).toBe("COMPLETED");
+  });
   it("cancels a queued job without clearing inventory and allows another run", async () => {
     volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 2, 2);
     jobs.requestStockRefresh(1);
