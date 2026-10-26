@@ -3,6 +3,7 @@ import {
   index,
   integer,
   real,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex
@@ -172,7 +173,7 @@ export const stockRefreshJobs = sqliteTable("stock_refresh_job", {
   updatedAt: text("updated_at"),
   status: text("status", { enum: ["IDLE", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] }).notNull().default("IDLE"),
   requestedBy: integer("requested_by").references(() => members.id, { onDelete: "set null" }),
-  mode: text("mode", { enum: ["REPLACE_ALL", "APPEND_BOOK"] }).notNull().default("REPLACE_ALL"),
+  mode: text("mode", { enum: ["REPLACE_ALL", "APPEND_BOOK", "REFRESH_SELECTED"] }).notNull().default("REPLACE_ALL"),
   scopeBookId: integer("scope_book_id").references(() => books.id, { onDelete: "set null" }),
   runId: text("run_id"),
   lockToken: text("lock_token"),
@@ -185,6 +186,26 @@ export const stockRefreshCompletions = sqliteTable("stock_refresh_completion", {
   ownerId: integer("owner_id").primaryKey().references(() => members.id, { onDelete: "cascade" }),
   runId: text("run_id").notNull()
 });
+
+export const stockRefreshLogs = sqliteTable("stock_refresh_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ownerId: integer("owner_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  volumeId: integer("volume_id").notNull().references(() => bookVolumes.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull(),
+  isbn13: text("isbn13"),
+  status: text("status", { enum: ["SUCCESS", "EMPTY", "FAILED"] }).notNull(),
+  code: text("code").notNull(),
+  message: text("message").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+}, table => [uniqueIndex("ux_stock_refresh_log_run_volume").on(table.runId, table.volumeId),
+  index("idx_stock_refresh_log_owner_volume").on(table.ownerId, table.volumeId, table.id),
+  index("idx_stock_refresh_log_owner_id").on(table.ownerId, table.id)]);
+
+export const stockRefreshJobTargets = sqliteTable("stock_refresh_job_target", {
+  jobId: integer("job_id").notNull().references(() => stockRefreshJobs.id, { onDelete: "cascade" }),
+  volumeId: integer("volume_id").notNull().references(() => bookVolumes.id, { onDelete: "cascade" })
+}, table => [primaryKey({ columns: [table.jobId, table.volumeId] })]);
 
 export const appSessions = sqliteTable(
   "app_sessions",

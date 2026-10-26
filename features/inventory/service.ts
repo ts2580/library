@@ -5,7 +5,9 @@ import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { AladinRateLimitError, isAladinConfigured } from "@/features/aladin/client";
 import { lookupUsedStocks } from "@/features/aladin/service";
+import { isbn13Schema } from "@/features/aladin/validation";
 import { stockIdentity, uniqueStocks } from "@/features/inventory/stock-identity";
+import { getFailedStockVolumeIds, recordStockRefreshResult } from "@/features/inventory/refresh-log";
 import type { AladinBranchStock } from "@/features/aladin/types";
 
 interface RefreshTarget {
@@ -54,6 +56,10 @@ export function requestStockRefresh(ownerId: number): { started: boolean; messag
   return queueStockJob(ownerId, null);
 }
 
+export function retryStockRefresh(ownerId: number, volumeIds?: number[]): { started: boolean; message: string } {
+  return queueStockJob(ownerId, null, volumeIds ?? "failed");
+}
+
 export function cancelStockRefresh(ownerId: number, runId: string | null): void {
   sqlite.transaction(() => {
     const job = sqlite.prepare("SELECT requested_by AS ownerId, run_id AS runId FROM stock_refresh_job WHERE id=1")
@@ -73,10 +79,19 @@ export function cancelStockRefresh(ownerId: number, runId: string | null): void 
   }).immediate();
 }
 
-function queueStockJob(ownerId: number, bookId: number | null): { started: boolean; message: string } {
+function queueStockJob(ownerId: number, bookId: number | null, selection?: number[] | "failed"): { started: boolean; message: string } {
   return sqlite.transaction(() => {
     if (bookId != null) assertScopedBook(ownerId, bookId);
     if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
+    const selected = selection === "failed" ? getFailedStockVolumeIds(ownerId) : selection ? [...new Set(selection)] : null;
+    if (selected) {
+      if (!selected.length) throw new AppError("갱신할 권이 없습니다.", "NO_RETRY_TARGETS", 400);
+      const eligible = sqlite.prepare(`SELECT bv.id FROM book_volumes bv JOIN books b ON b.id=bv.book
+        WHERE b.owner_id=? AND COALESCE(bv.ispurchased,0)=0 AND COALESCE(bv.noneedtobuy,0)=0`)
+        .all(ownerId) as Array<{ id: number }>;
+      const allowed = new Set(eligible.map(row => row.id));
+      if (selected.some(id => !allowed.has(id))) throw new NotFoundError("선택한 권을 찾을 수 없거나 갱신할 수 없습니다.");
+    }
     const total = (sqlite.prepare(`
       SELECT COUNT(*) AS count
       FROM book_volumes bv JOIN books b ON b.id = bv.book
@@ -91,9 +106,12 @@ function queueStockJob(ownerId: number, bookId: number | null): { started: boole
         status = 'QUEUED', requested_by = ?, run_id = ?, lock_token = NULL,
         started_at = NULL, finished_at = NULL, heartbeat_at = CURRENT_TIMESTAMP
       WHERE id = 1 AND status NOT IN ('QUEUED', 'RUNNING')
-    `).run(total, bookId == null ? "중고 재고 일괄 갱신 대기 중입니다." : "이 책의 재고 검색을 기다리고 있습니다. 기존 재고는 유지합니다.",
-      bookId == null ? "REPLACE_ALL" : "APPEND_BOOK", bookId, ownerId, randomUUID());
+    `).run(selected ? selected.length : total, selected ? "선택한 권의 재고 갱신을 기다리고 있습니다." : bookId == null ? "중고 재고 일괄 갱신 대기 중입니다." : "이 책의 재고 검색을 기다리고 있습니다. 기존 재고는 유지합니다.",
+      selected ? "REFRESH_SELECTED" : bookId == null ? "REPLACE_ALL" : "APPEND_BOOK", bookId, ownerId, randomUUID());
     if (result.changes !== 1) return { started: false, message: "이미 재고 갱신이 진행 중입니다." };
+    sqlite.prepare("DELETE FROM stock_refresh_job_target WHERE job_id=1").run();
+    const insert = sqlite.prepare("INSERT INTO stock_refresh_job_target(job_id,volume_id) VALUES(1,?)");
+    for (const id of selected ?? []) insert.run(id);
     return { started: true, message: "재고 갱신 작업을 등록했습니다." };
   }).immediate();
 }
@@ -139,7 +157,7 @@ function claimStockJob(): { ownerId: number; total: number; lockToken: string; m
   const row = sqlite.prepare(`
     UPDATE stock_refresh_job SET status = 'RUNNING', running = 1, lock_token = ?,
       started_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
-      message = CASE WHEN mode='APPEND_BOOK' THEN '이 책의 재고 검색을 준비 중입니다.' ELSE '재고 초기화를 준비 중입니다.' END
+      message = CASE WHEN mode='APPEND_BOOK' THEN '이 책의 재고 검색을 준비 중입니다.' WHEN mode='REFRESH_SELECTED' THEN '선택한 권의 재고 갱신을 준비 중입니다.' ELSE '재고 초기화를 준비 중입니다.' END
     WHERE id = 1 AND status = 'QUEUED'
     RETURNING requested_by AS ownerId, total, mode, scope_book_id AS bookId
   `).get(lockToken) as { ownerId: number | null; total: number; mode: string; bookId: number | null } | undefined;
@@ -182,7 +200,8 @@ function saveStocks(lockToken: string, ownerId: number, target: RefreshTarget, s
         AND 1=(SELECT COUNT(*) FROM book_volumes WHERE book=? AND volume=?))`)
       .all(target.id, target.bookId, target.seq, target.bookId, target.seq) as Array<Pick<AladinBranchStock, "branch" | "grade" | "bookLink" | "purchaseLink">> : [];
     const existingKeys = new Set(existing.map(stock => stockIdentity(target.id, stock)));
-    if (!append) sqlite.prepare("DELETE FROM branchbook WHERE book_volume_id = ?").run(target.id);
+    if (!append) sqlite.prepare(`DELETE FROM branchbook WHERE book_volume_id=? OR (book_volume_id IS NULL AND book=? AND volume=?
+      AND 1=(SELECT COUNT(*) FROM book_volumes WHERE book=? AND volume=?))`).run(target.id, target.bookId, target.seq, target.bookId, target.seq);
     const insert = sqlite.prepare(`
       INSERT INTO branchbook(booklink, purchaseurl, branch, uuid, volume, name, price, branchname, grade, book, book_volume_id, systemmodstamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -197,9 +216,19 @@ function saveStocks(lockToken: string, ownerId: number, target: RefreshTarget, s
       insert.run(stock.bookLink, stock.purchaseLink, stock.branch, stockIdentity(target.id, stock), target.seq ?? 0,
         target.name ?? stock.title ?? "", stock.price, stock.branchName, stock.grade, target.bookId, target.id);
     }
+    recordStockRefreshResult(lockToken, ownerId, target, stocks.length
+      ? { status: "SUCCESS", code: "STOCK_FOUND", message: `재고 ${uniqueStocks(target.id, stocks).length}건을 확인했습니다.` }
+      : { status: "EMPTY", code: "NO_STOCK", message: "조회에 성공했으며 현재 재고가 없습니다." });
     return true;
   });
   return transaction.immediate();
+}
+
+function recordFailure(lockToken: string, ownerId: number, target: RefreshTarget, code: string, message: string): void {
+  sqlite.transaction(() => {
+    assertRunningJob(lockToken);
+    recordStockRefreshResult(lockToken, ownerId, target, { status: "FAILED", code, message });
+  }).immediate();
 }
 
 function completeJob(lockToken: string, total: number, processed: number, success: number, empty: number, fail: number, append: boolean): void {
@@ -242,7 +271,7 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
   try {
     // A queued job can survive a restart with a different environment.
     if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
-    if (!["REPLACE_ALL", "APPEND_BOOK"].includes(claimed.mode)) throw new AppError("알 수 없는 재고 작업입니다.");
+    if (!["REPLACE_ALL", "APPEND_BOOK", "REFRESH_SELECTED"].includes(claimed.mode)) throw new AppError("알 수 없는 재고 작업입니다.");
     const append = claimed.mode === "APPEND_BOOK";
     if (append) assertScopedBook(claimed.ownerId, claimed.bookId);
     const clear = sqlite.transaction(() => {
@@ -250,15 +279,16 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
       sqlite.prepare("DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id = ?)").run(claimed.ownerId);
       sqlite.prepare("DELETE FROM branch_inventory_summary").run();
     });
-    if (!append) clear.immediate();
+    if (claimed.mode === "REPLACE_ALL") clear.immediate();
 
     const targets = sqlite.prepare(`
       SELECT bv.id, bv.book AS bookId, bv.volume AS seq, bv.isbn13, bv.name
       FROM book_volumes bv JOIN books b ON b.id = bv.book
       WHERE b.owner_id = ? AND COALESCE(bv.ispurchased, 0) = 0 AND COALESCE(bv.noneedtobuy, 0) = 0
         AND (? IS NULL OR b.id = ?)
+        AND (? <> 'REFRESH_SELECTED' OR EXISTS (SELECT 1 FROM stock_refresh_job_target t WHERE t.job_id=1 AND t.volume_id=bv.id))
       ORDER BY bv.id ASC
-    `).all(claimed.ownerId, append ? claimed.bookId : null, append ? claimed.bookId : null) as RefreshTarget[];
+    `).all(claimed.ownerId, append ? claimed.bookId : null, append ? claimed.bookId : null, claimed.mode) as RefreshTarget[];
     total = targets.length;
     sqlite.prepare("UPDATE stock_refresh_job SET total=? WHERE id=1 AND lock_token=? AND status='RUNNING'").run(total, claimed.lockToken);
 
@@ -266,26 +296,39 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
       assertRunningJob(claimed.lockToken);
       try {
         if (!target.isbn13) {
+          recordFailure(claimed.lockToken, claimed.ownerId, target, "ISBN_MISSING", "ISBN이 없어 재고를 조회할 수 없습니다. 권 정보에 ISBN을 입력해 주세요.");
+          fail += 1;
+        } else if (!isbn13Schema.safeParse(target.isbn13).success) {
+          recordFailure(claimed.lockToken, claimed.ownerId, target, "ISBN_INVALID", "ISBN 형식이 올바르지 않습니다. 10자리 또는 13자리 ISBN을 확인해 주세요.");
           fail += 1;
         } else {
           const lookup = await lookupUsedStocks(target.isbn13);
           assertRunningJob(claimed.lockToken);
           if (!lookup.successful) {
             if (/429|호출 제한/.test(lookup.errorMessage)) throw new AladinRateLimitError(lookup.errorMessage);
+            recordFailure(claimed.lockToken, claimed.ownerId, target, lookup.errorCode ?? "ALADIN_LOOKUP_FAILED", lookup.errorMessage);
             fail += 1;
           } else if (lookup.partial || lookup.stocks.some((stock) => stock.verified === false)) {
             // Branch existence is not proof of individual prices or available offers.
             fail += 1;
+            recordFailure(claimed.lockToken, claimed.ownerId, target, "STOCK_INCOMPLETE", "지점 재고의 가격·등급 또는 상세 정보를 확인하지 못했습니다. 잠시 후 다시 갱신해 주세요.");
             logger.warn("Incomplete branch inventory was not saved", { volumeId: target.id });
-          } else if (lookup.stocks.length === 0) {
-            empty += 1;
           } else {
-            if (saveStocks(claimed.lockToken, claimed.ownerId, target, lookup.stocks, append)) success += 1;
-            else fail += 1;
+            if (saveStocks(claimed.lockToken, claimed.ownerId, target, lookup.stocks, append)) {
+              if (lookup.stocks.length) success += 1;
+              else empty += 1;
+            } else {
+              recordFailure(claimed.lockToken, claimed.ownerId, target, "TARGET_CHANGED", "조회 중 권 정보나 구매 상태가 변경되어 결과를 저장하지 않았습니다.");
+              fail += 1;
+            }
           }
         }
       } catch (error) {
         if (error instanceof LostStockJobError) throw error;
+        recordFailure(claimed.lockToken, claimed.ownerId, target,
+          error instanceof AladinRateLimitError ? "ALADIN_RATE_LIMIT" : error instanceof AppError ? error.code : "STOCK_INTERNAL_ERROR",
+          error instanceof AladinRateLimitError ? "알라딘 API 호출 제한(429)으로 조회를 중단했습니다. 잠시 후 재시도해 주세요."
+            : error instanceof AppError ? error.message : "재고 조회 중 내부 오류가 발생했습니다. 잠시 후 재시도해 주세요.");
         fail += 1;
         if (error instanceof AladinRateLimitError) {
           processed += 1;

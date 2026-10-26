@@ -1,0 +1,7 @@
+.entry { display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }
+.entry h3, .entry p { margin: 0; }
+.heading, .footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.select { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.select input { flex: 0 0 auto; width: 18px; height: 18px; }
+.reason { padding: 14px; border-radius: 12px; background: var(--surface-soft); line-height: 1.6; white-space: pre-wrap; }
+.footer code { color: var(--muted); font-size: .78rem; }

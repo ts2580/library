@@ -1,8 +1,10 @@
 # Bookshelf
 
-Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **버전은 3.3.1이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **버전은 3.3.2이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP 처리 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
-[3.3.1 변경 내용과 업데이트 안내](docs/RELEASE_3.3.1.md)를 참고하세요.
+[3.3.2 변경 내용과 업데이트 안내](docs/RELEASE_3.3.2.md)를 참고하세요.
+
+지점 재고의 **갱신 로그**에서 권별 실패 이유와 전체 조회 이력을 확인하고 개별·선택 갱신할 수 있습니다. 미해결 실패가 있으면 재고 페이지의 **전체 삭제**와 **갱신 시작** 사이에 **실패 건 재시도** 버튼이 표시됩니다. 재시도는 해당 권만 처리하며 조회 실패 시 기존 재고를 유지합니다. 상세 로그는 업데이트 후 실행한 작업부터 저장됩니다.
 
 ## 로컬 실행
 
@@ -30,7 +32,7 @@ npm run worker
 
 웹·워커·DB CLI는 루트의 `.env`와 동일한 데이터 경로를 사용합니다. 개발 프록시는 `next.config.ts`의 `allowedDevOrigins`로 허용하며, 운영 HTTPS 프록시는 `X-Forwarded-Proto`를 전달합니다. 필요하면 `BOOKSHELF_COOKIE_SECURE=true` 또는 내부 HTTP의 `false`를 지정합니다.
 
-책별 재고 검색·표지 ZIP을 포함한 업데이트에서는 웹과 워커를 같은 코드로 함께 재시작합니다. DB 버전 2는 작업 범위, 버전 3은 실행 ID 컬럼, 버전 4는 계정별 마지막 재고 완료 ID 테이블을 추가하며 기존 재고·권차·사용자 권한을 변경하지 않습니다. 새로 내보내는 표지 ZIP v3은 이 버전의 복원기가 필요하며, 기존 v2 ZIP도 가져올 수 있습니다.
+책별 재고 검색·표지 ZIP을 포함한 업데이트에서는 웹과 워커를 같은 코드로 함께 재시작합니다. DB 버전 2는 작업 범위, 버전 3은 실행 ID 컬럼, 버전 4는 계정별 마지막 재고 완료 ID, 버전 5는 권별 갱신 로그와 재시도 대상 테이블을 추가하며 기존 재고·권차·사용자 권한을 변경하지 않습니다. 새로 내보내는 표지 ZIP v3은 이 버전의 복원기가 필요하며, 기존 v2 ZIP도 가져올 수 있습니다.
 
 개발 모드는 `experimental.reactDebugChannel=false`로 설정합니다. HMR 웹소켓을 전달하지 못하는 프록시에서도 화면의 버튼과 입력 이벤트가 활성화되도록 하기 위한 설정입니다.
 
@@ -51,7 +53,7 @@ DB·표지·업로드·백업은 한 데이터 루트에 보관합니다. 로컬
 
 `BOOKSHELF_DATA_DIR` 기본값은 `./data`이며 DB는 그 안의 `bookshelf.sqlite`를 사용합니다. 원클릭 이전 기록이 있으면 같은 데이터 루트의 `migrations/handover-*`를 선택합니다. `BOOKSHELF_DB_PATH`는 별도 DB를 명시할 때만 설정합니다. `.env`도 루트에서 읽으며, 이동을 마치면 `next/` 폴더는 필요하지 않습니다. 이전 `next/data`만 남은 상태에서 새 빈 DB를 만드는 대신 이동 안내와 함께 시작을 중단합니다.
 
-3.3.1은 Java 소스·Gradle·이전용 실행기를 포함하지 않습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
+3.3.2는 Java 소스·Gradle·이전용 실행기를 포함하지 않습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
 
 ## Docker
 
@@ -73,7 +75,7 @@ docker compose up -d --build
 
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
-발행용 Compose는 `trstyq/bookshelf:3.3.1`을 사용합니다. 해당 태그의 이미지 발행을 확인한 뒤 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
+발행용 Compose는 `trstyq/bookshelf:3.3.2`를 사용합니다. 해당 태그의 이미지 발행을 확인한 뒤 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
 
 ```bash
 docker compose -f docker-compose.release.yml pull
@@ -125,9 +127,9 @@ npm run db:verify
 `db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-docker build -t bookshelf:3.3.1-local .
-npm run test:docker -- bookshelf:3.3.1-local
-CLEANUP_DOCKER_IMAGE=bookshelf:3.3.1-local npm run test:cleanup:docker
+docker build -t bookshelf:3.3.2-local .
+npm run test:docker -- bookshelf:3.3.2-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.3.2-local npm run test:cleanup:docker
 ```
 
 Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [인증·백업·재고 리뷰 수정](docs/CANARY_REVIEW_20261019.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
