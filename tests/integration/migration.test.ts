@@ -197,6 +197,68 @@ describe("owned queries and changes", () => {
 });
 
 describe("stock job lifecycle", () => {
+  it("survives cancellation at claim time and processes the next job", async () => {
+    volume(1); stock(1, 1, 1);
+    jobs.requestStockRefresh(1);
+    // Revoke the claim at the SQL boundary, before a separate SELECT can read it.
+    sqlite.exec(`CREATE TEMP TRIGGER cancel_stock_claim AFTER UPDATE OF status ON stock_refresh_job
+      WHEN OLD.status='QUEUED' AND NEW.status='RUNNING'
+      BEGIN
+        UPDATE stock_refresh_job SET status='CANCELLED',running=0,lock_token=NULL WHERE id=NEW.id;
+      END`);
+    try {
+      await expect(jobs.processNextStockRefreshJob()).resolves.toBe(true);
+      expect(getStockRefreshProgress(1)).toMatchObject({ status: "CANCELLED", running: false });
+      expect(lookupUsedStocks).not.toHaveBeenCalled();
+      expect(sqlite.prepare("SELECT COUNT(*) n FROM branchbook").get()).toEqual({ n: 1 });
+    } finally {
+      sqlite.exec("DROP TRIGGER cancel_stock_claim");
+    }
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [] });
+    expect(jobs.requestStockRefresh(1).started).toBe(true);
+    await expect(jobs.processNextStockRefreshJob()).resolves.toBe(true);
+    expect(getStockRefreshProgress(1).status).toBe("COMPLETED");
+  });
+  it("cancels a queued job without clearing inventory and allows another run", async () => {
+    volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 2, 2);
+    jobs.requestStockRefresh(1);
+    const runId = getStockRefreshProgress(1).runId!;
+    jobs.cancelStockRefresh(1, runId);
+    expect(getStockRefreshProgress(1)).toMatchObject({ status: "CANCELLED", running: false, failed: false, completionId: runId });
+    expect(sqlite.prepare("SELECT id FROM branchbook ORDER BY id").all()).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(await jobs.processNextStockRefreshJob()).toBe(false);
+    jobs.cancelStockRefresh(1, runId);
+    expect(jobs.requestStockRefresh(1).started).toBe(true);
+    expect(() => jobs.cancelStockRefresh(1, runId)).toThrow("작업이 변경");
+    expect(getStockRefreshProgress(1).status).toBe("QUEUED");
+  });
+  it("rejects cancellation by another owner and supports legacy jobs without a run ID", () => {
+    jobs.requestStockRefresh(1);
+    expect(() => jobs.cancelStockRefresh(2, getStockRefreshProgress(1).runId!)).toThrow("다른 계정");
+    expect(getStockRefreshProgress(1).status).toBe("QUEUED");
+    sqlite.exec("UPDATE stock_refresh_job SET run_id=NULL");
+    jobs.cancelStockRefresh(1, null);
+    expect(getStockRefreshProgress(1)).toMatchObject({ status: "CANCELLED", runId: null });
+    expect(getStockRefreshProgress(1).completionId).toBeTruthy();
+  });
+  it.each([false, true])("fences an in-flight lookup after cancellation, including a replacement run: %s", async replacement => {
+    volume(1); volume(2); volume(3); volume(4, 2); stock(4, 2, 4);
+    const offer = { branch: "SEOUL", branchName: "서울", grade: "상", title: "test", price: "2,000", bookLink: null, purchaseLink: null };
+    jobs.requestStockRefresh(1);
+    const runId = getStockRefreshProgress(1).runId!;
+    vi.mocked(lookupUsedStocks).mockResolvedValueOnce({ successful: true, raw: {}, stocks: [offer] })
+      .mockImplementationOnce(async () => {
+        jobs.cancelStockRefresh(1, runId);
+        if (replacement) jobs.requestStockRefresh(1);
+        return { successful: true, raw: {}, stocks: [offer] };
+      });
+    await jobs.processNextStockRefreshJob();
+    expect(lookupUsedStocks).toHaveBeenCalledTimes(2);
+    expect(getStockRefreshProgress(1)).toMatchObject({ status: replacement ? "QUEUED" : "CANCELLED", completionId: runId });
+    expect(sqlite.prepare("SELECT book_volume_id FROM branchbook ORDER BY book_volume_id").all()).toEqual([{ book_volume_id: 1 }, { book_volume_id: 4 }]);
+    expect(sqlite.prepare("SELECT stock_count,total_amount FROM branch_inventory_summary").get()).toEqual({ stock_count: 2, total_amount: 3000 });
+    expect(sqlite.prepare("SELECT lock_token FROM stock_refresh_job").get()).toEqual({ lock_token: null });
+  });
   it("retains each owner's completed run after another owner reuses the singleton", async () => {
     volume(1); volume(2, 2);
     vi.mocked(lookupUsedStocks).mockResolvedValue({ successful:true,raw:{},stocks:[] });

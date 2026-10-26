@@ -39,7 +39,12 @@ worker
   -> rebuild summary and mark COMPLETED/FAILED
 GET /api/stock-refresh
   -> poll persisted progress
+PATCH /api/stock-refresh { runId }
+  -> cancel only the requesting owner's matching QUEUED/RUNNING job
+  -> mark CANCELLED, revoke worker lock, rebuild summary and retain saved stock
 ```
+
+Cancellation fences in-flight lookup results before persistence; the current external request may still finish. A late cancellation cannot cancel a newer run. The inventory panel reports request timeouts, worker failures, partial failures, and progress unchanged for 60 seconds while queued or 120 seconds while running through the error dialog. Delay warnings keep polling and leave cancellation available.
 
 ### Cover archive restore
 

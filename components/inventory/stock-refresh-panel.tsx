@@ -2,7 +2,7 @@
 
 import { apiFetch } from "@/lib/api-fetch";
 import { ErrorReporter } from "@/components/ui/error-dialog";
-import { reportClientError } from "@/lib/client-errors";
+import { clearReportedError, reportClientError } from "@/lib/client-errors";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -18,24 +18,45 @@ async function responseBody<T>(response: Response): Promise<T> {
 export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }) {
   const router = useRouter();
   const [progress, setProgress] = useState(initial);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"POST" | "PATCH" | "DELETE" | null>(null);
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [stalled, setStalled] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const active = progress.status === "QUEUED" || progress.status === "RUNNING";
-  const wasActive = useRef(active);
+  const previousProgress = useRef(progress);
   const initialKey = JSON.stringify(initial);
   const previousInitial = useRef(initialKey);
   const revision = useRef(0);
 
   useEffect(() => {
-    if (wasActive.current && !active) router.refresh();
-    wasActive.current = active;
-  }, [active, router]);
+    const previous = previousProgress.current;
+    const wasActive = previous.status === "QUEUED" || previous.status === "RUNNING";
+    const completionChanged = progress.completionId && progress.completionId !== previous.completionId;
+    if ((wasActive && !active) || completionChanged) router.refresh();
+    previousProgress.current = progress;
+  }, [active, progress, router]);
+
+  useEffect(() => {
+    setStalled("");
+    if (!active || unavailable) return;
+    const delay = progress.status === "QUEUED" ? 60_000 : 120_000;
+    const updatedAt = progress.updatedAt ? Date.parse(progress.updatedAt.replace(" ", "T") + "Z") : NaN;
+    const remaining = Number.isFinite(updatedAt) ? Math.max(0, delay - (Date.now() - updatedAt)) : delay;
+    const timer = setTimeout(() => {
+      const message = progress.status === "QUEUED"
+        ? "재고 갱신이 1분 이상 대기 중입니다. 워커가 동작하는지 확인하거나 갱신을 취소해 주세요."
+        : "재고 갱신 진행 상태가 2분 이상 바뀌지 않았습니다. 잠시 더 기다리거나 갱신을 취소해 주세요.";
+      setStalled(message);
+      reportClientError({ code: "STOCK_REFRESH_STALLED", message, source: "stock-worker-stalled" });
+    }, remaining);
+    return () => { clearTimeout(timer); clearReportedError("stock-worker-stalled"); };
+  }, [active, progress.status, progress.runId, progress.updatedAt, unavailable]);
 
   useEffect(() => {
     const changed = previousInitial.current !== initialKey;
     previousInitial.current = initialKey;
-    if ((!active && (!changed || initialKey === JSON.stringify(progress))) || unavailable) return;
+    if ((!active && !checking && (!changed || initialKey === JSON.stringify(progress))) || unavailable) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     let request: AbortController | undefined;
@@ -62,10 +83,12 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
         if (controller.signal.aborted || currentRequest.signal.aborted || requestRevision !== revision.current) return;
         stopped = body.status !== "QUEUED" && body.status !== "RUNNING";
         setProgress(body);
+        setChecking(false);
         setError("");
       } catch (cause) {
         if (controller.signal.aborted || requestRevision !== revision.current) return;
         if (currentRequest.signal.aborted) reportClientError({ code: "CLIENT_TIMEOUT", message: "재고 상태 조회 시간이 초과되었습니다. 다시 시도합니다.", source: "GET /api/stock-refresh" });
+        else if (cause instanceof SyntaxError) reportClientError({ code: "INVALID_RESPONSE", message: "재고 상태 응답을 읽지 못했습니다. 다시 시도합니다.", source: "GET /api/stock-refresh" });
         setError(currentRequest.signal.aborted ? "재고 상태 조회 시간이 초과되었습니다. 다시 시도합니다."
           : cause instanceof Error ? cause.message : "진행 상태를 확인하지 못했습니다.");
       } finally {
@@ -86,40 +109,50 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       window.removeEventListener("focus", wake);
       document.removeEventListener("visibilitychange", wake);
     };
-  }, [active, initialKey, unavailable]);
+  }, [active, checking, initialKey, unavailable]);
 
-  async function start(): Promise<void> {
+  async function mutate(method: "POST" | "PATCH" | "DELETE"): Promise<void> {
+    if (busy) return;
     revision.current++;
-    setBusy(true);
+    setBusy(method);
     setError("");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const source = `${method} /api/stock-refresh`;
+    clearReportedError(source);
+    let code = "STOCK_REFRESH_REQUEST_FAILED";
+    let status: number | undefined;
     try {
-      const response = await apiFetch("/api/stock-refresh", { method: "POST" });
-      const body = await responseBody<{ progress: StockRefreshProgress }>(response);
-      setProgress(body.progress);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "작업을 등록하지 못했습니다.");
+      const response = await apiFetch("/api/stock-refresh", {
+        method, signal: controller.signal,
+        ...(method === "PATCH" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: progress.runId }) } : {})
+      }, { reportError: false });
+      status = response.status;
+      const body = await response.json() as { progress?: StockRefreshProgress; code?: string; message?: string };
+      if (body.progress) setProgress(body.progress);
+      if (!response.ok) {
+        code = body.code ?? `HTTP_${response.status}`;
+        throw new Error(body.message ?? "재고 갱신 요청을 처리하지 못했습니다.");
+      }
+      if (!body.progress) throw new Error("재고 갱신 상태가 응답에 없습니다.");
+      setChecking(false);
+      if (method === "DELETE") window.location.reload();
+    } catch (cause) {
+      const message = controller.signal.aborted
+        ? "재고 갱신 요청 시간이 초과되었습니다. 서버의 처리 여부를 다시 확인합니다."
+        : cause instanceof Error ? cause.message : "재고 갱신 요청을 처리하지 못했습니다.";
+      setError(message);
+      reportClientError({ code: controller.signal.aborted ? "CLIENT_TIMEOUT" : code, message, status, source });
+      setChecking(true);
     } finally {
-      setBusy(false);
+      clearTimeout(timeout);
+      setBusy(null);
     }
   }
 
-  async function clearInventory(): Promise<void> {
+  function clearInventory(): void {
     if (!window.confirm("현재 계정의 지점 재고를 모두 삭제합니까?")) return;
-    revision.current++;
-    setBusy(true);
-    try {
-      const response = await apiFetch("/api/stock-refresh", { method: "DELETE" });
-      const body = await responseBody<{ progress: StockRefreshProgress }>(response);
-      setProgress(body.progress);
-      window.location.reload();
-    } catch (error) {
-      setProgress((current) => ({
-        ...current,
-        message: error instanceof Error ? error.message : "재고를 삭제하지 못했습니다."
-      }));
-    } finally {
-      setBusy(false);
-    }
+    void mutate("DELETE");
   }
 
   return (
@@ -127,11 +160,16 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       <div className="section-heading"><div><p className="eyebrow">Background worker</p><h2 id="stock-refresh-title">중고 재고 일괄 갱신</h2></div><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
       <p className="muted" aria-live="polite">{progress.message}</p>
       {error && <p className="flash flash-error" role="alert">{error}</p>}
-      <ErrorReporter message={progress.status === "FAILED" ? progress.message : null} code="STOCK_REFRESH_FAILED" source="stock-worker"/>
-      {(busy || active) && !unavailable && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
+      {stalled && <p className="flash flash-error" role="alert">{stalled}</p>}
+      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker"/>
+      {(busy || active || checking) && !unavailable && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
       <div className="progress-track" aria-label={`진행률 ${progress.percent}%`}><div style={{ width: `${progress.percent}%` }}/></div>
       <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>
-      <div className="button-row stock-refresh-actions"><button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={busy || active || unavailable}>전체 삭제</button><button className="button" type="button" onClick={start} disabled={busy || active || unavailable}>{unavailable ? "상태 확인 불가" : active ? "진행 중" : "갱신 시작"}</button></div>
+      <div className="button-row stock-refresh-actions">
+        <button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={Boolean(busy) || active || checking || unavailable}>전체 삭제</button>
+        {active && progress.runId !== undefined && <button className="button button-danger-outline" type="button" onClick={() => void mutate("PATCH")} disabled={Boolean(busy) || unavailable}>{busy === "PATCH" ? "취소 중…" : "갱신 취소"}</button>}
+        <button className="button" type="button" onClick={() => void mutate("POST")} disabled={Boolean(busy) || active || checking || unavailable}>{unavailable ? "상태 확인 불가" : active ? "진행 중" : "갱신 시작"}</button>
+      </div>
     </section>
   );
 }
