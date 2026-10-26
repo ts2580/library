@@ -31,6 +31,22 @@ async function withInventory(page: Page, name: string, run: (db: Database.Databa
   }
 }
 
+test("batch refresh saves offline stock when the item summary reports zero store stock", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-offstore-zero-${testInfo.project.name}`, async (db, owner) => {
+    db.prepare("UPDATE book_volumes SET isbn13='9780000000194' WHERE book IN (SELECT id FROM books WHERE owner_id=?)").run(owner);
+    await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+    await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await expect(page.locator(".stock-card")).toHaveCount(2);
+    await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(2);
+    expect(db.prepare("SELECT branch FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id=?) ORDER BY branch").all(owner))
+      .toEqual([{ branch: "ALADIN_DROPSHIPPING" }, { branch: "SEOUL" }]);
+    expect(db.prepare("SELECT success,fail FROM stock_refresh_job WHERE requested_by=?").get(owner))
+      .toEqual({ success: 1, fail: 0 });
+    await page.screenshot({ path: testInfo.outputPath("zero-summary-offstore-saved.png"), fullPage: true });
+  });
+});
+
 test("a stalled batch status request retries and clears QUEUED after the real worker completes", async ({ page }, testInfo) => {
   await withInventory(page, `batch-timeout-${testInfo.project.name}`, async (db, owner) => {
     let polls = 0;
