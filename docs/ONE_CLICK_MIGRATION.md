@@ -1,12 +1,12 @@
-# Java 이전과 3.2.1 전환
+# Java 이전과 3.3.0 전환
 
-3.2.1은 Next.js만 포함합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
+3.3.0은 Next.js만 포함합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
 
 ## 아직 Java에서 이전하지 않은 경우
 
 먼저 `trstyq/bookshelf:3.0.0-ca2-migration`으로 기존 Java 데이터를 실행합니다. [ca2 Docker 이전 안내](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/DOCKER_MIGRATION_CA2.md)와 [이전용 Compose](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/docker-compose.migration.3.0.0-ca2.yml)를 사용합니다. 이 버전의 자동 이전은 관리자 한 명만 있는 DB를 지원합니다.
 
-Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. 3.2.1 루트에서는 Java를 빌드하거나 시작하지 않습니다.
+Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. 3.3.0 루트에서는 Java를 빌드하거나 시작하지 않습니다.
 
 ## 이전 완료한 Docker
 
@@ -16,7 +16,7 @@ Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next
 |---|---|---|---|
 | 이전 중 | `3.0.0-ca2-migration` | `Bookshelf-next:/app/next/data` | `Bookshelf:/data` |
 | ca2 Next 단독 | `3.0.0-ca2` | 웹·워커 모두 `Bookshelf-next:/app/data` | 웹에 `Bookshelf:/data` |
-| 3.2.1 정식 버전 | `trstyq/bookshelf:3.2.1` | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
+| 3.3.0 정식 버전 | `trstyq/bookshelf:3.3.0` | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
 
 루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. 정식 이미지로 교체하는 명령과 로컬 빌드 검증은 [README](../README.md)에 있습니다.
 
