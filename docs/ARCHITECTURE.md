@@ -46,6 +46,10 @@ PATCH /api/stock-refresh { runId }
 
 Cancellation fences in-flight lookup results before persistence; the current external request may still finish. A late cancellation cannot cancel a newer run. The inventory panel reports request timeouts, worker failures, partial failures, and progress unchanged for 60 seconds while queued or 120 seconds while running through the error dialog. Delay warnings keep polling and leave cancellation available.
 
+`POST /api/stock-refresh/retry` accepts `volumeIds` for individual/selected refreshes or `{}` for all unresolved failures. The queue transaction validates the owner's eligible volumes and snapshots them in `stock_refresh_job_target` before the worker claims `REFRESH_SELECTED`. It retains unrelated inventory and failed targets' existing stock; successful results replace only that volume, including clearing it when the lookup confirms no stock. `APPEND_BOOK` keeps its additive behavior, including on empty lookups.
+
+Each attempted volume records a `SUCCESS`, `EMPTY`, or `FAILED` result in `stock_refresh_log`, with an ISBN snapshot, time, error code, and readable reason. Result and stock writes share the worker claim fence. The latest eligible result determines the unresolved failure count, while older failures remain visible in history. `GET /api/stock-refresh/logs` and `/inventory/logs` expose only the requesting administrator's records. Schema version 5 adds the two tables; earlier aggregate failure counts cannot supply historical per-volume reasons.
+
 ### Cover archive restore
 
 ```text

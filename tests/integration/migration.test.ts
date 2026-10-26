@@ -27,6 +27,7 @@ const { getBookList, getBookDetail, getOwnedBookOptions, searchOwnedVolumes, get
 const { addVolume, updateVolume } = await import("@/features/books/service");
 const { searchInventory, getStockRefreshProgress } = await import("@/features/inventory/queries");
 const jobs = await import("@/features/inventory/service");
+const refreshLogs = await import("@/features/inventory/refresh-log");
 const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/service");
 const { AladinRateLimitError } = await import("@/features/aladin/client");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
@@ -114,7 +115,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 4 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 5 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -127,13 +128,14 @@ describe("legacy SQLite adoption", () => {
       expect(legacy.pragma("table_info(member)")).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "role" })]));
     } finally { legacy.close(); }
   });
-  it.each([1, 2, 3])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
+  it.each([1, 2, 3, 4])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
       if (version === 1) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode;");
       if (version < 3) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN run_id;");
-      prior.exec("DROP TABLE stock_refresh_completion;");
+      if (version < 4) prior.exec("DROP TABLE stock_refresh_completion;");
+      prior.exec("DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target;");
       prior.prepare("DELETE FROM bookshelf_migrations WHERE version>?").run(version);
       prior.exec("INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
       const before = prior.prepare("SELECT * FROM branchbook").all();
@@ -142,7 +144,7 @@ describe("legacy SQLite adoption", () => {
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
       expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
       expect(prior.prepare("SELECT run_id FROM stock_refresh_job").get()).toEqual({ run_id: null });
-      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
       expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([]);
     } finally { prior.close(); }
   });
@@ -150,7 +152,7 @@ describe("legacy SQLite adoption", () => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
-      prior.exec("DROP TABLE stock_refresh_completion; DELETE FROM bookshelf_migrations WHERE version=4; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); UPDATE stock_refresh_job SET requested_by=1,status='COMPLETED',run_id='before-upgrade'");
+      prior.exec("DROP TABLE stock_refresh_completion; DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target; DELETE FROM bookshelf_migrations WHERE version>=4; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); UPDATE stock_refresh_job SET requested_by=1,status='COMPLETED',run_id='before-upgrade'");
       bootstrapDatabase(prior); bootstrapDatabase(prior);
       expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([{owner_id:1,run_id:"before-upgrade"}]);
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({role:"USER"});
@@ -193,6 +195,92 @@ describe("owned queries and changes", () => {
       expect.objectContaining({ bookId: 1, seq: 1, isbn13: "9780000000001" })
     ]);
     expect(searchOwnedVolumes(1, { query: "9780000000002" }).items).toEqual([]);
+  });
+});
+
+describe("stock refresh logs and selected retries", () => {
+  const offer = { branch: "SEOUL", branchName: "서울", grade: "상", title: "test", price: "2,000", bookLink: null, purchaseLink: null };
+  function failure(id: number, owner = 1, book = 1) {
+    sqlite.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,status,code,message) VALUES(?,?,?,?,'FAILED','FIXTURE','이전 실패')")
+      .run(owner, book, id, `failed-${id}`);
+  }
+  it("records readable per-volume failures, empty results and successful results without exposing external credentials", async () => {
+    for (let id = 1; id <= 6; id++) volume(id);
+    volume(7, 2);
+    sqlite.exec("UPDATE book_volumes SET isbn13=NULL WHERE id=1; UPDATE book_volumes SET isbn13='invalid' WHERE id=2");
+    vi.mocked(lookupUsedStocks)
+      .mockResolvedValueOnce({ successful: false, stocks: [], errorCode: "ALADIN_API_ERROR", errorMessage: "조회 거절 https://example.com/?ttbkey=private token=private" })
+      .mockResolvedValueOnce({ successful: true, raw: {}, stocks: [offer], partial: true })
+      .mockResolvedValueOnce({ successful: true, raw: {}, stocks: [] })
+      .mockResolvedValueOnce({ successful: true, raw: {}, stocks: [offer] });
+    jobs.requestStockRefresh(1); await jobs.processNextStockRefreshJob();
+    const all = refreshLogs.getStockRefreshLogs(1, { status: "all" });
+    expect(all.items.map(item => [item.volumeId, item.status, item.code])).toEqual([
+      [6, "SUCCESS", "STOCK_FOUND"], [5, "EMPTY", "NO_STOCK"], [4, "FAILED", "STOCK_INCOMPLETE"],
+      [3, "FAILED", "ALADIN_API_ERROR"], [2, "FAILED", "ISBN_INVALID"], [1, "FAILED", "ISBN_MISSING"]
+    ]);
+    expect(all.items[3]?.message).toBe("조회 거절 [외부 주소] token=[비밀값 제거]");
+    expect(refreshLogs.getStockRefreshLogs(1).total).toBe(4);
+    expect(getStockRefreshProgress(1).pendingFailures).toBe(4);
+    expect(refreshLogs.getStockRefreshLogs(2).items).toEqual([]);
+  });
+  it.each(["success", "empty", "failed", "partial"])("retries only selected volumes and preserves unrelated inventory after %s", async outcome => {
+    volume(1); volume(2); volume(3, 2); stock(1, 1, 1); stock(2, 1, 2); stock(3, 2, 3);
+    failure(1); failure(2); failure(3, 2, 2);
+    const otherStocks = sqlite.prepare("SELECT * FROM branchbook WHERE id IN (2,3)").all();
+    vi.mocked(lookupUsedStocks).mockResolvedValue(outcome === "failed"
+      ? { successful: false, stocks: [], errorCode: "ALADIN_TIMEOUT", errorMessage: "응답 시간 초과" }
+      : { successful: true, raw: {}, stocks: outcome === "empty" ? [] : [offer], partial: outcome === "partial" });
+    expect(jobs.retryStockRefresh(1, [1, 1]).started).toBe(true);
+    expect(getStockRefreshProgress(1)).toMatchObject({ mode: "REFRESH_SELECTED", total: 1 });
+    await jobs.processNextStockRefreshJob();
+    expect(lookupUsedStocks).toHaveBeenCalledTimes(1);
+    expect(sqlite.prepare("SELECT * FROM branchbook WHERE id IN (2,3)").all()).toEqual(otherStocks);
+    const result = sqlite.prepare("SELECT price FROM branchbook WHERE book_volume_id=1").all();
+    expect(result).toEqual(outcome === "empty" ? [] : [{ price: outcome === "success" ? "2,000" : "1,000" }]);
+    expect(refreshLogs.getStockRefreshFailureCount(1)).toBe(["success", "empty"].includes(outcome) ? 1 : 2);
+    expect(refreshLogs.getStockRefreshFailureCount(2)).toBe(1);
+    expect(refreshLogs.getStockRefreshLogs(1, { status: "all" }).total).toBe(3);
+  });
+  it("snapshots all unresolved eligible failures, rejects foreign selections, and keeps targets on a conflicting request", async () => {
+    volume(1); volume(2); volume(3, 2); volume(4); failure(1); failure(2); failure(3, 2, 2); failure(4);
+    sqlite.exec("UPDATE book_volumes SET ispurchased=1 WHERE id=2; UPDATE book_volumes SET noneedtobuy=1 WHERE id=4");
+    expect(() => jobs.retryStockRefresh(1, [1, 3])).toThrow("선택한 권");
+    expect(getStockRefreshProgress(1).status).toBe("IDLE");
+    expect(jobs.retryStockRefresh(1).started).toBe(true);
+    const before = sqlite.prepare("SELECT * FROM stock_refresh_job_target").all();
+    expect(before).toEqual([{ job_id: 1, volume_id: 1 }]);
+    expect(jobs.retryStockRefresh(2, [3]).started).toBe(false);
+    expect(sqlite.prepare("SELECT * FROM stock_refresh_job_target").all()).toEqual(before);
+    vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [] });
+    await jobs.processNextStockRefreshJob();
+    expect(refreshLogs.getFailedStockVolumeIds(1)).toEqual([]);
+    expect(() => jobs.retryStockRefresh(1)).toThrow("갱신할 권이 없습니다");
+  });
+  it.each([false, true])("fences selected stock and log writes after cancellation, including a newer run: %s", async replacement => {
+    volume(1); volume(2); stock(1, 1, 1); stock(2, 1, 2); failure(1);
+    jobs.retryStockRefresh(1, [1]);
+    vi.mocked(lookupUsedStocks).mockImplementationOnce(async () => {
+      jobs.cancelStockRefresh(1, getStockRefreshProgress(1).runId!);
+      if (replacement) jobs.retryStockRefresh(1, [2]);
+      return { successful: true, raw: {}, stocks: [offer] };
+    });
+    await jobs.processNextStockRefreshJob();
+    expect(refreshLogs.getStockRefreshLogs(1, { status: "all" }).total).toBe(1);
+    expect(sqlite.prepare("SELECT id FROM branchbook ORDER BY id").all()).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(getStockRefreshProgress(1).status).toBe(replacement ? "QUEUED" : "CANCELLED");
+  });
+  it("logs a rate limited attempt and leaves unattempted failures eligible for the next retry", async () => {
+    volume(1); volume(2); stock(1, 1, 1); failure(1); failure(2);
+    jobs.retryStockRefresh(1);
+    vi.mocked(lookupUsedStocks).mockRejectedValue(new AladinRateLimitError());
+    await jobs.processNextStockRefreshJob();
+    expect(getStockRefreshProgress(1)).toMatchObject({ status: "FAILED", processed: 1, fail: 1, pendingFailures: 2 });
+    expect(refreshLogs.getStockRefreshLogs(1).items[0]).toMatchObject({ volumeId: 1, code: "ALADIN_RATE_LIMIT" });
+    expect(sqlite.prepare("SELECT id FROM branchbook").all()).toEqual([{ id: 1 }]);
+    sqlite.exec("DELETE FROM book_volumes WHERE id=1");
+    expect(refreshLogs.getStockRefreshLogs(1, { status: "all" }).total).toBe(1);
+    expect(sqlite.pragma("foreign_key_check")).toEqual([]);
   });
 });
 

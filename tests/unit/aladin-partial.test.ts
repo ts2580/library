@@ -7,6 +7,7 @@ vi.mock("@/features/aladin/client", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn() } }));
 const { lookupUsedStocks } = await import("@/features/aladin/service");
+const { AppError } = await import("@/lib/errors");
 const { AladinRateLimitError } = await import("@/features/aladin/client");
 
 beforeEach(() => {
@@ -42,6 +43,15 @@ describe("branch lookup quality", () => {
     else mocks.html.mockResolvedValue("<html><p>changed markup</p></html>");
     expect(await lookupUsedStocks("9780000000001")).toMatchObject({ successful: true, partial: true,
       stocks: [{ branch: "SEOUL", price: null, verified: false }] });
+  });
+  it.each([
+    [new AppError("알라딘 요청이 거절되었습니다.", "ALADIN_API_ERROR"), "ALADIN_API_ERROR", "거절"],
+    [new DOMException("timeout", "TimeoutError"), "ALADIN_TIMEOUT", "시간이 초과"],
+    [new TypeError("fetch failed"), "ALADIN_NETWORK_ERROR", "연결하지 못했습니다"],
+    [new Error("Aladin HTTP 503"), "ALADIN_HTTP_ERROR", "HTTP 503"]
+  ])("returns an actionable stock failure for %s", async (error, code, message) => {
+    mocks.json.mockRejectedValue(error);
+    expect(await lookupUsedStocks("9780000000001")).toMatchObject({ successful: false, errorCode: code, errorMessage: expect.stringContaining(message as string) });
   });
   it("retains independently parsed same-grade products", async () => {
     mocks.html.mockResolvedValue([1, 2].map((id) => `<div class="ss_book_box"><span class="ss_p2"><b>${id * 4000}</b></span><span class="us_f_bob">상</span><a href="/shop/UsedShop/wuseditemall.aspx?ItemId=${id}">상품</a></div>`).join(""));

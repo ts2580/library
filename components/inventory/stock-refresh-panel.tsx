@@ -6,6 +6,7 @@ import { clearReportedError, reportClientError } from "@/lib/client-errors";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ProgressIndicator } from "@/components/ui/top-progress";
 import type { StockRefreshProgress } from "@/features/inventory/types";
 
@@ -18,7 +19,7 @@ async function responseBody<T>(response: Response): Promise<T> {
 export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }) {
   const router = useRouter();
   const [progress, setProgress] = useState(initial);
-  const [busy, setBusy] = useState<"POST" | "PATCH" | "DELETE" | null>(null);
+  const [busy, setBusy] = useState<"POST" | "PATCH" | "DELETE" | "RETRY" | null>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
   const [stalled, setStalled] = useState("");
@@ -111,20 +112,23 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
     };
   }, [active, checking, initialKey, unavailable]);
 
-  async function mutate(method: "POST" | "PATCH" | "DELETE"): Promise<void> {
+  async function mutate(action: "POST" | "PATCH" | "DELETE" | "RETRY"): Promise<void> {
     if (busy) return;
+    const method = action === "RETRY" ? "POST" : action;
+    const url = action === "RETRY" ? "/api/stock-refresh/retry" : "/api/stock-refresh";
     revision.current++;
-    setBusy(method);
+    setBusy(action);
     setError("");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
-    const source = `${method} /api/stock-refresh`;
+    const source = `${method} ${url}`;
     clearReportedError(source);
     let code = "STOCK_REFRESH_REQUEST_FAILED";
     let status: number | undefined;
     try {
-      const response = await apiFetch("/api/stock-refresh", {
+      const response = await apiFetch(url, {
         method, signal: controller.signal,
+        ...(action === "RETRY" ? { headers: { "content-type": "application/json" }, body: "{}" } : {}),
         ...(method === "PATCH" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: progress.runId }) } : {})
       }, { reportError: false });
       status = response.status;
@@ -168,7 +172,9 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       <div className="button-row stock-refresh-actions">
         <button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={Boolean(busy) || active || checking || unavailable}>전체 삭제</button>
         {active && progress.runId !== undefined && <button className="button button-danger-outline" type="button" onClick={() => void mutate("PATCH")} disabled={Boolean(busy) || unavailable}>{busy === "PATCH" ? "취소 중…" : "갱신 취소"}</button>}
+        {(progress.pendingFailures ?? 0) > 0 && <button className="button button-secondary" type="button" onClick={() => void mutate("RETRY")} disabled={Boolean(busy) || active || checking || unavailable}>실패 건 재시도 ({progress.pendingFailures})</button>}
         <button className="button" type="button" onClick={() => void mutate("POST")} disabled={Boolean(busy) || active || checking || unavailable}>{unavailable ? "상태 확인 불가" : active ? "진행 중" : "갱신 시작"}</button>
+        <Link className="button button-secondary" href="/inventory/logs">갱신 로그</Link>
       </div>
     </section>
   );

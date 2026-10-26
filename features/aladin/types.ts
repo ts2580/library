@@ -34,4 +34,4 @@ export interface AladinBranchStock {
 
 export type StockLookupResult =
   | { successful: true; stocks: AladinBranchStock[]; raw: unknown; partial?: boolean; warning?: string }
-  | { successful: false; stocks: []; errorMessage: string; raw?: unknown };
+  | { successful: false; stocks: []; errorMessage: string; errorCode?: string; raw?: unknown };
