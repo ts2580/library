@@ -190,7 +190,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .entity-edit-layout-book :is(.book-form-actions, .entity-delete-form, .book-enrichment-form) > .button { padding-inline: 8px; font-size: .82rem; word-break: keep-all; }
 .book-form-actions, .entity-edit-layout-volume .volume-form-actions { order: 2; }
 .entity-edit-layout-volume .entity-delete-form { order: 1; }
-.stock-refresh-actions { justify-content: flex-end; flex-wrap: nowrap; }
+.stock-refresh-actions { justify-content: flex-end; flex-wrap: wrap; }
 .profile-category-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
 .profile-category-list { list-style: none; padding: 0; padding-inline-end: 12px; margin: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; scrollbar-gutter: stable; }
 .profile-category-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }

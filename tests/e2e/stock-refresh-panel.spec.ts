@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 
 async function withInventory(page: Page, name: string, run: (db: Database.Database, owner: number) => Promise<void>) {
   const directory = process.env.BOOKSHELF_E2E_DATA;
@@ -131,5 +132,184 @@ test("fresh server props restart a stalled batch poll after inventory search nav
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
     await expect(page.locator("#top-progress-bar")).toBeHidden();
     expect(polls).toBe(2);
+  });
+});
+
+test("cancelling a running batch persists cancellation and releases a stalled status request", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-cancel-${testInfo.project.name}`, async (db, owner) => {
+    const runId = randomUUID();
+    db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,completed=0,failed=0,
+      requested_by=?,run_id=?,lock_token='fixture-running',updated_at=CURRENT_TIMESTAMP,message='취소 검증 중'
+      WHERE id=1`).run(owner, runId);
+    const book = (db.prepare("SELECT id FROM books WHERE owner_id=?").get(owner) as { id: number }).id;
+    db.prepare("INSERT INTO branchbook(book,volume,branch,branchname,price) VALUES(?,1,'CANCEL','취소 전 저장 재고','1200')").run(book);
+    await page.reload();
+    let polls = 0;
+    await page.route("**/api/stock-refresh", route => {
+      if (route.request().method() === "GET") { polls++; return; }
+      return route.continue();
+    });
+    await expect.poll(() => polls).toBe(1);
+    await expect(page.getByRole("button", { name: "갱신 취소", exact: true })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("batch-cancel-button.png"), fullPage: true });
+    await page.getByRole("button", { name: "갱신 취소", exact: true }).click();
+    await expect(page.locator(".status-badge")).toHaveText("CANCELLED");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await expect(page.getByRole("button", { name: "갱신 시작", exact: true })).toBeEnabled();
+    expect(db.prepare("SELECT status,lock_token FROM stock_refresh_job WHERE id=1").get()).toEqual({ status: "CANCELLED", lock_token: null });
+    expect(db.prepare("SELECT COUNT(*) n FROM branchbook WHERE book=?").get(book)).toEqual({ n: 1 });
+    await page.unroute("**/api/stock-refresh");
+    await page.reload();
+    await expect(page.locator(".status-badge")).toHaveText("CANCELLED");
+    await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+    await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
+  });
+});
+
+test("the cancel API rejects another owner, a stale run, malformed input and a foreign origin", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-cancel-access-${testInfo.project.name}`, async (db, owner) => {
+    const runId = randomUUID();
+    db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,completed=0,failed=0,
+      requested_by=?,run_id=?,lock_token='fixture-running',updated_at=CURRENT_TIMESTAMP WHERE id=1`).run(owner, runId);
+    const stale = await page.request.patch("/api/stock-refresh", { data: { runId: randomUUID() } });
+    expect(stale.status()).toBe(409);
+    expect(await stale.json()).toMatchObject({ code: "STOCK_JOB_CHANGED" });
+    const malformed = await page.request.patch("/api/stock-refresh", { data: "{", headers: { "content-type": "application/json" } });
+    expect(malformed.status()).toBe(400);
+    const foreignOrigin = await page.request.patch("/api/stock-refresh", { data: { runId }, headers: { origin: "https://other.example" } });
+    expect(foreignOrigin.status()).toBe(403);
+    db.prepare("UPDATE stock_refresh_job SET requested_by=3 WHERE id=1").run();
+    try {
+      const foreignOwner = await page.request.patch("/api/stock-refresh", { data: { runId } });
+      expect(foreignOwner.status()).toBe(403);
+      await page.reload();
+      await expect(page.getByRole("button", { name: "갱신 취소", exact: true })).toHaveCount(0);
+      expect(db.prepare("SELECT status FROM stock_refresh_job WHERE id=1").get()).toEqual({ status: "RUNNING" });
+    } finally {
+      db.prepare("UPDATE stock_refresh_job SET requested_by=? WHERE id=1").run(owner);
+    }
+  });
+});
+
+test("a failed cancellation opens a coded popup and can be retried", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-cancel-error-${testInfo.project.name}`, async (db, owner) => {
+    db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,completed=0,failed=0,
+      requested_by=?,run_id=?,lock_token='fixture-running',updated_at=CURRENT_TIMESTAMP WHERE id=1`).run(owner, randomUUID());
+    await page.reload();
+    let attempts = 0;
+    await page.route("**/api/stock-refresh", route => {
+      if (route.request().method() === "PATCH" && ++attempts === 1) {
+        return route.fulfill({ status: 503, json: { code: "CANCEL_UNAVAILABLE", message: "취소 요청 오류 검증" } });
+      }
+      return route.continue();
+    });
+    await page.getByRole("button", { name: "갱신 취소", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("CANCEL_UNAVAILABLE");
+    await expect(dialog).toContainText("취소 요청 오류 검증");
+    await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await page.getByRole("button", { name: "갱신 취소", exact: true }).click();
+    await expect(page.locator(".status-badge")).toHaveText("CANCELLED");
+    await expect(dialog).toBeHidden();
+  });
+});
+
+for (const status of ["FAILED", "COMPLETED"] as const) {
+  test(`worker ${status} with failures opens a popup`, async ({ page }, testInfo) => {
+    await withInventory(page, `batch-worker-error-${status}-${testInfo.project.name}`, async (db, owner) => {
+      db.prepare(`UPDATE stock_refresh_job SET status=?,running=0,completed=?,failed=?,fail=1,
+        requested_by=?,run_id=?,updated_at=CURRENT_TIMESTAMP,message='재고 조회 실패 검증' WHERE id=1`)
+        .run(status, Number(status === "COMPLETED"), Number(status === "FAILED"), owner, randomUUID());
+      await page.reload();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE");
+      await expect(dialog).toContainText("재고 조회 실패 검증");
+      await expect(page.locator("#top-progress-bar")).toBeHidden();
+    });
+  });
+}
+
+test("unchanged worker progress opens a delay popup and leaves cancellation available", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-stalled-${testInfo.project.name}`, async (db, owner) => {
+    db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,completed=0,failed=0,
+      requested_by=?,run_id=?,lock_token='fixture-running',updated_at=datetime('now','-3 minutes') WHERE id=1`).run(owner, randomUUID());
+    await page.reload();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("STOCK_REFRESH_STALLED");
+    await expect(dialog).toContainText("2분 이상");
+    await page.screenshot({ path: testInfo.outputPath("batch-stalled-popup.png"), fullPage: true });
+    await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await page.getByRole("button", { name: "갱신 취소", exact: true }).click();
+    await expect(page.locator(".status-badge")).toHaveText("CANCELLED");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await expect(dialog).toBeHidden();
+  });
+});
+
+test("a lost start response times out with a popup and reconciles the real worker result", async ({ page }, testInfo) => {
+  test.setTimeout(35_000);
+  await withInventory(page, `batch-start-timeout-${testInfo.project.name}`, async () => {
+    let refreshes = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === "/inventory" && request.headers().rsc === "1") refreshes++;
+    });
+    await page.route("**/api/stock-refresh", async route => {
+      if (route.request().method() === "POST") { await route.fetch(); return; }
+      return route.continue();
+    });
+    await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible({ timeout: 18_000 });
+    await expect(dialog).toContainText("CLIENT_TIMEOUT");
+    await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(page.getByRole("button", { name: "갱신 시작", exact: true })).toBeEnabled();
+    await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
+    await expect(page.locator(".stock-card")).toHaveCount(2);
+    await expect(page.locator(".branch-card")).toHaveCount(2);
+    await expect(page.locator(".kpi-value").nth(1)).toHaveText("2");
+    await expect(page.locator(".kpi-value").nth(2)).toHaveText("4,000원");
+    await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(2);
+    expect(refreshes).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("lost-start-inventory-reconciled.png"), fullPage: true });
+  });
+});
+
+test("a lost delete response reconciles server-rendered inventory, totals and branches", async ({ page }, testInfo) => {
+  test.setTimeout(35_000);
+  await withInventory(page, `batch-delete-timeout-${testInfo.project.name}`, async (db, owner) => {
+    const book = (db.prepare("SELECT id FROM books WHERE owner_id=?").get(owner) as { id: number }).id;
+    db.prepare("INSERT INTO branchbook(book,volume,branch,branchname,price) VALUES(?,1,'DELETE','삭제 대상 지점','1200')").run(book);
+    await page.reload();
+    await expect(page.locator(".stock-card")).toHaveCount(1);
+    await expect(page.locator(".branch-card")).toHaveCount(1);
+    let refreshes = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === "/inventory" && request.headers().rsc === "1") refreshes++;
+    });
+    await page.route("**/api/stock-refresh", async route => {
+      if (route.request().method() === "DELETE") { await route.fetch(); return; }
+      return route.continue();
+    });
+    page.once("dialog", dialog => dialog.accept());
+    await page.getByRole("button", { name: "전체 삭제", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible({ timeout: 18_000 });
+    await expect(dialog).toContainText("CLIENT_TIMEOUT");
+    await expect(page.locator(".status-badge")).toHaveText("IDLE");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(page.locator(".stock-card")).toHaveCount(0);
+    await expect(page.locator(".branch-card")).toHaveCount(0);
+    await expect(page.locator(".kpi-value").nth(1)).toHaveText("0");
+    await expect(page.locator(".kpi-value").nth(2)).toHaveText("0원");
+    await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(0);
+    expect(refreshes).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("lost-delete-inventory-reconciled.png"), fullPage: true });
   });
 });
