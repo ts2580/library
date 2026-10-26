@@ -147,7 +147,7 @@ test("deleting a running search's book in another tab stops polling the real API
   }
 });
 
-for (const terminal of ["COMPLETED", "FAILED"] as const) {
+for (const terminal of ["COMPLETED", "FAILED", "CANCELLED"] as const) {
   test(`book detail refreshes counts and prices when an owner-wide job becomes ${terminal}`, async ({ page }) => {
     const directory = process.env.BOOKSHELF_E2E_DATA;
     if (!directory || path.dirname(directory) !== tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");

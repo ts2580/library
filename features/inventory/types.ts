@@ -14,7 +14,7 @@ export interface StockRefreshProgress {
   percent: number;
   message: string;
   updatedAt: string | null;
-  status: "IDLE" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: "IDLE" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
 }
 
 export interface BranchInventoryItem {

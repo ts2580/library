@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { sqlite } from "@/db";
-import { AppError, NotFoundError } from "@/lib/errors";
+import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { AladinRateLimitError, isAladinConfigured } from "@/features/aladin/client";
 import { lookupUsedStocks } from "@/features/aladin/service";
@@ -52,6 +52,25 @@ export function requestBookStockSearch(ownerId: number, bookId: number): { start
 
 export function requestStockRefresh(ownerId: number): { started: boolean; message: string } {
   return queueStockJob(ownerId, null);
+}
+
+export function cancelStockRefresh(ownerId: number, runId: string | null): void {
+  sqlite.transaction(() => {
+    const job = sqlite.prepare("SELECT requested_by AS ownerId, run_id AS runId FROM stock_refresh_job WHERE id=1")
+      .get() as { ownerId: number | null; runId: string | null };
+    if (job.ownerId !== ownerId) throw new ForbiddenError("다른 계정의 재고 갱신은 취소할 수 없습니다.");
+    if (job.runId !== runId) throw new AppError("재고 갱신 작업이 변경되었습니다. 현재 상태를 확인한 뒤 다시 취소해 주세요.", "STOCK_JOB_CHANGED", 409);
+    const result = sqlite.prepare(`
+      UPDATE stock_refresh_job SET status='CANCELLED', running=0, completed=0, failed=0,
+        lock_token=NULL, message='재고 갱신을 취소했습니다. 취소 전까지 저장된 재고는 유지합니다.',
+        updated_at=CURRENT_TIMESTAMP, finished_at=CURRENT_TIMESTAMP, heartbeat_at=CURRENT_TIMESTAMP
+      WHERE id=1 AND status IN ('QUEUED','RUNNING')
+    `).run();
+    if (result.changes) {
+      rebuildSummaryStatements();
+      rememberStockCompletion();
+    }
+  }).immediate();
 }
 
 function queueStockJob(ownerId: number, bookId: number | null): { started: boolean; message: string } {

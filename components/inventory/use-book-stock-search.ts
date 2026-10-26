@@ -38,7 +38,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
     const before = previous.current;
     if (before.bookId === bookId && progress) {
       const ended = before.progress?.status === "QUEUED" || before.progress?.status === "RUNNING";
-      const terminal = progress.status === "COMPLETED" || progress.status === "FAILED";
+      const terminal = progress.status === "COMPLETED" || progress.status === "FAILED" || progress.status === "CANCELLED";
       const newCompletion = terminal && progress.runId && progress.runId !== before.progress?.runId;
       const ownerCompleted = progress.completionId && progress.completionId !== before.progress?.completionId;
       if (ownerCompleted || (!active && affectsBook && (ended || newCompletion))) router.refresh();
