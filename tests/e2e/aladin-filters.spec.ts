@@ -33,7 +33,14 @@ test("all Aladin filters survive initial search, form submission, paging and reg
   await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect(page).toHaveURL(/\/aladin\/search\?/);
+  const restored = new URL(page.url()).searchParams;
+  expect(restored.get("query")).toBe(query);
+  expect(restored.get("page")).toBe("2");
+  for (const [key, value] of Object.entries(filters)) {
+    if (key === "outOfStockFilter") expect(["true", "on", "1"]).toContain(restored.get(key));
+    else expect(restored.get(key), key).toBe(value);
+  }
   await page.goto("/aladin/search?query=키워드&queryType=Keyword");
   await expect(page.getByLabel("검색 기준", { exact: true })).toHaveValue("Keyword");
   await expect(page.locator(".search-result-card")).toHaveCount(2);

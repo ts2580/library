@@ -16,10 +16,12 @@ async function emptyBook(page: Page, name: string): Promise<number> {
   return (await response.json()).bookId;
 }
 
-async function deleteCurrentBook(page: Page) {
+async function deleteCurrentBook(page: Page, expectedOrigin = "/books") {
+  const expected = new URL(expectedOrigin, page.url());
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(expected.pathname);
+  for (const [key, value] of expected.searchParams) expect(new URL(page.url()).searchParams.get(key), key).toBe(value);
 }
 
 test("book detail opens Aladin search, imports side stories, and edits numbering and the parent category", async ({ page }, testInfo) => {
@@ -71,10 +73,11 @@ test("product quick registration keeps the page and supports existing books and 
   await second.getByLabel("카테고리", { exact: true }).fill("상품 분류");
   await second.getByLabel("총 권수", { exact: true }).fill("완결 15권");
   await second.getByRole("button", { name: "이 권 저장" }).click();
+  const origin = page.url();
   await second.getByRole("link", { name: "추가한 책 보기" }).click();
   await expect(page.locator(".book-hero")).toContainText("상품 분류");
   await expect(page.locator(".book-hero")).toContainText("완결 15권");
-  await deleteCurrentBook(page);
+  await deleteCurrentBook(page, origin);
   await page.goto(`/books/${bookId}`);
   await expect(page.getByRole("heading", { name: "9권 · 선택 샘플 2-1", exact: true })).toBeVisible();
   await deleteCurrentBook(page);
@@ -168,7 +171,10 @@ test("author search survives paging and selected-item registration", async ({ pa
   await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect(page).toHaveURL(/\/aladin\/search\?/);
+  expect(new URL(page.url()).searchParams.get("query")).toBe(query);
+  expect(new URL(page.url()).searchParams.get("queryType")).toBe("Author");
+  expect(new URL(page.url()).searchParams.get("page")).toBe("2");
 });
 
 test("cover regeneration reports success and invalid ISBN remains on the search page", async ({ page }) => {

@@ -1,9 +1,10 @@
 import { SearchForm } from "@/components/ui/search-form";
 import { Pagination } from "@/components/ui/pagination";
-import Link from "next/link";
+import { BookDetailLink } from "@/components/books/book-detail-link";
 import { CoverImage } from "@/components/ui/cover-image";
 import { ExternalLink } from "@/components/ui/external-link";
 import { formatWon } from "@/lib/format";
+import { stockPurchaseUrl } from "@/features/inventory/purchase-url";
 import type { searchInventory } from "@/features/inventory/queries";
 
 export function InventoryResults({ result, branch }: { result: ReturnType<typeof searchInventory>; branch?: string }) {
@@ -22,10 +23,12 @@ export function InventoryResults({ result, branch }: { result: ReturnType<typeof
     <p className="muted small">{result.total.toLocaleString("ko-KR")}건 · {result.page}/{result.totalPages}페이지</p>
     <div className="stock-list">{result.items.map((item) => <article className="stock-card" key={item.id}>
       <div className="stock-cover"><CoverImage cover={item.cover} alt={item.volumeName ?? item.bookName ?? "책"}/></div>
-      <div className="stack-xs"><Link className="volume-title-link" href={`/books/${item.bookId}`}>{item.volumeName ?? item.bookName ?? "제목 없음"}</Link>
+      <div className="stack-xs"><BookDetailLink className="volume-title-link" bookId={item.bookId}>{item.volumeName ?? item.bookName ?? "제목 없음"}</BookDetailLink>
         <p className="muted small">{item.branchName} · {item.isbn13 ?? "ISBN 미상"}</p>
         <div className="button-row">{item.grade && <span className="chip">{item.grade}</span>}<strong>{item.price ? formatWon(item.price) : "가격 미상"}</strong></div>
-      </div><div className="button-row"><ExternalLink className="button button-secondary button-small" href={item.purchaseUrl}>구매</ExternalLink></div>
+      </div><div className="button-row">{stockPurchaseUrl(item)
+        ? <ExternalLink className="button button-secondary button-small" href={stockPurchaseUrl(item)}>구매</ExternalLink>
+        : <span className="muted small">구매 링크 없음</span>}</div>
     </article>)}</div>
     {!result.items.length && <p className="empty">검색 결과가 없습니다.</p>}
     <Pagination page={result.page} totalPages={result.totalPages} href={href} label="재고 페이지"/>

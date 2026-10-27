@@ -248,6 +248,38 @@ for (const status of ["FAILED", "COMPLETED"] as const) {
   });
 }
 
+for (const status of ["FAILED", "COMPLETED"] as const) {
+  test(`a dismissed ${status} worker error stays dismissed across inventory navigation and reloads`, async ({ page }, testInfo) => {
+    await withInventory(page, `batch-error-once-${status}-${testInfo.project.name}`, async (db, owner) => {
+      const update = (runId: string) => db.prepare(`UPDATE stock_refresh_job SET status=?,running=0,completed=?,failed=?,fail=1,
+        requested_by=?,run_id=?,updated_at=CURRENT_TIMESTAMP,message='같은 내용의 재고 실패' WHERE id=1`)
+        .run(status, Number(status === "COMPLETED"), Number(status === "FAILED"), owner, runId);
+      update(randomUUID());
+      await page.reload();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText("같은 내용의 재고 실패");
+      await dialog.getByRole("button", { name: "확인", exact: true }).click();
+      await page.getByRole("link", { name: "갱신 로그", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "재고 갱신 로그", exact: true })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await page.reload();
+      await expect(page.getByRole("heading", { name: "재고 갱신 로그", exact: true })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await page.getByRole("link", { name: "지점 재고로", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "지점 재고", exact: true })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await page.reload();
+      await expect(page.getByRole("heading", { name: "지점 재고", exact: true })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      update(randomUUID());
+      await page.reload();
+      await expect(dialog).toContainText("같은 내용의 재고 실패");
+      await dialog.getByRole("button", { name: "확인", exact: true }).click();
+      await expect(dialog).toBeHidden();
+    });
+  });
+}
+
 test("unchanged worker progress opens a delay popup and leaves cancellation available", async ({ page }, testInfo) => {
   await withInventory(page, `batch-stalled-${testInfo.project.name}`, async (db, owner) => {
     db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,completed=0,failed=0,

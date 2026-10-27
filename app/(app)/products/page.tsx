@@ -1,6 +1,7 @@
 import { SearchForm } from "@/components/ui/search-form";
 import { Pagination } from "@/components/ui/pagination";
 import Link from "next/link";
+import { BookDetailLink } from "@/components/books/book-detail-link";
 import { requireUser } from "@/features/auth/authorization";
 import { getManualBookCategories, searchOwnedVolumes } from "@/features/books/queries";
 import { AladinQuickAdd } from "@/components/books/aladin-quick-add";
@@ -44,7 +45,7 @@ export default async function ProductsPage({ searchParams }: {
     <p className="muted">{result.total}권 · {result.page}/{result.totalPages}페이지</p>
     <div className="stock-list">{result.items.map((item) => <article className="stock-card" key={item.id}>
       <div className="stock-cover"><CoverImage cover={item.cover} alt={item.name ?? "책"}/></div>
-      <div className="stack-xs"><Link className="volume-title-link" href={`/books/${item.bookId}`}>{item.name ?? "제목 없음"}</Link>
+      <div className="stack-xs"><BookDetailLink className="volume-title-link" bookId={item.bookId}>{item.name ?? "제목 없음"}</BookDetailLink>
         <p className="muted small">{item.bookName} · {item.isbn13 ?? "ISBN 미상"}</p>
         <div className="button-row">{Boolean(item.isPurchased) && <span className="chip">구매 완료</span>}
           {Boolean(item.noNeedToBuy) && <span className="chip">구매 불필요</span>}<strong>{item.price ? formatWon(item.price) : "가격 미상"}</strong></div>
