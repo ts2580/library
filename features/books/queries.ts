@@ -79,6 +79,11 @@ export function getBookList(ownerId: number, filters: BookListFilters): BookList
   };
 }
 
+export function getBookTitle(ownerId: number, bookId: number): string | null {
+  const book = sqlite.prepare("SELECT name FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as { name: string | null } | undefined;
+  return book?.name?.trim() || null;
+}
+
 export function getBookDetail(ownerId: number, bookId: number): BookDetail | null {
   const book = sqlite.prepare(`
     SELECT b.id, b.name, b.author, b.description, b.type, b.cover, b.createddate AS createdDate,

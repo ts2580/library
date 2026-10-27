@@ -4,6 +4,11 @@ import type { BranchInventoryItem, BranchStockItem, StockRefreshProgress } from 
 import { escapeLike } from "@/lib/strings";
 import { getStockRefreshFailureCount } from "@/features/inventory/refresh-log";
 
+const inventoryVolume = "CASE WHEN bv.id IS NULL THEN bb.volume ELSE bv.volume END";
+const inventoryOrder = `normalize_nfc(COALESCE(NULLIF(TRIM(b.name),''),NULLIF(TRIM(bv.name),''),bb.name,'')) COLLATE NOCASE,
+  b.id, (${inventoryVolume}) IS NULL, ${inventoryVolume},
+  normalize_nfc(COALESCE(NULLIF(TRIM(bv.name),''),bb.name,'')) COLLATE NOCASE, bb.id`;
+
 export function searchInventory(ownerId: number, input: { query?: string; branch?: string; page?: number }) {
   const query = input.query?.normalize("NFC").trim().slice(0, 200) ?? "";
   const where = ["b.owner_id = ?"];
@@ -29,7 +34,7 @@ export function searchInventory(ownerId: number, input: { query?: string; branch
     COALESCE(NULLIF(TRIM(bb.branchname), ''), bb.branch) AS branchName,
     b.id AS bookId, b.name AS bookName, COALESCE(bv.name, bb.name) AS volumeName,
     bb.grade, bv.isbn13, bv.cover, bb.price, bb.booklink AS bookLink, bb.purchaseurl AS purchaseUrl
-    ${from} ORDER BY bb.id DESC LIMIT 24 OFFSET ?`).all(...args, (page - 1) * 24) as BranchStockItem[];
+    ${from} ORDER BY ${inventoryOrder} LIMIT 24 OFFSET ?`).all(...args, (page - 1) * 24) as BranchStockItem[];
   return { items, total, page, totalPages, query };
 }
 
@@ -118,6 +123,6 @@ export function getBranchStocks(ownerId: number, branch: string): BranchStockIte
         )
       )
     WHERE bb.branch = ?
-    ORDER BY COALESCE(NULLIF(bb.grade, ''), 'ZZZ'), COALESCE(bv.name, bb.name) COLLATE NOCASE
+    ORDER BY ${inventoryOrder}
   `).all(ownerId, branch) as BranchStockItem[];
 }

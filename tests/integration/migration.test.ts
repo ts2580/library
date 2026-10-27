@@ -23,9 +23,9 @@ process.env.BOOKSHELF_LEGACY_OWNER_USERNAME = "fixture-admin";
 process.env.REGISTRATION = "false";
 const { sqlite } = await import("@/db");
 const { bootstrapDatabase } = await import("@/db/bootstrap");
-const { getBookList, getBookDetail, getOwnedBookOptions, searchOwnedVolumes, getManualBookCategories } = await import("@/features/books/queries");
+const { getBookList, getBookDetail, getBookTitle, getOwnedBookOptions, searchOwnedVolumes, getManualBookCategories } = await import("@/features/books/queries");
 const { addVolume, updateVolume } = await import("@/features/books/service");
-const { searchInventory, getStockRefreshProgress } = await import("@/features/inventory/queries");
+const { searchInventory, getStockRefreshProgress, getBranchStocks } = await import("@/features/inventory/queries");
 const jobs = await import("@/features/inventory/service");
 const refreshLogs = await import("@/features/inventory/refresh-log");
 const { lookupUsedStocks, searchAladinBooks } = await import("@/features/aladin/service");
@@ -167,6 +167,8 @@ describe("owned queries and changes", () => {
   });
   it("hides foreign books and rejects writes to another owner's book", async () => {
     expect(getBookDetail(1, 2)).toBeNull();
+    expect(getBookTitle(1, 2)).toBeNull();
+    expect(getBookTitle(1, 1)).toBe("가나 100%_!\\");
     await expect(addVolume(1, 2, { name: "new", seq: "1", isbn13: "", author: "", price: "", description: "", link: "", pubDate: "", coverUrl: "" })).rejects.toThrow();
   });
   it("uses volume rather than legacy seq and updates unambiguous stock links", async () => {
@@ -183,6 +185,37 @@ describe("owned queries and changes", () => {
     expect(first.total).toBe(26); expect(first.items).toHaveLength(24);
     expect(searchInventory(1, { query: "가나".normalize("NFD"), page: 2 }).items).toHaveLength(2);
     expect(first.items.every((row) => row.bookId === 1)).toBe(true);
+  });
+  it.each([undefined, "SEOUL", "ALADIN_DROPSHIPPING"])("sorts inventory by book name and numeric volume for branch %s", branch => {
+    sqlite.prepare("UPDATE books SET name='나무 시리즈' WHERE id=1").run();
+    sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(3,?,1)").run("가게 시리즈".normalize("NFD"));
+    for (const [id, book, number] of [[1, 1, 10], [2, 3, 2], [3, 1, 2], [4, 3, 1], [5, 1, 1], [6, 1, null]] as const) volume(id, book, number);
+    volume(7, 2); stock(99, 2, 7);
+    let stockId = 1;
+    for (const code of ["SEOUL", "ALADIN_DROPSHIPPING"]) {
+      for (let id = 1; id <= 6; id++) {
+        const target = sqlite.prepare("SELECT book,volume FROM book_volumes WHERE id=?").get(id) as {book:number;volume:number|null};
+        stock(stockId, target.book, id, target.volume ?? 0);
+        sqlite.prepare("UPDATE branchbook SET branch=?,grade=? WHERE id=?").run(code, target.book === 1 ? "A" : "Z", stockId++);
+      }
+    }
+    const expected = [4, 2, 5, 3, 1, 6].flatMap(id => Array(branch ? 1 : 2).fill(`권 ${id}`));
+    expect(searchInventory(1, { branch }).items.map(row => row.volumeName)).toEqual(expected);
+    if (branch) expect(getBranchStocks(1, branch).map(row => row.volumeName)).toEqual(expected);
+  });
+  it("applies name sorting before inventory pagination and retains branch filters", () => {
+    for (let index = 1; index <= 30; index++) {
+      const id = index + 100;
+      sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(?,?,1)").run(id, `정렬 책 ${String(index).padStart(2, "0")}`);
+      volume(id, id);
+      stock(id, id, id);
+    }
+    const first = searchInventory(1, { branch: "SEOUL", page: 1 });
+    const second = searchInventory(1, { branch: "SEOUL", page: 2 });
+    expect(first.total).toBe(30);
+    expect([...first.items, ...second.items].map(row => row.bookName)).toEqual(Array.from({length:30}, (_, i) => `정렬 책 ${String(i + 1).padStart(2, "0")}`));
+    expect(second.items).toHaveLength(6);
+    expect(searchInventory(1, { branch: "ALADIN_DROPSHIPPING" }).total).toBe(0);
   });
   it("searches cached stock titles even when the current volume title differs", () => {
     volume(1); stock(1, 1, 1);

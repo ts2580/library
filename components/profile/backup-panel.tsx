@@ -82,7 +82,7 @@ export function BackupPanel() {
         failures = 0;
         setPhase(status.status);
         setMessage(status.message ?? "표지 ZIP 작업 상태를 확인하고 있습니다.");
-        if (status.status === "FAILED") reportClientError({ code: "COVER_RESTORE_FAILED", message: status.message ?? "표지 복원에 실패했습니다.", source: "cover-worker" });
+        if (status.status === "FAILED") reportClientError({ code: "COVER_RESTORE_FAILED", message: status.message ?? "표지 복원에 실패했습니다.", source: "cover-worker", eventId: uploadId });
         if (status.status === "UPLOADING") setPercent(status.percent);
         if (status.completed || status.status === "FAILED") {
           retry = false;

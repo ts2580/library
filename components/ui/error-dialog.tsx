@@ -3,14 +3,14 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { clearReportedError, currentError, dismissClientError, reportClientError, sanitizedErrorDetails, serverErrorSnapshot, subscribeErrors } from "@/lib/client-errors";
 
-export function ErrorReporter({ message, code = "REQUEST_FAILED", source = "page" }: { message?: string | null; code?: string; source?: string }) {
+export function ErrorReporter({ message, code = "REQUEST_FAILED", source = "page", eventId }: { message?: string | null; code?: string; source?: string; eventId?: string }) {
   useEffect(() => {
     if (!message) { clearReportedError(source); return; }
     const query = new URLSearchParams(window.location.search);
     const suppliedCode = query.get("error") === message ? query.get("errorCode") : null;
-    reportClientError({ message, code: suppliedCode || code, source });
+    reportClientError({ message, code: suppliedCode || code, source, eventId });
     return () => clearReportedError(source);
-  }, [message, code, source]);
+  }, [message, code, source, eventId]);
   return null;
 }
 

@@ -49,7 +49,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
         ? "재고 갱신이 1분 이상 대기 중입니다. 워커가 동작하는지 확인하거나 갱신을 취소해 주세요."
         : "재고 갱신 진행 상태가 2분 이상 바뀌지 않았습니다. 잠시 더 기다리거나 갱신을 취소해 주세요.";
       setStalled(message);
-      reportClientError({ code: "STOCK_REFRESH_STALLED", message, source: "stock-worker-stalled" });
+      reportClientError({ code: "STOCK_REFRESH_STALLED", message, source: "stock-worker-stalled", eventId: progress.runId ?? progress.updatedAt ?? undefined });
     }, remaining);
     return () => { clearTimeout(timer); clearReportedError("stock-worker-stalled"); };
   }, [active, progress.status, progress.runId, progress.updatedAt, unavailable]);
@@ -165,7 +165,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       <p className="muted" aria-live="polite">{progress.message}</p>
       {error && <p className="flash flash-error" role="alert">{error}</p>}
       {stalled && <p className="flash flash-error" role="alert">{stalled}</p>}
-      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker"/>
+      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker" eventId={progress.runId ?? progress.completionId ?? progress.updatedAt ?? undefined}/>
       {(busy || active || checking) && !unavailable && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
       <div className="progress-track" aria-label={`진행률 ${progress.percent}%`}><div style={{ width: `${progress.percent}%` }}/></div>
       <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>

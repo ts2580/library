@@ -1,3 +1,9 @@
+export interface VolumeSaveResult {
+  success: boolean;
+  message: string;
+  code?: string;
+}
+
 export interface BookListItem {
   id: number;
   name: string | null;

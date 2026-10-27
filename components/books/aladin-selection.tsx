@@ -15,6 +15,7 @@ import type { AladinSearchOptions } from "@/features/aladin/validation";
 import { fetchSearchPreview } from "@/features/aladin/search-client";
 import { orderByPublicationDate } from "@/features/aladin/volume-order";
 import { NewBookCategoryDialog } from "@/components/books/new-book-category-dialog";
+import { bookDetailHref } from "@/features/books/navigation";
 
 type Selection = { page: number; key: string; sideStory?: boolean };
 
@@ -113,7 +114,13 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       if (!response.ok) throw new Error(body.message ?? "등록에 실패했습니다.");
       const message = (body.count ? `${body.count}권을 등록했습니다.` : "책을 추가했습니다.")
         + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 프로필에서 표지 재생성을 실행해 주세요.` : "");
-      router.push(`/books/${body.bookId}?message=${encodeURIComponent(message)}`);
+      const source = new URL(window.location.href);
+      if (source.pathname === "/aladin/search") {
+        source.searchParams.set("query", query);
+        source.searchParams.set("page", String(result?.page ?? 1));
+      }
+      const origin = source.pathname.startsWith("/books/") ? source.searchParams.get("returnTo") : source.pathname + source.search;
+      router.push(bookDetailHref(body.bookId, origin, { message }));
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "등록에 실패했습니다."); }
     finally { setSaving(false); }

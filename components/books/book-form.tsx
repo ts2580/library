@@ -9,7 +9,8 @@ export function BookForm({
   categories = [],
   submitLabel = "저장",
   deleteAction,
-  enrichAction
+  enrichAction,
+  returnTo
 }: {
   action: (formData: FormData) => void | Promise<void>;
   book?: BookDetail | null;
@@ -17,12 +18,14 @@ export function BookForm({
   submitLabel?: string;
   deleteAction?: (formData: FormData) => void | Promise<void>;
   enrichAction?: (formData: FormData) => void | Promise<void>;
+  returnTo?: string;
 }) {
   return (
     <div className="entity-edit-layout entity-edit-layout-book">
     <form action={action} className="entity-edit-form book-edit-form" aria-label="책 정보">
       <div className="form-grid entity-edit-fields">
       {book && <input type="hidden" name="bookId" value={book.id}/>}
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       <div className="field"><label htmlFor={`book-name-${book?.id ?? "new"}`}>제목</label><input className="input" id={`book-name-${book?.id ?? "new"}`} name="name" defaultValue={book?.name ?? ""} maxLength={300} required/></div>
       <div className="field"><label htmlFor={`book-author-${book?.id ?? "new"}`}>저자</label><input className="input" id={`book-author-${book?.id ?? "new"}`} name="author" defaultValue={book?.author ?? ""} maxLength={300}/></div>
       <CategorySelect id={`book-type-${book?.id ?? "new"}`} categories={categories} initialValue={book?.type ?? ""}/>
@@ -35,10 +38,12 @@ export function BookForm({
     </form>
     {book && enrichAction && <form action={enrichAction} className="book-enrichment-form" title="빈 저자·설명과 각 권의 상품 링크를 알라딘에서 채웁니다.">
       <input type="hidden" name="bookId" value={book.id}/>
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       <SubmitButton pendingLabel="정보 검색 중" className="button button-outline" progress>저자/설명 알라딘에서 넣기</SubmitButton>
     </form>}
     {book && deleteAction && <form action={deleteAction} className="entity-delete-form" aria-label="책 삭제">
       <input type="hidden" name="bookId" value={book.id}/>
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       <ConfirmSubmitButton message="책과 모든 권, 연결된 재고를 삭제합니까?">책 삭제</ConfirmSubmitButton>
     </form>}
     </div>

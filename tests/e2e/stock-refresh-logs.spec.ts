@@ -48,7 +48,7 @@ test("worker failures show reasons and individual and selected refresh clear onl
     await expect(entries.first()).toContainText("ISBN이 없어 재고를 조회할 수 없습니다.");
     await expect(entries.first()).toContainText("ISBN_MISSING");
     const dialog = page.getByRole("alertdialog");
-    if (await dialog.isVisible()) await dialog.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(dialog).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("stock-refresh-logs.png"), fullPage: true });
     db.prepare("UPDATE book_volumes SET isbn13='9780000000193' WHERE id=?").run(volumes[0]);
@@ -101,10 +101,12 @@ test("log retry errors open a popup and release request progress", async ({ page
     db.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,status,code,message) SELECT ?,book,id,'prior','FAILED','ISBN_MISSING','ISBN 미등록' FROM book_volumes WHERE id=?").run(owner, volumes[0]);
     await page.goto("/inventory/logs");
     await page.route("**/api/stock-refresh/retry", route => route.fulfill({ status: 503, json: { code: "WORKER_UNAVAILABLE", message: "갱신 요청 테스트 오류" } }));
-    await page.getByRole("button", { name: "개별 갱신" }).click();
-    await expect(page.getByRole("alertdialog")).toContainText("갱신 요청 테스트 오류");
-    await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "개별 갱신" })).toBeEnabled();
-    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page.getByRole("button", { name: "개별 갱신" }).click();
+      await expect(page.getByRole("alertdialog")).toContainText("갱신 요청 테스트 오류");
+      await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();
+      await expect(page.getByRole("button", { name: "개별 갱신" })).toBeEnabled();
+      await expect(page.locator("#top-progress-bar")).toBeHidden();
+    }
   });
 });

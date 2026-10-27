@@ -150,7 +150,9 @@ test("multi-page selection survives a failed page request and preserves import o
   // The two projects share a fixture server; remove this test's ISBNs afterwards.
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books(?:\?|$)/);
+  await expect(page).toHaveURL(/\/aladin\/search\?/);
+  expect(new URL(page.url()).searchParams.get("query")).toBe(testInfo.project.name);
+  expect(new URL(page.url()).searchParams.get("page")).toBe("2");
 });
 
 test("XLSX round-trip and ZIP chunk upload run with the real worker", async ({ page }) => {
