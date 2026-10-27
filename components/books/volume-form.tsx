@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import type { VolumeDetail } from "@/features/books/types";
+import { useRef, useState, useTransition, type FormEvent } from "react";
+import type { VolumeDetail, VolumeSaveResult } from "@/features/books/types";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { clearReportedError, reportClientError } from "@/lib/client-errors";
 
 export function VolumeForm({
   action,
@@ -13,7 +14,9 @@ export function VolumeForm({
   nextVolume = 1,
   bookType = "",
   categories = [],
-  deleteAction
+  deleteAction,
+  saveAction,
+  returnTo
 }: {
   action: (formData: FormData) => void | Promise<void>;
   bookId: number;
@@ -23,14 +26,46 @@ export function VolumeForm({
   bookType?: string | null;
   categories?: string[];
   deleteAction?: (formData: FormData) => void | Promise<void>;
+  saveAction?: (formData: FormData) => Promise<VolumeSaveResult>;
+  returnTo?: string;
 }) {
   const key = volume?.id ?? "new";
   const [sideStory, setSideStory] = useState(Boolean(volume && volume.seq == null));
+  const form = useRef<HTMLFormElement>(null);
+  const [saving, startSaving] = useTransition();
+  const [error, setError] = useState("");
+
+  function save(event: FormEvent<HTMLFormElement>): void {
+    if (!saveAction) return;
+    event.preventDefault();
+    if (saving) return;
+    const data = new FormData(event.currentTarget);
+    const source = `volume-save:${volume?.id ?? "new"}`;
+    clearReportedError(source);
+    setError("");
+    startSaving(async () => {
+      try {
+        const result = await saveAction(data);
+        if (!result.success) {
+          setError(result.message);
+          reportClientError({ code: result.code ?? "VOLUME_SAVE_FAILED", message: result.message, source });
+          return;
+        }
+        form.current?.closest<HTMLDialogElement>("dialog")?.close();
+      } catch {
+        const message = "권 정보를 저장하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.";
+        setError(message);
+        reportClientError({ code: "NETWORK_ERROR", message, source });
+      }
+    });
+  }
   return (
     <div className="entity-edit-layout entity-edit-layout-volume">
-    <form action={action} className="entity-edit-form" aria-label={volume ? "권 정보" : "권 추가"}>
+    <form ref={form} action={action} onSubmit={saveAction ? save : undefined} className="entity-edit-form" aria-label={volume ? "권 정보" : "권 추가"}>
+      {error && <p className="flash flash-error" role="alert">{error}</p>}
       <div className="form-grid entity-edit-fields">
       <input type="hidden" name="bookId" value={bookId}/>
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       {volume && <input type="hidden" name="volumeId" value={volume.id}/>}
       {volume && <div className="field span-2"><label htmlFor={`volume-type-${key}`}>책 카테고리</label>
         <input className="input" id={`volume-type-${key}`} name="type" defaultValue={bookType ?? ""} maxLength={120} list={`volume-types-${key}`}/>
@@ -53,11 +88,13 @@ export function VolumeForm({
       </div>
       </div>
       <div className="button-row volume-form-actions">
-        <SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton>
+        {saveAction ? <button className="button" type="submit" disabled={saving}>{saving ? "저장 중" : submitLabel}</button>
+          : <SubmitButton pendingLabel="저장 중">{submitLabel}</SubmitButton>}
       </div>
     </form>
     {volume && deleteAction && <form action={deleteAction} className="entity-delete-form" aria-label="권 삭제">
       <input type="hidden" name="bookId" value={bookId}/><input type="hidden" name="volumeId" value={volume.id}/>
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       <ConfirmSubmitButton message="이 권과 연결된 지점 재고를 삭제합니까?">삭제</ConfirmSubmitButton>
     </form>}
     </div>

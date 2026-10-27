@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BookDetailLink } from "@/components/books/book-detail-link";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-fetch";
 import { clearReportedError, reportClientError } from "@/lib/client-errors";
@@ -113,7 +114,7 @@ export function StockRefreshLogs({ initial, status }: { initial: Snapshot; statu
       <div className="section-heading"><h2>미해결 실패 {logs.pendingFailures}권</h2><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
       <p className="muted" aria-live="polite">{progress.message}</p>
       <p className="muted">선택한 권만 갱신합니다. 조회에 실패하면 해당 권의 기존 재고를 유지합니다.</p>
-      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code="STOCK_REFRESH_FAILED" source="stock-log-worker"/>
+      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker" eventId={progress.runId ?? progress.completionId ?? progress.updatedAt ?? undefined}/>
       {error && <p className="flash flash-error" role="alert">{error}</p>}
       {(busy || active || checking) && !unavailable && <ProgressIndicator label={checking ? "갱신 상태 확인 중" : "재고 갱신 중"}/>}
       {active && <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고 없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>}
@@ -132,7 +133,7 @@ export function StockRefreshLogs({ initial, status }: { initial: Snapshot; statu
         onChange={event => setSelected(event.target.checked ? eligible : [])}/>이 페이지 전체 선택</label>
       <div className="stack-md">{logs.items.map(item => <article key={item.id} className={`panel ${styles.entry}`} data-testid="stock-log-entry">
         <div className={styles.heading}><div className={styles.select}><input type="checkbox" aria-label={`${item.volumeName} 로그 ${item.id} 선택`}
-          checked={checked.includes(item.volumeId)} disabled={disabled || !item.retryable} onChange={() => toggle(item.volumeId)}/><Link href={`/books/${item.bookId}`}>{item.bookName}</Link></div>
+          checked={checked.includes(item.volumeId)} disabled={disabled || !item.retryable} onChange={() => toggle(item.volumeId)}/><BookDetailLink bookId={item.bookId}>{item.bookName}</BookDetailLink></div>
           <span className={`status-badge ${item.status === "FAILED" ? "status-failed" : "status-completed"}`}>{labels[item.status]}</span></div>
         <h3>{item.volumeName}{item.volume != null && <span className="muted"> · {item.volume}권</span>}</h3>
         <p className="muted">ISBN {item.isbn13 || "미등록"} · {item.createdAt} UTC</p>

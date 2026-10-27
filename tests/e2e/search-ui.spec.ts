@@ -344,5 +344,7 @@ test("new-book registration asks for a category and retains selection across can
   await expect(page.locator(".book-edit-form").getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:${category}`);
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books(?:\?|$)/);
+  await expect(page).toHaveURL(/\/aladin\/search\?/);
+  expect(new URL(page.url()).searchParams.get("query")).toBe(name);
+  expect(new URL(page.url()).searchParams.get("page")).toBe("1");
 });

@@ -4,12 +4,13 @@ import { useId, useState, type ReactNode } from "react";
 import { deleteVolumesAction } from "@/features/books/actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
-export function VolumeSelection({ bookId, items }: { bookId: number; items: Array<{ id: number; name: string; content: ReactNode }> }) {
+export function VolumeSelection({ bookId, items, returnTo }: { bookId: number; items: Array<{ id: number; name: string; content: ReactNode }>; returnTo?: string }) {
   const formId = useId();
   const [selected, setSelected] = useState<number[]>([]);
   return <div className="volume-list">
     <form id={formId} action={deleteVolumesAction} className="button-row">
       <input type="hidden" name="bookId" value={bookId}/>
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo}/>}
       <label className="check"><input type="checkbox" checked={items.length > 0 && selected.length === items.length}
         onChange={event => setSelected(event.target.checked ? items.map(item => item.id) : [])}/> 모든 권 선택</label>
       <ConfirmSubmitButton disabled={!selected.length} message={`선택한 ${selected.length}개 권과 연결된 지점 재고를 삭제합니까?`}>선택한 권 삭제 ({selected.length})</ConfirmSubmitButton>

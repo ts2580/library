@@ -2,7 +2,7 @@
 
 import { apiFetch } from "@/lib/api-fetch";
 
-import Link from "next/link";
+import { BookDetailLink } from "@/components/books/book-detail-link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ExistingBookSelect, type BookOption } from "@/components/books/existing-book-select";
@@ -51,7 +51,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
     <div className="quick-add-heading"><div className="stock-cover"><CoverImage cover={item.cover} alt={`${item.title} 표지`}/></div>
       <div className="stack-xs"><h3>{item.title}</h3><p className="muted small">{item.author} · {key ?? "ISBN 없음"}</p>
         <p className="muted small">{item.priceSales == null ? "가격 미상" : formatWon(item.priceSales)}</p></div></div>
-    {saved ? <div className="flash flash-success" role="status">{saved.message} <Link href={`/books/${saved.bookId}`}>추가한 책 보기</Link></div>
+    {saved ? <div className="flash flash-success" role="status">{saved.message} <BookDetailLink bookId={saved.bookId} returnQuery={{ q: query, aladinPage: String(page) }}>추가한 책 보기</BookDetailLink></div>
       : item.owned ? <span className="chip">등록됨</span> : !key ? <p className="muted">ISBN이 없어 등록할 수 없습니다.</p>
       : <form className="form-grid" onSubmit={submit} autoComplete="off">
         {!targetBook && <ExistingBookSelect initialOptions={[]} selected={target} disabled={busy} onChange={(book) => { setTarget(book); setSequence(String(book?.nextVolume ?? 1)); }}/>}
