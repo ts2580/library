@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api-fetch";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTopProgress } from "@/components/ui/top-progress";
+import { showToast } from "@/components/ui/toast";
 import type { StockRefreshProgress } from "@/features/inventory/types";
 
 export type BookStockSearchOptions = { bookId: number; initial: StockRefreshProgress };
@@ -41,10 +42,11 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
       const terminal = progress.status === "COMPLETED" || progress.status === "FAILED" || progress.status === "CANCELLED";
       const newCompletion = terminal && progress.runId && progress.runId !== before.progress?.runId;
       const ownerCompleted = progress.completionId && progress.completionId !== before.progress?.completionId;
+      if (forThisBook && progress.status === "COMPLETED" && (ended || newCompletion) && progress.message) showToast(progress.message);
       if (ownerCompleted || (!active && affectsBook && (ended || newCompletion))) router.refresh();
     }
     previous.current = { bookId, progress };
-  }, [bookId, progress, active, affectsBook, router]);
+  }, [bookId, progress, active, affectsBook, forThisBook, router]);
 
   useEffect(() => {
     if (!bookId) return;
@@ -125,5 +127,5 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
     finally { clearTimeout(timeout); startInFlight.current = false; setBusy(false); pollNow.current(); }
   }
   return { start, disabled: busy || active || unavailable, error,
-    message: busy ? "이 책의 재고 검색을 요청하고 있습니다." : forThisBook ? progress?.message : active ? "다른 재고 작업이 진행 중입니다. 완료 후 검색할 수 있습니다." : "" };
+    message: busy ? "이 책의 재고 검색을 요청하고 있습니다." : forThisBook && progress?.status !== "COMPLETED" ? progress?.message : active ? "다른 재고 작업이 진행 중입니다. 완료 후 검색할 수 있습니다." : "" };
 }

@@ -5,6 +5,7 @@ import type { VolumeDetail, VolumeSaveResult } from "@/features/books/types";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { clearReportedError, reportClientError } from "@/lib/client-errors";
+import { showToast } from "@/components/ui/toast";
 
 export function VolumeForm({
   action,
@@ -52,6 +53,7 @@ export function VolumeForm({
           return;
         }
         form.current?.closest<HTMLDialogElement>("dialog")?.close();
+        showToast("권 정보를 수정했습니다.");
       } catch {
         const message = "권 정보를 저장하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.";
         setError(message);
@@ -80,7 +82,6 @@ export function VolumeForm({
       <div className="field"><label htmlFor={`volume-pubdate-${key}`}>출간일</label><input className="input" id={`volume-pubdate-${key}`} name="pubDate" defaultValue={volume?.pubDate ?? ""} maxLength={40}/></div>
       <div className="field span-2"><label htmlFor={`volume-link-${key}`}>상품 링크</label><input className="input" id={`volume-link-${key}`} name="link" inputMode="url" defaultValue={volume?.link ?? ""} maxLength={2048}/></div>
       <div className="field span-2"><label htmlFor={`volume-description-${key}`}>설명</label><textarea className="textarea" id={`volume-description-${key}`} name="description" defaultValue={volume?.description ?? ""} maxLength={5000}/></div>
-      <div className="field"><label htmlFor={`volume-cover-url-${key}`}>표지 URL</label><input className="input" id={`volume-cover-url-${key}`} name="coverUrl" inputMode="url" placeholder="https://..." maxLength={2048}/></div>
       <div className="field"><label htmlFor={`volume-cover-file-${key}`}>표지 파일</label><input className="input file-input" id={`volume-cover-file-${key}`} type="file" name="coverFile" accept="image/jpeg,image/png,image/gif,image/webp"/></div>
       <div className="check-row span-2">
         <label className="check"><input type="checkbox" name="isPurchased" defaultChecked={volume?.isPurchased ?? false}/> 구매 완료</label>

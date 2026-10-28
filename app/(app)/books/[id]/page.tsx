@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/features/auth/authorization";
 import { getBookDetail, getBookTitle, getManualBookCategories } from "@/features/books/queries";
-import { addVolumeAction, deleteBookAction, deleteVolumeAction, updateBookAction, updateVolumeAction, saveVolumeAction, enrichBookInfoAction } from "@/features/books/actions";
+import { addVolumeAction, deleteBookAction, deleteVolumeAction, updateBookAction, saveBookAction, updateVolumeAction, saveVolumeAction, enrichBookInfoAction } from "@/features/books/actions";
 import { VolumeSelection } from "@/components/books/volume-selection";
 import { BookForm } from "@/components/books/book-form";
 import { VolumeAddTools } from "@/components/books/volume-add-tools";
@@ -42,9 +42,8 @@ export default async function BookDetailPage({ params, searchParams }: { params:
       <div className="book-detail-layout"><div className="book-detail-sidebar">
       <section className="panel book-hero">
         <div className="book-hero-cover"><CoverImage cover={book.cover} alt={book.name ?? "책"} className="h-full w-full object-cover"/></div>
-        <div className="stack-md"><div><p className="eyebrow">Book detail</p><h1>{book.name ?? "제목 없음"}</h1><p className="page-subtitle">{book.author ?? "저자 미상"}</p></div><div className="button-row"><span className="chip">{book.type ?? "미분류"}</span><span className="chip">{book.volumeCount}권</span>{book.totalVolume && <span className="chip">총 권수 {book.totalVolume}</span>}</div>{book.description && <p className="muted">{book.description}</p>}</div>
-      </section>
-      <section className="panel stack-md"><BookForm action={updateBookAction} deleteAction={deleteBookAction} enrichAction={enrichBookInfoAction} book={book} categories={categories} returnTo={returnTo}/>
+        <div className="stack-md"><div><p className="eyebrow">Book detail</p><h1>{book.name ?? "제목 없음"}</h1><p className="page-subtitle book-author"><span className="muted">저자</span> <span>{book.author?.trim() || "미상"}</span></p></div><div className="button-row"><span className="chip">{book.type ?? "미분류"}</span><span className="chip">{book.volumeCount}권</span>{book.totalVolume && <span className="chip">총 권수 {book.totalVolume}</span>}</div>{book.description && <p className="muted">{book.description}</p>}</div>
+        <VolumeDetailDialog title="책 정보 수정" triggerLabel="책 정보 수정" className="book-edit-dialog"><BookForm action={updateBookAction} saveAction={saveBookAction} deleteAction={deleteBookAction} enrichAction={enrichBookInfoAction} book={book} categories={categories} returnTo={returnTo}/></VolumeDetailDialog>
       </section>
       </div><section className="panel stack-md book-volumes-panel" aria-labelledby="volumes-heading"><div className="section-heading"><div><p className="eyebrow">Volumes</p><h2 id="volumes-heading">권 목록</h2></div><span className="chip">{book.volumes.length}권</span></div>
         <VolumeAddTools

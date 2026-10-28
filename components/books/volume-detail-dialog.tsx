@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useDialogBackdropDismiss } from "@/components/ui/use-dialog-backdrop-dismiss";
 
-export function VolumeDetailDialog({ title, children }: { title: string; children: ReactNode }) {
+export function VolumeDetailDialog({ title, children, triggerLabel = "상세정보", className = "" }: { title: string; children: ReactNode; triggerLabel?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -19,10 +19,10 @@ export function VolumeDetailDialog({ title, children }: { title: string; childre
   }, [open]);
 
   return <>
-    <button type="button" className="button button-outline button-small" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => setOpen(true)}>상세정보</button>
-    <dialog ref={dialog} id={id} className="volume-detail-dialog" aria-labelledby={titleId} onClose={() => setOpen(false)} {...backdropDismiss}>
-      <div className="volume-detail-dialog-header"><div><p className="eyebrow">상세정보</p><h2 id={titleId}>{title}</h2></div>
-        <button type="button" className="button button-outline button-small" aria-label="상세정보 닫기" onClick={() => dialog.current?.close()}>닫기</button>
+    <button type="button" className="button button-outline button-small" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => setOpen(true)}>{triggerLabel}</button>
+    <dialog ref={dialog} id={id} className={`volume-detail-dialog ${className}`} aria-labelledby={titleId} onClose={() => setOpen(false)} {...backdropDismiss}>
+      <div className="volume-detail-dialog-header"><div><p className="eyebrow">{triggerLabel}</p><h2 id={titleId}>{title}</h2></div>
+        <button type="button" className="button button-outline button-small" aria-label={`${triggerLabel} 닫기`} onClick={() => dialog.current?.close()}>닫기</button>
       </div>
       {open && <div className="volume-detail-dialog-body stack-md">{children}</div>}
     </dialog>

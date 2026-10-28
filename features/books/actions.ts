@@ -86,6 +86,18 @@ export async function updateBookAction(formData: FormData): Promise<never> {
   redirect(bookDetailHref(id, formData.get("returnTo"), { message: "책 정보를 저장했습니다." }));
 }
 
+export async function saveBookAction(formData: FormData): Promise<VolumeSaveResult> {
+  try {
+    const user = await requireUser();
+    const id = entityId(formData, "bookId");
+    await updateBook(user.id, id, bookPayload(formData), file(formData, "coverFile"));
+    for (const route of [`/books/${id}`, "/books", "/dashboard", "/products"]) revalidatePath(route);
+    return { success: true, message: "책 정보를 저장했습니다." };
+  } catch (error) {
+    return { success: false, message: errorMessage(error, "책 정보를 저장하지 못했습니다."), code: errorCode(error) };
+  }
+}
+
 export async function deleteBookAction(formData: FormData): Promise<never> {
   const user = await requireUser();
   const id = entityIdOrRedirect(formData, "bookId", "/books");

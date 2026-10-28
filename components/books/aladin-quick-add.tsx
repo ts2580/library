@@ -9,6 +9,7 @@ import { ExistingBookSelect, type BookOption } from "@/components/books/existing
 import { CoverImage } from "@/components/ui/cover-image";
 import { ProgressIndicator } from "@/components/ui/top-progress";
 import { Pagination } from "@/components/ui/pagination";
+import { showToast } from "@/components/ui/toast";
 import { formatWon } from "@/lib/format";
 import type { AladinBookItem, AladinSearchResult } from "@/features/aladin/types";
 
@@ -21,7 +22,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
   const [sequence, setSequence] = useState(String(targetBook?.nextVolume ?? 1));
   const [editedSequence, setEditedSequence] = useState(false);
   const [sideStory, setSideStory] = useState(false);
-  const [saved, setSaved] = useState<{ bookId: number; message: string } | null>(null);
+  const [saved, setSaved] = useState<{ bookId: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const key = item.isbn13 ?? item.isbn;
@@ -42,7 +43,8 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
       }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "권을 추가하지 못했습니다.");
-      setSaved({ bookId: body.bookId, message: `권을 추가했습니다.${body.coverFailures ? " 표지는 프로필에서 다시 생성할 수 있습니다." : ""}` });
+      setSaved({ bookId: body.bookId });
+      showToast(`권을 추가했습니다.${body.coverFailures ? " 표지는 프로필에서 다시 생성할 수 있습니다." : ""}`);
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "권을 추가하지 못했습니다."); }
     finally { setBusy(false); }
@@ -51,7 +53,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
     <div className="quick-add-heading"><div className="stock-cover"><CoverImage cover={item.cover} alt={`${item.title} 표지`}/></div>
       <div className="stack-xs"><h3>{item.title}</h3><p className="muted small">{item.author} · {key ?? "ISBN 없음"}</p>
         <p className="muted small">{item.priceSales == null ? "가격 미상" : formatWon(item.priceSales)}</p></div></div>
-    {saved ? <div className="flash flash-success" role="status">{saved.message} <BookDetailLink bookId={saved.bookId} returnQuery={{ q: query, aladinPage: String(page) }}>추가한 책 보기</BookDetailLink></div>
+    {saved ? <div className="button-row"><span className="chip">등록됨</span><BookDetailLink bookId={saved.bookId} returnQuery={{ q: query, aladinPage: String(page) }}>추가한 책 보기</BookDetailLink></div>
       : item.owned ? <span className="chip">등록됨</span> : !key ? <p className="muted">ISBN이 없어 등록할 수 없습니다.</p>
       : <form className="form-grid" onSubmit={submit} autoComplete="off">
         {!targetBook && <ExistingBookSelect initialOptions={[]} selected={target} disabled={busy} onChange={(book) => { setTarget(book); setSequence(String(book?.nextVolume ?? 1)); }}/>}

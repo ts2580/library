@@ -48,6 +48,7 @@ test("first and repeated purchase saves keep the page scroll position and close 
       await modal.getByLabel("구매 완료", { exact: true }).setChecked(purchased);
       await modal.getByRole("button", { name: "저장", exact: true }).click();
       await expect(modal).toBeHidden();
+      await expect(page.locator(".toast").filter({ hasText: "권 정보를 수정했습니다." })).toBeVisible();
       await expect.poll(() => (db.prepare("SELECT ispurchased FROM book_volumes WHERE book=? AND volume=12").get(bookId) as { ispurchased: number }).ispurchased).toBe(Number(purchased));
       await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
       await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThan(3);
