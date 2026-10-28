@@ -65,6 +65,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button-secondary { color: var(--accent-strong); background: var(--accent-soft); border-color: transparent; }
 .button-secondary:hover { background: #d7e9e2; }
 .button-outline { color: var(--accent-strong); background: white; border-color: #a9c5bb; }
+.button-outline:hover { color: white; }
 .button-danger-outline { color: var(--danger); background: white; border-color: #e8b9b9; }
 .button-danger { color: white; background: var(--danger); border-color: var(--danger); }
 .button-small { min-height: 36px; padding: 0 12px; border-radius: 11px; font-size: .82rem; }
