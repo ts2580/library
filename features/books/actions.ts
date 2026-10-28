@@ -88,7 +88,7 @@ export async function updateBookAction(formData: FormData): Promise<never> {
 
 export async function saveBookAction(formData: FormData): Promise<VolumeSaveResult> {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const id = entityId(formData, "bookId");
     await updateBook(user.id, id, bookPayload(formData), file(formData, "coverFile"));
     for (const route of [`/books/${id}`, "/books", "/dashboard", "/products"]) revalidatePath(route);
