@@ -19,7 +19,7 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
   assertTarget();
   let selected: AladinBookItem[] = [];
   const seen = new Set<string>();
-  const pages = [...new Set(input.selection.map((item) => item.page))].sort((a, b) => b - a);
+  const pages = [...new Set(input.selection.map((item) => item.page))].sort((a, b) => a - b);
   for (const page of pages) {
     const result = await searchAladinBooks({ ...input.searchOptions, query: input.query, page });
     if (result.page !== page || result.pageSize <= 0 || page > Math.min(50, Math.ceil(result.totalResults / result.pageSize))) {
@@ -36,7 +36,11 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
       if (key && keys.has(key) && !seen.has(key)) { seen.add(key); selected.push(item); }
     }
   }
-  selected = orderByPublicationDate(selected);
+  if (input.preserveSelectionOrder) {
+    const rank = new Map<string, number>();
+    input.selection.forEach((entry, index) => { if (!rank.has(entry.key)) rank.set(entry.key, index); });
+    selected.sort((a, b) => rank.get((a.isbn13 ?? a.isbn)!)! - rank.get((b.isbn13 ?? b.isbn)!)!);
+  } else selected = orderByPublicationDate(selected);
   function assertNoDuplicates() {
     const duplicate = sqlite.prepare(`SELECT 1 FROM book_volumes bv JOIN books b ON b.id = bv.book
       WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ?) LIMIT 1`);

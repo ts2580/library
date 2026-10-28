@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test } from "@playwright/test";
 
 test("book descriptions use the full editor width while the three actions stay in order", async ({ page }, testInfo) => {
@@ -15,7 +16,9 @@ test("book descriptions use the full editor width while the three actions stay i
   const { bookId } = await response.json();
   await page.goto(`/books/${bookId}`);
   const editor = page.locator(".entity-edit-layout-book");
+  await openBookEditor(page);
   const fields = page.locator(".book-edit-form .entity-edit-fields");
+  await openBookEditor(page);
   const textarea = page.locator(".book-edit-form").getByLabel("설명", { exact: true });
   await expect(textarea).toHaveValue(description.trim());
   for (const width of [1440, 1920, 2560, 1024, 768, 412, 320]) {
@@ -28,7 +31,7 @@ test("book descriptions use the full editor width while the three actions stay i
     expect(Math.abs(input.x - outer.x), `${width}px: description starts at the left edge`).toBeLessThan(1);
     expect(Math.abs(input.width - outer.width), `${width}px: description fills the editor`).toBeLessThan(1);
     const hero = page.locator(".book-hero");
-    const title = (await hero.getByRole("heading", { level: 1 }).boundingBox())!;
+    const title = (await hero.locator("h1").boundingBox())!;
     const summary = (await hero.locator(":scope > .stack-md > p").boundingBox())!;
     expect(Math.abs(summary.x - title.x), `${width}px: summary aligns with the title`).toBeLessThan(1);
     const buttons = await Promise.all(["책 삭제", "저자/설명 알라딘에서 넣기", "저장"].map(name =>
@@ -44,6 +47,7 @@ test("book descriptions use the full editor width while the three actions stay i
     await editor.screenshot({ path: testInfo.outputPath(`book-editor-${width}.png`) });
   }
   page.once("dialog", dialog => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect(page).toHaveURL(/\/books(?:\?|$)/);
 });

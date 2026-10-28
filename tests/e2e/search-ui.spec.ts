@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page) {
@@ -341,8 +342,10 @@ test("new-book registration asks for a category and retains selection across can
   await expect(page.getByRole("heading", { level: 1, name, exact: true })).toBeVisible();
   expect(requests).toHaveLength(2);
   await expect(page.locator(".book-hero")).toContainText(category);
+  await openBookEditor(page);
   await expect(page.locator(".book-edit-form").getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:${category}`);
   page.once("dialog", dialog => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/aladin\/search\?/);
   expect(new URL(page.url()).searchParams.get("query")).toBe(name);

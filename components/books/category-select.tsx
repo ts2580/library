@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { createCategoryAction } from "@/features/books/category-actions";
 import { reportClientError } from "@/lib/client-errors";
+import { showToast } from "@/components/ui/toast";
 
 export function CategorySelect({ id, categories, initialValue = "", required = false }: { id: string; categories: string[]; initialValue?: string; required?: boolean }) {
   const [options, setOptions] = useState(() => [...new Set([...categories, ...(initialValue ? [initialValue] : [])])]);
@@ -30,7 +31,7 @@ export function CategorySelect({ id, categories, initialValue = "", required = f
           if (result.error) { setMessage(result.error); reportClientError({ code: result.code ?? "CATEGORY_CREATE_FAILED", message: result.error, source: "category-create" }); return; }
           if (!result.name) return;
           setOptions((previous) => [...new Set([...previous, result.name!])]);
-          setSelected(`saved:${result.name}`); setName(""); setMessage("카테고리를 추가했습니다.");
+          setSelected(`saved:${result.name}`); setName(""); setMessage(""); showToast("카테고리를 추가했습니다.");
         } catch { const message = "카테고리를 추가하지 못했습니다. 다시 시도해 주세요."; setMessage(message); reportClientError({ code: "CATEGORY_CREATE_FAILED", message, source: "category-create" }); }
       })}>{pending ? "추가 중" : "추가"}</button>
     </div>}

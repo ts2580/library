@@ -2,6 +2,7 @@
 
 import { apiFetch } from "@/lib/api-fetch";
 import { ErrorReporter } from "@/components/ui/error-dialog";
+import { showToast } from "@/components/ui/toast";
 import { clearReportedError, reportClientError } from "@/lib/client-errors";
 
 import { useEffect, useRef, useState } from "react";
@@ -34,6 +35,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
     const previous = previousProgress.current;
     const wasActive = previous.status === "QUEUED" || previous.status === "RUNNING";
     const completionChanged = progress.completionId && progress.completionId !== previous.completionId;
+    if (progress.status === "COMPLETED" && (wasActive || completionChanged) && progress.message) showToast(progress.message);
     if ((wasActive && !active) || completionChanged) router.refresh();
     previousProgress.current = progress;
   }, [active, progress, router]);
@@ -162,7 +164,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
   return (
     <section className="panel stack-md" aria-labelledby="stock-refresh-title">
       <div className="section-heading"><div><p className="eyebrow">Background worker</p><h2 id="stock-refresh-title">중고 재고 일괄 갱신</h2></div><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
-      <p className="muted" aria-live="polite">{progress.message}</p>
+      {progress.status !== "COMPLETED" && <p className="muted" aria-live="polite">{progress.message}</p>}
       {error && <p className="flash flash-error" role="alert">{error}</p>}
       {stalled && <p className="flash flash-error" role="alert">{stalled}</p>}
       <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker" eventId={progress.runId ?? progress.completionId ?? progress.updatedAt ?? undefined}/>

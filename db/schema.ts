@@ -182,6 +182,21 @@ export const stockRefreshJobs = sqliteTable("stock_refresh_job", {
   heartbeatAt: text("heartbeat_at")
 });
 
+export const metadataEnrichmentJobs = sqliteTable("metadata_enrichment_job", {
+  ownerId: integer("owner_id").primaryKey().references(() => members.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull(),
+  status: text("status", { enum: ["QUEUED", "RUNNING", "COMPLETED"] }).notNull(),
+  bookIds: text("book_ids").notNull(),
+  total: integer("total").notNull(),
+  processed: integer("processed").notNull().default(0),
+  booksUpdated: integer("books_updated").notNull().default(0),
+  volumesUpdated: integer("volumes_updated").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  message: text("message").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+});
+
 export const stockRefreshCompletions = sqliteTable("stock_refresh_completion", {
   ownerId: integer("owner_id").primaryKey().references(() => members.id, { onDelete: "cascade" }),
   runId: text("run_id").notNull()

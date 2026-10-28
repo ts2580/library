@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 5;
+const BOOTSTRAP_VERSION = 6;
 
 type Database = BetterSqlite3.Database;
 
@@ -339,6 +339,24 @@ export function bootstrapDatabase(sqlite: Database): void {
         );
       `);
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (5, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(6)) {
+      sqlite.exec(`CREATE TABLE metadata_enrichment_job (
+        owner_id INTEGER PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        book_ids TEXT NOT NULL,
+        total INTEGER NOT NULL,
+        processed INTEGER NOT NULL DEFAULT 0,
+        books_updated INTEGER NOT NULL DEFAULT 0,
+        volumes_updated INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
+        skipped INTEGER NOT NULL DEFAULT 0,
+        message TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (6, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
   });

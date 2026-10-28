@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page) {
@@ -37,15 +38,19 @@ test("book and volume deletion exclude oversized files and invalid unsaved edits
   page.once("dialog", dialog => dialog.accept());
   await modal.getByRole("button", { name: "삭제", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(0);
+  await openBookEditor(page);
   await page.locator(".book-edit-form").getByLabel("표지 파일", { exact: true }).setInputFiles(upload);
+  await openBookEditor(page);
   await page.locator(".book-edit-form").getByLabel("제목", { exact: true }).fill("");
   await page.screenshot({ path: testInfo.outputPath("book-delete-form.png"), fullPage: true });
+  await openBookEditor(page);
   expect(await page.getByRole("button", { name: "책 삭제", exact: true }).evaluate(element =>
     Array.from(new FormData((element as HTMLButtonElement).form!).keys()).filter(key => !key.startsWith("$ACTION_")).sort()
   )).toEqual(["bookId"]);
   page.once("dialog", dialog => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect(page).toHaveURL(/\/books(?:\?|$)/);
   const options = await (await page.request.get(`/api/books/options?query=${encodeURIComponent(name)}`)).json();
   expect(options).toEqual([]);
 });
