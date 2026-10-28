@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -74,6 +75,7 @@ test("new server props wake up an IDLE hook without retaining its previous state
     const button=page.getByRole("button",{name:"재고 검색",exact:true});
     await expect(button).toBeEnabled();
     db.prepare("UPDATE stock_refresh_job SET status='RUNNING',running=1,requested_by=4,mode='REPLACE_ALL',scope_book_id=NULL,run_id=?,lock_token=NULL WHERE id=1").run(`server-prop-${testInfo.project.name}`);
+    await openBookEditor(page);
     await page.getByRole("form",{name:"책 정보",exact:true}).getByRole("button",{name:"저장",exact:true}).click();
     await expect(button).toBeDisabled();
     db.prepare("UPDATE stock_refresh_job SET status='COMPLETED',running=0,completed=1 WHERE id=1").run();

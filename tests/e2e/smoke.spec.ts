@@ -219,6 +219,7 @@ test("manual Aladin preview keeps category, multi-page selections, and individua
   await form.getByRole("button", { name: "4권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 1-2", "3권 · 선택 샘플 1-1", "외전 · 선택 샘플 2-2"]);
+  await openBookEditor(page);
   const editor = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
   await expect(editor.getByLabel("저자", { exact: true })).toHaveValue("테스트 저자");
   await expect(editor.getByLabel("총 권수", { exact: true })).toHaveValue("");
@@ -258,6 +259,7 @@ test("search page and manual preview both append to an existing series and exclu
   await expect(page.getByLabel("선택 선택 샘플 1-2", { exact: true })).toBeChecked();
   await page.getByRole("button", { name: "1권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "6권 · 선택 샘플 1-2", exact: true })).toBeVisible();
+  await openBookEditor(page);
   await expect(page.getByLabel("총 권수", { exact: true })).toHaveValue("전 12권");
   await deleteCurrentBook(page);
 });

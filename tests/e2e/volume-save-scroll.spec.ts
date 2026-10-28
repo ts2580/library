@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openBookEditor } from "./helpers/book-editor";
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -88,6 +89,7 @@ test("an invalid modal save keeps edited values and scroll, then permits a succe
 test("the tab title follows the owned book name and does not reveal another owner's book", async ({ page }) => {
   await withBook(page, async (_db, bookId, name) => {
     await expect(page).toHaveTitle(`${name} · Bookshelf`);
+    await openBookEditor(page);
     const editor = page.getByRole("form", { name: "책 정보", exact: true });
     const next = "수정한 실제 책 제목";
     await editor.getByLabel("제목", { exact: true }).fill(next);
