@@ -115,7 +115,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 5 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 6 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -128,14 +128,15 @@ describe("legacy SQLite adoption", () => {
       expect(legacy.pragma("table_info(member)")).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "role" })]));
     } finally { legacy.close(); }
   });
-  it.each([1, 2, 3, 4])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
+  it.each([1, 2, 3, 4, 5])("upgrades an existing version-%s database without changing roles, inventory, or legacy links", version => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
       if (version === 1) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN scope_book_id; ALTER TABLE stock_refresh_job DROP COLUMN mode;");
       if (version < 3) prior.exec("ALTER TABLE stock_refresh_job DROP COLUMN run_id;");
       if (version < 4) prior.exec("DROP TABLE stock_refresh_completion;");
-      prior.exec("DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target;");
+      if (version < 5) prior.exec("DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target;");
+      prior.exec("DROP TABLE metadata_enrichment_job;");
       prior.prepare("DELETE FROM bookshelf_migrations WHERE version>?").run(version);
       prior.exec("INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); INSERT INTO books(id,name,owner_id) VALUES(1,'keep',1); INSERT INTO book_volumes(id,book,volume) VALUES(1,1,1); INSERT INTO branchbook(id,book,volume,price) VALUES(1,1,1,'900');");
       const before = prior.prepare("SELECT * FROM branchbook").all();
@@ -144,7 +145,7 @@ describe("legacy SQLite adoption", () => {
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
       expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
       expect(prior.prepare("SELECT run_id FROM stock_refresh_job").get()).toEqual({ run_id: null });
-      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }]);
       expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([]);
     } finally { prior.close(); }
   });
@@ -152,7 +153,7 @@ describe("legacy SQLite adoption", () => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
-      prior.exec("DROP TABLE stock_refresh_completion; DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target; DELETE FROM bookshelf_migrations WHERE version>=4; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); UPDATE stock_refresh_job SET requested_by=1,status='COMPLETED',run_id='before-upgrade'");
+      prior.exec("DROP TABLE stock_refresh_completion; DROP TABLE stock_refresh_log; DROP TABLE stock_refresh_job_target; DROP TABLE metadata_enrichment_job; DELETE FROM bookshelf_migrations WHERE version>=4; INSERT INTO member(id,username,password_hash,role) VALUES(1,'fixture-admin','test','USER'); UPDATE stock_refresh_job SET requested_by=1,status='COMPLETED',run_id='before-upgrade'");
       bootstrapDatabase(prior); bootstrapDatabase(prior);
       expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([{owner_id:1,run_id:"before-upgrade"}]);
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({role:"USER"});
