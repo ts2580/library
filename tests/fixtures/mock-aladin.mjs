@@ -20,12 +20,13 @@ globalThis.fetch = async function fixtureFetch(input, init) {
     }
     const page = Number(url.searchParams.get("start") ?? 1);
     const namespace = String(parseInt(createHash("sha256").update(url.searchParams.get("Query") ?? "").digest("hex").slice(0, 8), 16) % 1000000).padStart(6, "0");
-    return Response.json({ totalResults: query.startsWith("페이지검증") ? 200 : 40, startIndex: page, itemsPerPage: Number(url.searchParams.get("MaxResults") ?? 20), item: [1, 2].map((index) => ({
+    return Response.json({ totalResults: query.startsWith("페이지검증") ? 200 : 40, startIndex: page, itemsPerPage: Number(url.searchParams.get("MaxResults") ?? 20), item: (query.startsWith("권차순서검증") ? [1, 2, 3, 4] : [1, 2]).map((index) => ({
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
       author: "테스트 저자", description: query === "선택 샘플 1-1"
         ? "fixture &lt;책&gt; &amp; &#34;설명&#34; &#x1F4DA; &lt;img src=x onerror=alert(1)&gt; &amp;lt;literal&amp;gt; AT&amp;amp;T" : "fixture", priceSales: 1000,
       link: query === "선택 샘플 1-1" ? `https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-${page}-${index}` : null,
-      pubDate: new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
+      pubDate: query.startsWith("권차순서검증") ? ["2026-07-31", "2026-05-29", "2026-05-29", "2026-03-20"][index - 1]
+        : new Date(Date.UTC(2025, 0, 1) - (page * 20 + index) * 86400000).toISOString().slice(0, 10)
     })) });
   }
   if (url.pathname.endsWith("ItemLookUp.aspx")) {

@@ -532,7 +532,7 @@ describe("Aladin multi-page selection", () => {
     const result = await importAladinSelection(1, request);
     expect(result.count).toBe(3);
     expect(sqlite.prepare("SELECT isbn13,volume FROM book_volumes ORDER BY id").all()).toEqual([
-      { isbn13: "9780000000002", volume: 1 }, { isbn13: "9780000000003", volume: 2 }, { isbn13: "9780000000001", volume: 3 }
+      { isbn13: "9780000000001", volume: 1 }, { isbn13: "9780000000002", volume: 2 }, { isbn13: "9780000000003", volume: 3 }
     ]);
   });
   it.each([false, true])("numbers by publication date across pages when manual=%s", async (manual) => {
@@ -561,7 +561,7 @@ describe("Aladin multi-page selection", () => {
     ]);
   });
   it("rejects a missing selection before creating any rows", async () => {
-    vi.mocked(searchAladinBooks).mockResolvedValue({ page: 2, pageSize: 20, totalResults: 40, items: [item("9780000000002")] });
+    vi.mocked(searchAladinBooks).mockImplementation(async (input: unknown) => ({ page: (input as { page: number }).page, pageSize: 20, totalResults: 40, items: [item("9780000000002")] }));
     await expect(importAladinSelection(1, { ...request, targetBookId: null })).rejects.toThrow("변경");
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM book_volumes").get()).toEqual({ n: 0 });
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });

@@ -6,6 +6,7 @@ export const bulkSelectionSchema = z.object({
   targetBookId: z.number().int().positive().nullable(),
   seriesName: z.string().trim().min(1).max(300),
   sideStory: z.boolean(),
+  preserveSelectionOrder: z.boolean().default(false),
   startVolume: z.number().int().min(1).max(100000).optional(),
   category: z.string().trim().max(120).optional(),
   totalVolume: z.string().trim().max(30).optional(),
