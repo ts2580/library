@@ -50,6 +50,14 @@ Cancellation fences in-flight lookup results before persistence; the current ext
 
 Each attempted volume records a `SUCCESS`, `EMPTY`, or `FAILED` result in `stock_refresh_log`, with an ISBN snapshot, time, error code, and readable reason. Result and stock writes share the worker claim fence. The latest eligible result determines the unresolved failure count, while older failures remain visible in history. `GET /api/stock-refresh/logs` and `/inventory/logs` expose only the requesting administrator's records. Schema version 5 adds the two tables; earlier aggregate failure counts cannot supply historical per-volume reasons.
 
+### Metadata enrichment
+
+`POST /api/books/enrich` snapshots the current user's books with missing book or volume authors/descriptions in `metadata_enrichment_job` (schema version 6). It rejects overlapping requests for the same account; ordinary users can enrich their own books. `GET` returns only that account's progress.
+
+The worker handles one book per iteration between stock and cover jobs. The persisted target list and cursor allow `QUEUED`/`RUNNING` jobs to resume after restart. API lookups occur outside write transactions; metadata is re-read under the write lock so manually entered values remain intact. Batch enrichment leaves purchase links unchanged. Missing results, deleted targets and individual failures do not stop the remaining books.
+
+The profile panel polls active jobs with bounded requests, reports counts and emits a completion toast. Leaving the page does not stop the worker.
+
 ### Cover archive restore
 
 ```text
