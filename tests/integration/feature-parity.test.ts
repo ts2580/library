@@ -54,6 +54,26 @@ async function workbookFile(workbook: ExcelJS.Workbook) {
 }
 
 describe("Java feature parity regressions", () => {
+  it("keeps explicit selection order for an existing book, including reselections and side stories", async () => {
+    volume();
+    api.mockResolvedValue({ startIndex: 1, itemsPerPage: 20, totalResults: 4, item: [1, 2, 3, 4].map(index => ({
+      title: `선택 ${index}`, isbn13: `978000000010${index}`, pubDate: ["2026-07-31", "2026-05-29", "2026-05-29", "2026-03-20"][index - 1]
+    })) });
+    await importAladinSelection(1, { query: "검색", seriesName: "기존 책", targetBookId: 1, sideStory: false, preserveSelectionOrder: true,
+      selection: [3, 2, 1].map(index => ({ page: 1, key: `978000000010${index}`, sideStory: index === 2 })) });
+    expect(sqlite.prepare("SELECT name,volume FROM book_volumes WHERE book=1 AND isbn13 IS NOT NULL ORDER BY id").all()).toEqual([
+      { name: "선택 3", volume: 2 }, { name: "선택 2", volume: null }, { name: "선택 1", volume: 3 }
+    ]);
+  });
+  it("breaks equal publication dates by search page and result order", async () => {
+    api.mockImplementation(async (_endpoint, params) => ({ startIndex: params.start, itemsPerPage: 20, totalResults: 40,
+      item: [1, 2].map(index => ({ title: `검색 ${params.start}-${index}`, isbn13: `9780000000${params.start}0${index}`, pubDate: "2026-05-29" })) }));
+    await importAladinSelection(1, { query: "검색", seriesName: "기존 책", targetBookId: 1, sideStory: false,
+      selection: [2, 1].flatMap(page => [2, 1].map(index => ({ page, key: `9780000000${page}0${index}` }))) });
+    expect(sqlite.prepare("SELECT name,volume FROM book_volumes WHERE book=1 ORDER BY volume").all()).toEqual([
+      { name: "검색 1-1", volume: 1 }, { name: "검색 1-2", volume: 2 }, { name: "검색 2-1", volume: 3 }, { name: "검색 2-2", volume: 4 }
+    ]);
+  });
   it.each([
     "&lt;책&gt; &amp; &quot;설명&quot; &#39;인용&#39; &#x1F4DA; &nbsp;",
     "<책> <img src=x onerror=alert(1)> &unknown;",

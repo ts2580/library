@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test } from "@playwright/test";
 
 test("all Aladin filters survive initial search, form submission, paging and registration", async ({ page }, info) => {
@@ -32,6 +33,7 @@ test("all Aladin filters survive initial search, form submission, paging and reg
   expect((await registration).postDataJSON().searchOptions).toMatchObject({ ...filters, maxResults: 10, recentPublishFilter: 3, categoryId: 123, outOfStockFilter: true });
   await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
   page.once("dialog", dialog => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/aladin\/search\?/);
   const restored = new URL(page.url()).searchParams;

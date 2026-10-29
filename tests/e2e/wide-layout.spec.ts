@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test } from "@playwright/test";
 
 test("wide screens use more space without enlarging covers or breaking editing", async ({ page }, testInfo) => {
@@ -38,5 +39,6 @@ test("wide screens use more space without enlarging covers or breaking editing",
   await page.getByLabel("모든 권 선택", { exact: true }).check();
   await expect(page.getByRole("button", { name: /^선택한 권 삭제/ })).toBeEnabled();
   await page.getByLabel("모든 권 선택", { exact: true }).uncheck();
+  await openBookEditor(page);
   await expect(page.locator(".book-edit-form").getByLabel("제목", { exact: true })).toBeVisible();
 });

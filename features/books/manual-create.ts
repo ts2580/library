@@ -13,6 +13,7 @@ const requestSchema = z.object({
   book: bookInputSchema,
   direct: z.boolean(),
   targetBookId: z.number().int().positive().nullable(),
+  preserveSelectionOrder: z.boolean().default(false),
   selection: z.array(z.object({ page: z.number().int().min(1).max(50), key: z.string().min(1).max(32), sideStory: z.boolean().optional() })).max(1000)
 });
 
@@ -34,6 +35,6 @@ export async function createManualBook(ownerId: number, raw: unknown, coverFile?
     return { bookId: await createBook(ownerId, book, coverFile), count: 0 };
   }
   const selection = bulkSelectionSchema.parse({ query: input.book.name, seriesName: input.book.name,
-    targetBookId: input.targetBookId, sideStory: false, selection: input.selection });
+    targetBookId: input.targetBookId, sideStory: false, selection: input.selection, preserveSelectionOrder: input.preserveSelectionOrder });
   return importAladinSelection(ownerId, selection, { book, coverFile });
 }

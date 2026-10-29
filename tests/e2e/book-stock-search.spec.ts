@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -38,7 +39,8 @@ test("book stock search appends through the worker without replacing old or unre
       await toolbar.getByRole("button", { name: "재고 검색", exact: true }).click();
       expect((await response).status()).toBe(202);
       await expect(toolbar.getByRole("button", { name: "재고 검색", exact: true })).toBeDisabled();
-      await expect(page.getByRole("status").filter({ hasText: "책 재고 검색 완료" })).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator(".toast").filter({ hasText: "책 재고 검색 완료" })).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator(".page").getByText("책 재고 검색 완료", { exact: false })).toHaveCount(0);
       await expect(toolbar.getByRole("button", { name: "재고 검색", exact: true })).toBeEnabled();
       await expect(page.locator(".volume-card").first().locator(".volume-meta")).toContainText("재고 3건");
       const after = db.prepare("SELECT * FROM branchbook ORDER BY id").all() as { id: number; book: number }[];
@@ -133,8 +135,9 @@ test("deleting a running search's book in another tab stops polling the real API
     expect((await start).status()).toBe(202);
     await expect(page.locator("#top-progress-bar")).toBeVisible();
     other.once("dialog", dialog => dialog.accept());
+    await openBookEditor(other);
     await other.getByRole("button", { name: "책 삭제", exact: true }).click();
-    await expect(other).toHaveURL(/\/books\?/);
+    await expect(other).toHaveURL(/\/books(?:\?|$)/);
     release();
     await expect(page.locator('.flash-error[role="alert"]')).toContainText("중단");
     await expect(page.locator("#top-progress-bar")).toBeHidden();

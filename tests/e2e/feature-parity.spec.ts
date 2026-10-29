@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page, username = "fixture-admin", password = "fixture-only-password") {
@@ -19,6 +20,7 @@ async function emptyBook(page: Page, name: string): Promise<number> {
 async function deleteCurrentBook(page: Page, expectedOrigin = "/books") {
   const expected = new URL(expectedOrigin, page.url());
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(expected.pathname);
   for (const [key, value] of expected.searchParams) expect(new URL(page.url()).searchParams.get(key), key).toBe(value);
@@ -44,9 +46,14 @@ test("book detail opens Aladin search, imports side stories, and edits numbering
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "선택 샘플 1-1" }) });
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await volume.getByLabel("권차", { exact: true }).fill("7");
-  await volume.getByLabel("책 카테고리", { exact: true }).fill("복원 분류");
   await volume.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "7권 · 선택 샘플 1-1", exact: true })).toBeVisible();
+  const bookEditor = await openBookEditor(page);
+  await bookEditor.getByRole("combobox", { name: "카테고리", exact: true }).selectOption("add");
+  await bookEditor.getByLabel("새 카테고리 이름", { exact: true }).fill("복원 분류");
+  await bookEditor.getByRole("button", { name: "추가", exact: true }).click();
+  await bookEditor.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(bookEditor).toBeHidden();
   await expect(page.locator(".book-hero")).toContainText("복원 분류");
   await page.goto("/dashboard");
   await page.getByLabel("비교 기준", { exact: true }).selectOption("amount");
@@ -67,7 +74,7 @@ test("product quick registration keeps the page and supports existing books and 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("product-quick-add.png"), fullPage: true });
   await first.getByRole("button", { name: "이 권 저장" }).click();
-  await expect(first.locator(".flash-success")).toContainText("권을 추가");
+  await expect(page.locator(".toast-message").last()).toContainText("권을 추가");
   await expect(page).toHaveURL(/\/products\?/);
   const second = page.locator(".quick-add-item").nth(1);
   await second.getByLabel("카테고리", { exact: true }).fill("상품 분류");
@@ -170,6 +177,7 @@ test("author search survives paging and selected-item registration", async ({ pa
   expect((await importRequest).postDataJSON().searchOptions).toMatchObject({ queryType: "Author", searchTarget: "Book", sort: "PublishTime", outOfStockFilter: false });
   await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/aladin\/search\?/);
   expect(new URL(page.url()).searchParams.get("query")).toBe(query);
@@ -180,8 +188,8 @@ test("author search survives paging and selected-item registration", async ({ pa
 test("cover regeneration reports success and invalid ISBN remains on the search page", async ({ page }) => {
   await login(page); await page.goto("/profile");
   await page.getByRole("button", { name: "미생성 표지 재생성", exact: true }).click();
-  await expect(page).toHaveURL(/\/profile\?message=/);
-  await expect(page.locator(".flash-success")).toContainText("커버 재생성 완료");
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.locator(".toast-message").last()).toContainText("커버 재생성 완료", { timeout: 30000 });
   await page.goto("/aladin/used?isbn=invalid");
   await expect(page.getByRole("heading", { name: "ISBN 재고 조회" })).toBeVisible();
   await expect(page.locator(".flash-error")).toContainText("ISBN10 또는 ISBN13");
@@ -208,19 +216,19 @@ test("profile and password edits persist and revoke an already logged-in session
     await page.getByLabel("이름", { exact: true }).fill("회귀 검사 사용자");
     await page.getByLabel("이메일", { exact: true }).fill("fixture@example.com");
     await page.getByRole("button", { name: "프로필 저장" }).click();
-    await expect(page.locator(".flash-success")).toContainText("프로필을 저장했습니다");
+    await expect(page.locator(".toast-message").last()).toContainText("프로필을 저장했습니다");
     await expect(page.getByLabel("이름", { exact: true })).toHaveValue("회귀 검사 사용자");
     await page.getByLabel("현재 비밀번호", { exact: true }).fill("fixture-only-password");
     await page.getByLabel("새 비밀번호", { exact: true }).fill("fixture-changed-password");
     await page.getByLabel("새 비밀번호 확인", { exact: true }).fill("fixture-changed-password");
     await page.getByRole("button", { name: "비밀번호 변경", exact: true }).click();
-    await expect(page.locator(".flash-success")).toContainText("비밀번호를 변경");
+    await expect(page.locator(".toast-message").last()).toContainText("비밀번호를 변경");
     await otherPage.goto("/books"); await expect(otherPage).toHaveURL(/\/login/);
     await page.getByLabel("현재 비밀번호", { exact: true }).fill("fixture-changed-password");
     await page.getByLabel("새 비밀번호", { exact: true }).fill("fixture-only-password");
     await page.getByLabel("새 비밀번호 확인", { exact: true }).fill("fixture-only-password");
     await page.getByRole("button", { name: "비밀번호 변경", exact: true }).click();
-    await expect(page.locator(".flash-success")).toContainText("비밀번호를 변경");
+    await expect(page.locator(".toast-message").last()).toContainText("비밀번호를 변경");
   } finally { await second.close(); }
 });
 
@@ -235,8 +243,10 @@ test("literal entity descriptions survive unrelated book and volume edits", asyn
   expect(response.status()).toBe(201);
   const { bookId } = await response.json();
   await page.goto(`/books/${bookId}`);
+  await openBookEditor(page);
   const bookForm = page.locator(".book-edit-form");
   await expect(page.locator(".book-hero")).toContainText(description);
+  await openBookEditor(page);
   await expect(bookForm.getByLabel("설명", { exact: true })).toHaveValue(description);
   await bookForm.getByLabel("저자", { exact: true }).fill("수정 저자");
   await bookForm.getByRole("button", { name: "저장", exact: true }).click();
@@ -254,8 +264,10 @@ test("literal entity descriptions survive unrelated book and volume edits", asyn
   await volume.getByLabel("저자", { exact: true }).press("Enter");
   await expect(volume.getByRole("dialog")).toBeHidden();
   await page.reload();
+  await openBookEditor(page);
   await expect(bookForm.getByLabel("설명", { exact: true })).toHaveValue(description);
   await expect(volume).toContainText(description);
+  await page.getByRole("button", { name: "책 정보 수정 닫기", exact: true }).click();
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await expect(volume.getByLabel("저자", { exact: true })).toHaveValue("권 수정 저자");
   await expect(volume.getByLabel("설명", { exact: true })).toHaveValue(description);
@@ -273,6 +285,7 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   expect(response.status()).toBe(201);
   const { bookId } = await response.json();
   await page.goto(`/books/${bookId}`);
+  await openBookEditor(page);
   const bookForm = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
   await bookForm.getByLabel("저자", { exact: true }).fill("수동 저자");
   await bookForm.getByLabel("총 권수", { exact: true }).fill("완결 12권");
@@ -291,15 +304,18 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
     if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 500));
     await route.continue();
   });
+  await openBookEditor(page);
   await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
   await expect(page.locator("#top-progress-bar")).toBeVisible();
-  await expect(page.locator(".flash-success")).toContainText("정보 보강 완료");
+  await expect(page.locator(".toast-message").last()).toContainText("정보 보강 완료");
   await expect(page.locator("#top-progress-bar")).toBeHidden();
   await page.unrouteAll({ behavior: "wait" });
   await expect(page.locator(".book-hero")).toContainText("수동 저자");
   const description = 'fixture <책> & "설명" 📚 <img src=x onerror=alert(1)> &lt;literal&gt; AT&amp;T';
   await expect(page.locator(".book-hero")).toContainText(description);
+  await openBookEditor(page);
   await expect(bookForm.getByLabel("설명", { exact: true })).toHaveValue(description);
+  await page.getByRole("button", { name: "책 정보 수정 닫기", exact: true }).click();
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
   await expect(volume).toContainText(description);
   await expect(volume.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
@@ -318,12 +334,15 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "선택한 권 삭제 (2)", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(0);
+  await openBookEditor(page);
   await expect(page.locator(".book-edit-form").getByLabel("총 권수", { exact: true })).toHaveValue("완결 12권");
   // Deletion must remain available even if the edit form contains invalid unsaved input.
+  await openBookEditor(page);
   await page.locator(".book-edit-form").getByLabel("제목", { exact: true }).fill("");
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
-  await expect(page).toHaveURL(/\/books\?/);
+  await expect(page).toHaveURL(/\/books(?:\?|$)/);
 });
 
 test("book enrichment matches a formatted ISBN and fills only missing purchase links when metadata is complete", async ({ page }, testInfo) => {
@@ -354,8 +373,9 @@ test("book enrichment matches a formatted ISBN and fills only missing purchase l
   const existing = page.locator(".volume-card").filter({ hasText: "기존 링크 권" });
   const productLink = missing.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true });
   await expect(productLink).toHaveCount(0);
+  await openBookEditor(page);
   await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
-  await expect(page.locator(".flash-success")).toHaveText("정보 보강 완료: 책 0건, 권 1건");
+  await expect(page.locator(".toast-message").last()).toHaveText("정보 보강 완료: 책 0건, 권 1건");
   await expect(productLink).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
   await expect(productLink).toHaveAttribute("target", "_blank");
   await expect(existing.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://example.com/keep");
@@ -367,8 +387,9 @@ test("book enrichment matches a formatted ISBN and fills only missing purchase l
   await missing.getByRole("button", { name: "상세정보", exact: true }).click();
   await expect(missing.getByLabel("ISBN13", { exact: true })).toHaveValue(formattedIsbn);
   await page.keyboard.press("Escape");
+  await openBookEditor(page);
   await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
-  await expect(page.locator(".flash-success")).toHaveText("채울 저자/설명/상품 링크가 없습니다.");
+  await expect(page.locator(".toast-message").last()).toHaveText("채울 저자/설명/상품 링크가 없습니다.");
   await deleteCurrentBook(page);
 });
 
@@ -379,7 +400,7 @@ test("profile categories can be added and removed while categories used by books
   const panel = page.getByRole("region", { name: "카테고리 관리", exact: true });
   await panel.getByLabel("새 카테고리", { exact: true }).fill(category);
   await panel.getByRole("button", { name: "카테고리 추가", exact: true }).click();
-  await expect(page.locator(".flash-success")).toContainText("카테고리를 추가");
+  await expect(page.locator(".toast-message").last()).toContainText("카테고리를 추가");
   await page.reload();
   const row = panel.locator("li").filter({ has: page.getByText(category, { exact: true }) });
   await expect(row).toHaveCount(1);
@@ -393,6 +414,7 @@ test("profile categories can be added and removed while categories used by books
   await expect(page.locator(".flash-error")).toContainText("책에 사용 중인 카테고리");
   await expect(row).toHaveCount(1);
   await page.goto(`/books/${bookId}`);
+  await openBookEditor(page);
   await expect(page.locator(".book-edit-form").getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:${category}`);
   await deleteCurrentBook(page);
   await page.goto("/profile");
@@ -401,7 +423,7 @@ test("profile categories can be added and removed while categories used by books
   await expect(row).toHaveCount(1);
   page.once("dialog", dialog => dialog.accept());
   await row.getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(page.locator(".flash-success")).toContainText("카테고리를 삭제");
+  await expect(page.locator(".toast-message").last()).toContainText("카테고리를 삭제");
   await page.reload();
   await expect(row).toHaveCount(0);
 });

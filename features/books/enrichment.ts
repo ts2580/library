@@ -14,11 +14,11 @@ const normalizeIsbn = (value: string | null) => value?.replace(/[-\s]/g, "").toU
 const isbnKeys = (volume: Pick<VolumeLink, "isbn13" | "isbn">) => [volume.isbn13, volume.isbn].map(normalizeIsbn).filter(Boolean);
 const matchesIsbn = (keys: string[], item: AladinBookItem) => isbnKeys(item).some(key => keys.includes(key));
 
-export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
+export async function enrichMissingBookInfo(ownerId: number, bookId: number, { includeLinks = true }: { includeLinks?: boolean } = {}) {
   const book = sqlite.prepare("SELECT id,name,author,description FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as Metadata | undefined;
   if (!book) throw new NotFoundError();
   const volumes = sqlite.prepare("SELECT id,name,author,description,isbn13,isbn,link FROM book_volumes WHERE book=? ORDER BY volume IS NULL,volume,id").all(bookId) as Volume[];
-  if (!blank(book.author) && !blank(book.description) && volumes.every((volume) => !blank(volume.author) && !blank(volume.description) && !blank(volume.link))) {
+  if (!blank(book.author) && !blank(book.description) && volumes.every((volume) => !blank(volume.author) && !blank(volume.description) && (!includeLinks || !blank(volume.link)))) {
     return { booksUpdated: 0, volumesUpdated: 0, summary: "채울 저자/설명/상품 링크가 없습니다." };
   }
   if (!isAladinConfigured()) throw new AppError("알라딘 검색을 설정한 뒤 다시 시도해 주세요.");
@@ -44,7 +44,7 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
   const patches: Array<{ id: number; item: AladinBookItem }> = [];
   let bookSource: AladinBookItem | undefined;
   for (const volume of volumes) {
-    if (!blank(volume.author) && !blank(volume.description) && !blank(volume.link) && (bookSource || (!blank(book.author) && !blank(book.description)))) continue;
+    if (!blank(volume.author) && !blank(volume.description) && (!includeLinks || !blank(volume.link)) && (bookSource || (!blank(book.author) && !blank(book.description)))) continue;
     const item = await match(volume);
     if (item) {
       bookSource ??= item;
@@ -55,30 +55,24 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number) {
     bookSource = (await search(book.name)).find((item) => item.author || item.description);
   }
   return sqlite.transaction(() => {
-    if (!sqlite.prepare("SELECT id FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId)) throw new NotFoundError();
-    const updateBook = sqlite.prepare(`UPDATE books SET
-      author=CASE WHEN TRIM(COALESCE(author,''))='' THEN COALESCE(?,author) ELSE author END,
-      description=CASE WHEN TRIM(COALESCE(description,''))='' THEN COALESCE(?,description) ELSE description END
-      WHERE id=? AND owner_id=? AND ((TRIM(COALESCE(author,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(description,''))='' AND ? IS NOT NULL))`);
-    const currentVolume = sqlite.prepare("SELECT isbn13,isbn,link FROM book_volumes WHERE id=? AND book=?");
-    const updateVolume = sqlite.prepare(`UPDATE book_volumes SET
-      author=CASE WHEN TRIM(COALESCE(author,''))='' THEN COALESCE(?,author) ELSE author END,
-      description=CASE WHEN TRIM(COALESCE(description,''))='' THEN COALESCE(?,description) ELSE description END,
-      link=COALESCE(?,link)
-      WHERE id=? AND book=? AND ((TRIM(COALESCE(author,''))='' AND ? IS NOT NULL) OR (TRIM(COALESCE(description,''))='' AND ? IS NOT NULL) OR ? IS NOT NULL)`);
-    const author = bookSource?.author?.trim() || null;
-    const description = bookSource?.description?.trim() || null;
-    const booksUpdated = updateBook.run(author, description, bookId, ownerId, author, description).changes;
+    const currentBook = sqlite.prepare("SELECT author,description FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as Pick<Metadata, "author" | "description"> | undefined;
+    if (!currentBook) throw new NotFoundError();
+    const fill = (current: string | null, source?: string | null) => blank(current) ? source?.trim() || current : current;
+    const author = fill(currentBook.author, bookSource?.author), description = fill(currentBook.description, bookSource?.description);
+    const booksUpdated = author !== currentBook.author || description !== currentBook.description
+      ? sqlite.prepare("UPDATE books SET author=?,description=? WHERE id=? AND owner_id=?").run(author, description, bookId, ownerId).changes : 0;
+    const currentVolume = sqlite.prepare("SELECT isbn13,isbn,link,author,description FROM book_volumes WHERE id=? AND book=?");
+    const updateVolume = sqlite.prepare("UPDATE book_volumes SET author=?,description=?,link=? WHERE id=? AND book=?");
     let volumesUpdated = 0;
     for (const { id, item } of patches) {
       // Recheck under the write lock: both the ISBN and link may have changed during lookup.
-      const current = currentVolume.get(id, bookId) as VolumeLink | undefined;
+      const current = currentVolume.get(id, bookId) as (VolumeLink & Pick<Metadata, "author" | "description">) | undefined;
       if (!current) continue;
       const keys = isbnKeys(current);
       // Use the same JavaScript whitespace rules as the initial enrichment check.
-      const link = blank(current.link) && (!keys.length || matchesIsbn(keys, item)) ? normalizeHttpUrl(item.link) : null;
-      const author = item.author?.trim() || null, description = item.description?.trim() || null;
-      volumesUpdated += updateVolume.run(author, description, link, id, bookId, author, description, link).changes;
+      const link = includeLinks && blank(current.link) && (!keys.length || matchesIsbn(keys, item)) ? normalizeHttpUrl(item.link) ?? current.link : current.link;
+      const author = fill(current.author, item.author), description = fill(current.description, item.description);
+      if (author !== current.author || description !== current.description || link !== current.link) volumesUpdated += updateVolume.run(author, description, link, id, bookId).changes;
     }
     return { booksUpdated, volumesUpdated, summary: booksUpdated || volumesUpdated
       ? `정보 보강 완료: 책 ${booksUpdated}건, 권 ${volumesUpdated}건` : "채울 수 있는 알라딘 정보가 없습니다." };

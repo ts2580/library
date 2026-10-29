@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { purgeExpiredSessions } from "@/features/auth/session";
 import { processNextCoverArchiveJob, recoverInterruptedCoverArchiveJobs, recoverStaleCoverAssemblies } from "@/features/backup/archive";
 import { processNextStockRefreshJob, recoverInterruptedStockJob } from "@/features/inventory/service";
+import { processNextMetadataEnrichmentJob } from "@/features/books/enrichment-job";
 
 let stopping = false;
 process.on("SIGINT", () => { stopping = true; });
@@ -30,6 +31,7 @@ async function main(): Promise<void> {
       let worked = false;
       worked = (await processNextStockRefreshJob()) || worked;
       if (!stopping) worked = (await processNextCoverArchiveJob()) || worked;
+      if (!stopping) worked = (await processNextMetadataEnrichmentJob()) || worked;
       if (Date.now() - lastCleanup > 60 * 60 * 1000) {
         purgeExpiredSessions();
         lastCleanup = Date.now();

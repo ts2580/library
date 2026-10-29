@@ -1,12 +1,12 @@
-# Java 이전과 3.4.0 전환
+# Java 이전과 3.5.0 전환
 
-3.4.0은 Next.js만 포함합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
+3.5.0은 Next.js만 포함합니다. 해당 정식 태그·이미지 발행을 확인한 뒤 전환합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
 
 ## 아직 Java에서 이전하지 않은 경우
 
 먼저 `trstyq/bookshelf:3.0.0-ca2-migration`으로 기존 Java 데이터를 실행합니다. [ca2 Docker 이전 안내](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/DOCKER_MIGRATION_CA2.md)와 [이전용 Compose](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/docker-compose.migration.3.0.0-ca2.yml)를 사용합니다. 이 버전의 자동 이전은 관리자 한 명만 있는 DB를 지원합니다.
 
-Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. 3.4.0 루트에서는 Java를 빌드하거나 시작하지 않습니다.
+Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next에서 기존 계정·책·표지를 확인합니다. 이후 이전 컨테이너를 중지합니다. 이 컨테이너를 중지하면 내부의 Next 웹·워커도 함께 종료됩니다. 3.5.0 루트에서는 Java를 빌드하거나 시작하지 않습니다.
 
 ## 이전 완료한 Docker
 
@@ -17,6 +17,7 @@ Java의 프로필에서 **새 책장으로 이전**을 누르고 `25648`의 Next
 | 이전 중 | `3.0.0-ca2-migration` | `Bookshelf-next:/app/next/data` | `Bookshelf:/data` |
 | ca2 Next 단독 | `3.0.0-ca2` | 웹·워커 모두 `Bookshelf-next:/app/data` | 웹에 `Bookshelf:/data` |
 | 3.4.0 정식 버전 | `trstyq/bookshelf:3.4.0` | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
+| 3.5.0 정식 버전 (발행 확인 후) | `trstyq/bookshelf:3.5.0` | 웹·워커 모두 `Bookshelf-next:/data` | 웹에 `Bookshelf:/data/legacy` |
 
 루트의 [발행용 Compose](../docker-compose.release.yml)는 두 볼륨을 external로 연결합니다. 기존 이름이 다르면 `.env`에 `BOOKSHELF_DATA_VOLUME`·`BOOKSHELF_LEGACY_VOLUME`을 지정합니다. `.env`의 알라딘 등 기존 설정을 유지합니다. 정식 이미지로 교체하는 명령과 로컬 빌드 검증은 [README](../README.md)에 있습니다.
 
@@ -62,3 +63,7 @@ npm ci
 삭제 대상은 `BOOKSHELF_LEGACY_DATA_DIR` 아래 `bookshelf.sqlite`·WAL/SHM·`covers/`입니다. 새 DB·표지, 이전 전 백업, 기존 수동 백업·로그는 유지합니다. 원본 경로 기본값은 로컬 `data/legacy`, Docker `/data/legacy`입니다. 새 데이터와 원본 경로가 겹치면 삭제하지 않습니다.
 
 원본 삭제 전까지 Java로 되돌아갈 수 있지만 Next에서 변경한 내용이 원본에 자동 반영되지는 않습니다. 원본을 지운 뒤 복원하려면 DB와 표지 백업이 모두 필요합니다.
+
+## 3.5.0 스키마 호환
+
+기존 데이터 볼륨과 `.env`를 유지하고 웹·워커를 같은 정식 버전으로 함께 교체합니다. DB 스키마 6은 전체 책 정보 보강의 대상·진행 위치·결과를 저장하는 테이블만 추가합니다. 기존 책·권·저자·설명·표지·재고는 마이그레이션 중 변경하지 않습니다. RC에서 추가한 스키마는 호환성을 위해 유지하며, 프로필의 전체 책 정보 보강 버튼과 진행 섹션은 다음 릴리즈로 연기합니다.

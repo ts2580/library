@@ -47,6 +47,17 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
   const totalPages = result ? Math.min(50, Math.ceil(result.totalResults / Math.max(1, result.pageSize))) : 0;
   useEffect(() => () => pageRequest.current?.abort(), []);
 
+  function byPublication(entries: Selection[]): Selection[] {
+    const selected = new Map(entries.map(entry => [entry.key, entry]));
+    const items = [...pages.current.entries()].sort(([a], [b]) => a - b).flatMap(([page, result]) =>
+      result.items.flatMap(item => {
+        const key = item.isbn13 ?? item.isbn;
+        const entry = key ? selected.get(key) : undefined;
+        return entry?.page === page ? [{ ...entry, pubDate: item.pubDate }] : [];
+      }));
+    return orderByPublicationDate(items).map(({ pubDate, ...entry }) => entry);
+  }
+
   function resetPreview() {
     pageRequest.current?.abort(); pageRequest.current = null;
     setResult(null); setSelection([]); setLoading(false); setError(""); pages.current.clear();
@@ -75,7 +86,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
         const keys = (body as AladinSearchResult).items.filter((item) => !item.owned).map((item) => item.isbn13 ?? item.isbn).filter((key): key is string => Boolean(key));
         setSelection((previous) => {
           const next = [...previous, ...keys.filter((key) => !previous.some((entry) => entry.key === key)).map((key) => ({ page, key }))];
-          return new Set(next.map((entry) => entry.page)).size <= 10 ? next : previous;
+          return new Set(next.map((entry) => entry.page)).size <= 10 ? byPublication(next) : previous;
         });
       }
     } catch (cause) {
@@ -83,12 +94,12 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     } finally { if (pageRequest.current === controller) setLoading(false); }
   }
 
-  function toggle(keys: string[], checked: boolean) {
+  function toggle(keys: string[], checked: boolean, bulk = false) {
     if (!result) return;
     const remaining = selection.filter((item) => !keys.includes(item.key));
-    const next = checked ? [...remaining, ...keys.map((key) => ({ page: result.page, key }))] : remaining;
+    const next = checked ? [...remaining, ...keys.map((key) => selection.find(entry => entry.key === key) ?? { page: result.page, key })] : remaining;
     if (new Set(next.map((item) => item.page)).size > 10) { setError("한 번에 최대 10개 페이지에서 선택할 수 있습니다."); return; }
-    setSelection(next); setError("");
+    setSelection(bulk && checked ? byPublication(next) : next); setError("");
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -103,11 +114,11 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       let response: Response;
       if (manual) {
         const book = Object.fromEntries(["author", "description", "type", "totalVolume", "coverUrl"].map((key) => [key, String(form.get(key) ?? "")]));
-        form.set("payload", JSON.stringify({ book: { ...book, name: seriesName }, direct, targetBookId: direct ? null : target?.id ?? null, selection }));
+        form.set("payload", JSON.stringify({ book: { ...book, name: seriesName }, direct, targetBookId: direct ? null : target?.id ?? null, selection, preserveSelectionOrder: Boolean(target) }));
         response = await apiFetch("/api/books/manual", { method: "POST", body: form });
       } else {
         response = await apiFetch("/api/aladin/import", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ query, targetBookId: target?.id ?? null, seriesName, sideStory: false, selection, searchOptions,
+          body: JSON.stringify({ query, targetBookId: target?.id ?? null, seriesName, sideStory: false, selection, searchOptions, preserveSelectionOrder: Boolean(target),
             category: target ? undefined : String(form.get("type") ?? "") }) });
       }
       const body = await response.json();
@@ -126,18 +137,10 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     finally { setSaving(false); }
   }
 
-  // Preview and server registration share publication-date ordering.
+  // Existing books keep the user's selection sequence; bulk selection already sorts by date.
   let nextVolume = target?.nextVolume ?? 1;
   const numbering = new Map<string, number | null>();
-  const selectedItems: Array<{ key: string; pubDate: string | null; sideStory: boolean }> = [];
-  for (const page of [...pages.current.keys()].sort((a, b) => b - a)) {
-    for (const item of pages.current.get(page)!.items) {
-      const key = item.isbn13 ?? item.isbn;
-      const selected = selection.find((entry) => entry.page === page && entry.key === key);
-      if (key && selected) selectedItems.push({ key, pubDate: item.pubDate, sideStory: selected.sideStory ?? false });
-    }
-  }
-  for (const item of orderByPublicationDate(selectedItems)) numbering.set(item.key, item.sideStory ? null : nextVolume++);
+  for (const item of target ? selection : byPublication(selection)) numbering.set(item.key, item.sideStory ? null : nextVolume++);
   const keys = result?.items.filter((item) => !item.owned).map((item) => item.isbn13 ?? item.isbn).filter((key): key is string => Boolean(key)) ?? [];
   const ready = manual && !direct && Boolean(result);
   const submitLabel = saving ? "등록 중" : manual && direct ? "책 추가" : manual && !result ? "추가 예정 확인"
@@ -188,7 +191,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
           <div className="button-row"><h2>{manual ? "추가 예정 도서" : "검색 결과"}</h2><span className="chip">{result.totalResults.toLocaleString("ko-KR")}건</span></div>
           {!manual && <div className="aladin-import-action-top">{submitButton}</div>}
         </div>
-        <div className="button-row"><button className="button button-outline" type="button" disabled={loading || saving || !keys.length} onClick={() => toggle(keys, true)}>현재 페이지 모두 선택</button>
+        <div className="button-row"><button className="button button-outline" type="button" disabled={loading || saving || !keys.length} onClick={() => toggle(keys, true, true)}>현재 페이지 모두 선택</button>
           <button className="button button-outline" type="button" disabled={loading || saving} onClick={() => toggle(keys, false)}>현재 페이지 모두 제외</button>
           <button className="button button-outline" type="button" disabled={saving} onClick={() => setSelection([])}>선택 초기화</button><span role="status">{selection.length}권 선택</span></div>
         <div className="search-results">{result.items.map((item, index) => {
@@ -207,7 +210,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
             </div></article>;
         })}</div>
         {!result.items.length && <p className="empty">{target ? "기존 책에 추가할 알라딘 항목이 없습니다." : "검색 결과가 없습니다. 입력한 정보로 책만 추가할 수 있습니다."}</p>}
-        <p className="muted small">출간일이 빠른 책부터 권차를 붙입니다. 출간일이 없으면 마지막에 배치하며, 외전은 정규 권차에서 제외합니다.</p>
+        <p className="muted small">{target ? "직접 체크하면 체크한 순서대로 권차를 붙입니다. 일괄 선택은 출간일이 빠른 순서이며, 같은 출간일은 검색 결과 순서를 따릅니다." : "출간일이 빠른 책부터 권차를 붙입니다. 같은 출간일은 검색 결과 순서를 따르며, 출간일이 없으면 마지막에 배치합니다."} 외전은 정규 권차에서 제외합니다.</p>
         <div className={`aladin-results-footer${manual ? " aladin-results-footer-manual" : ""}`}>
         <Pagination page={result.page} totalPages={totalPages} label="알라딘 검색 페이지" className="aladin-pagination" disabled={loading || saving} onPageChange={page => void loadPage(page)}/>
         {!manual && <div className="aladin-import-action">{submitButton}</div>}

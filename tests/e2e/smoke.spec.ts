@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 import { rmSync } from "node:fs";
 import path from "node:path";
@@ -96,6 +97,7 @@ test("manual registration and volume Server Actions persist actual records", asy
   await page.getByRole("button", { name: "상세정보 닫기", exact: true }).click();
   expect(aladinRequests).toEqual([]);
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
   await expect(page.getByText(name, { exact: true })).toHaveCount(0);
@@ -122,6 +124,7 @@ test("manual categories can be created, selected, and reused without a book", as
   await form.getByRole("button", { name: "책 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.getByText(category, { exact: true }).first()).toBeVisible();
+  await openBookEditor(page);
   page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
 });
@@ -149,6 +152,7 @@ test("multi-page selection survives a failed page request and preserves import o
   await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-2", "2권 · 선택 샘플 2-1", "3권 · 선택 샘플 1-1"]);
   // The two projects share a fixture server; remove this test's ISBNs afterwards.
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/aladin\/search\?/);
   expect(new URL(page.url()).searchParams.get("query")).toBe(testInfo.project.name);
@@ -189,6 +193,7 @@ test("foreign-origin mutation requests are rejected", async ({ page }) => {
 
 async function deleteCurrentBook(page: Page) {
   page.once("dialog", (dialog) => dialog.accept());
+  await openBookEditor(page);
   await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
 }
@@ -214,10 +219,12 @@ test("manual Aladin preview keeps category, multi-page selections, and individua
   await form.getByRole("button", { name: "4권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.locator(".volume-title h3")).toHaveText(["1권 · 선택 샘플 2-1", "2권 · 선택 샘플 1-2", "3권 · 선택 샘플 1-1", "외전 · 선택 샘플 2-2"]);
+  await openBookEditor(page);
   const editor = page.locator("form").filter({ has: page.getByRole("button", { name: "저장", exact: true }) });
   await expect(editor.getByLabel("저자", { exact: true })).toHaveValue("테스트 저자");
   await expect(editor.getByLabel("총 권수", { exact: true })).toHaveValue("");
   await expect(editor.getByRole("combobox", { name: "카테고리", exact: true })).toHaveValue(`saved:직접 검색 분류 ${testInfo.project.name}`);
+  await openBookEditor(page);
   page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "책 삭제", exact: true }).click();
   await expect(page).toHaveURL(/\/books(?:\?|$)/);
 });
@@ -252,6 +259,7 @@ test("search page and manual preview both append to an existing series and exclu
   await expect(page.getByLabel("선택 선택 샘플 1-2", { exact: true })).toBeChecked();
   await page.getByRole("button", { name: "1권 추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "6권 · 선택 샘플 1-2", exact: true })).toBeVisible();
+  await openBookEditor(page);
   await expect(page.getByLabel("총 권수", { exact: true })).toHaveValue("전 12권");
   await deleteCurrentBook(page);
 });

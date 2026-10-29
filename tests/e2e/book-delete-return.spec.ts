@@ -1,3 +1,4 @@
+import { openBookEditor } from "./helpers/book-editor";
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
@@ -47,14 +48,18 @@ for (const [index, origin] of origins.entries()) {
       await link.click();
       await expect(page.locator(".book-hero h1")).toBeVisible();
       if (origin.edit) {
+        await openBookEditor(page);
         const form = page.getByRole("form", { name: "책 정보", exact: true });
         await form.getByLabel("총 권수", { exact: true }).fill("전체 12권");
         await form.getByRole("button", { name: "저장", exact: true }).click();
+        await expect(page.getByRole("dialog", { name: "책 정보 수정", exact: true })).toBeHidden();
+        await openBookEditor(page);
         await expect(form.getByLabel("총 권수", { exact: true })).toHaveValue("전체 12권");
         await expect(page.locator(".flash-success")).toBeVisible();
       }
       await page.reload();
       page.once("dialog", dialog => dialog.accept());
+      await openBookEditor(page);
       await page.getByRole("button", { name: "책 삭제", exact: true }).click();
       await expect.poll(() => new URL(page.url()).pathname).toBe(origin.path);
       const actual = new URL(page.url()).searchParams;
@@ -91,6 +96,7 @@ for (const staleSearch of [false, true]) {
       await expect(page.locator(".book-hero h1")).toHaveText("선택 샘플 2-1");
       await page.reload();
       page.once("dialog", dialog => dialog.accept());
+      await openBookEditor(page);
       await page.getByRole("button", { name: "책 삭제", exact: true }).click();
       await expect.poll(() => new URL(page.url()).pathname).toBe("/products");
       const restored = new URL(page.url()).searchParams;
@@ -114,6 +120,7 @@ test("deleting a branch's last book returns to the inventory list with its searc
     await page.goto(`/inventory/branches/ONLY_ONE?${new URLSearchParams({q:"복귀 100%_!",page:"1"})}`);
     await page.locator(".stock-card .volume-title-link").click();
     page.once("dialog", dialog => dialog.accept());
+    await openBookEditor(page);
     await page.getByRole("button", {name:"책 삭제",exact:true}).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/inventory");
     expect(new URL(page.url()).searchParams.get("q")).toBe("복귀 100%_!");
@@ -126,6 +133,7 @@ test("the delete action rejects a forged external return location", async ({ pag
   await library(page, async () => {
     await page.goto("/books");
     await page.locator(".book-card").first().click();
+    await openBookEditor(page);
     const button = page.getByRole("button", {name:"책 삭제",exact:true});
     await button.evaluate(element => {
       const form = (element as HTMLButtonElement).form!;

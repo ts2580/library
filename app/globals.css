@@ -65,6 +65,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button-secondary { color: var(--accent-strong); background: var(--accent-soft); border-color: transparent; }
 .button-secondary:hover { background: #d7e9e2; }
 .button-outline { color: var(--accent-strong); background: white; border-color: #a9c5bb; }
+.button-outline:hover { color: white; }
 .button-danger-outline { color: var(--danger); background: white; border-color: #e8b9b9; }
 .button-danger { color: white; background: var(--danger); border-color: var(--danger); }
 .button-small { min-height: 36px; padding: 0 12px; border-radius: 11px; font-size: .82rem; }
@@ -98,6 +99,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .flash { padding: 13px 16px; border-radius: 14px; font-weight: 650; }
 .flash-success { color: #215b48; background: #e5f5ee; border: 1px solid #b8dece; }
 .flash-error { color: #8f2727; background: #fff0f0; border: 1px solid #efc2c2; }
+.toast-host { position: fixed; inset: max(16px, env(safe-area-inset-top)) 16px auto auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: 0; padding: 0; border: 0; background: transparent; overflow: auto; pointer-events: none; }
+.toast-host:popover-open { display: grid; gap: 10px; }
+.toast { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; box-shadow: 0 8px 24px rgba(20,37,31,.18); pointer-events: auto; }
+.toast-message { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; font-weight: 650; }
+.toast-close { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; }
+.toast-close:hover, .toast-close:focus-visible { background: rgba(33,91,72,.1); }
+[data-cover-preview] { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.cover-preview { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); margin: 0; padding: 0; border: 0; border-radius: 18px; background: #f8fafc; box-shadow: 0 24px 70px rgba(15,23,42,.32); pointer-events: none; overflow: hidden; }
+.cover-preview img { display: block; max-width: calc(100vw - 36px); max-height: calc(100dvh - 36px); object-fit: contain; }
 .error-dialog { width: min(520px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: clamp(20px, 4vw, 28px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: var(--shadow); overflow: auto; overflow-wrap: anywhere; }
 .error-dialog::backdrop { background: rgba(15, 23, 42, .5); backdrop-filter: blur(3px); }
 .error-dialog h2 { margin: 0; font-size: 1.2rem; }
