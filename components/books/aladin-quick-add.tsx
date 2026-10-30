@@ -44,7 +44,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "권을 추가하지 못했습니다.");
       setSaved({ bookId: body.bookId });
-      showToast(`권을 추가했습니다.${body.coverFailures ? " 표지는 프로필에서 다시 생성할 수 있습니다." : ""}`);
+      showToast(`권을 추가했습니다.${body.coverFailures ? " 표지를 내려받지 못했습니다. 책 상세에서 표지 파일을 올려 주세요." : ""}`);
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "권을 추가하지 못했습니다."); }
     finally { setBusy(false); }

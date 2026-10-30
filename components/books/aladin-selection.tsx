@@ -53,9 +53,9 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       result.items.flatMap(item => {
         const key = item.isbn13 ?? item.isbn;
         const entry = key ? selected.get(key) : undefined;
-        return entry?.page === page ? [{ ...entry, pubDate: item.pubDate }] : [];
+        return entry?.page === page ? [{ ...entry, pubDate: item.pubDate, title: item.title }] : [];
       }));
-    return orderByPublicationDate(items).map(({ pubDate, ...entry }) => entry);
+    return orderByPublicationDate(items).map(({ pubDate, title, ...entry }) => entry);
   }
 
   function resetPreview() {
@@ -124,7 +124,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "등록에 실패했습니다.");
       const message = (body.count ? `${body.count}권을 등록했습니다.` : "책을 추가했습니다.")
-        + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 프로필에서 표지 재생성을 실행해 주세요.` : "");
+        + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 책 상세에서 표지 파일을 올려 주세요.` : "");
       const source = new URL(window.location.href);
       if (source.pathname === "/aladin/search") {
         source.searchParams.set("query", query);
@@ -210,7 +210,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
             </div></article>;
         })}</div>
         {!result.items.length && <p className="empty">{target ? "기존 책에 추가할 알라딘 항목이 없습니다." : "검색 결과가 없습니다. 입력한 정보로 책만 추가할 수 있습니다."}</p>}
-        <p className="muted small">{target ? "직접 체크하면 체크한 순서대로 권차를 붙입니다. 일괄 선택은 출간일이 빠른 순서이며, 같은 출간일은 검색 결과 순서를 따릅니다." : "출간일이 빠른 책부터 권차를 붙입니다. 같은 출간일은 검색 결과 순서를 따르며, 출간일이 없으면 마지막에 배치합니다."} 외전은 정규 권차에서 제외합니다.</p>
+        <p className="muted small">{target ? "직접 체크하면 체크한 순서대로 권차를 붙입니다. 일괄 선택은 출간일이 빠른 순서이며, 같은 출간일은 제목의 숫자 순서를 따릅니다." : "출간일이 빠른 책부터 권차를 붙입니다. 같은 출간일은 제목의 숫자 순서를 따르며, 출간일이 없으면 마지막에 배치합니다."} 외전은 정규 권차에서 제외합니다.</p>
         <div className={`aladin-results-footer${manual ? " aladin-results-footer-manual" : ""}`}>
         <Pagination page={result.page} totalPages={totalPages} label="알라딘 검색 페이지" className="aladin-pagination" disabled={loading || saving} onPageChange={page => void loadPage(page)}/>
         {!manual && <div className="aladin-import-action">{submitButton}</div>}

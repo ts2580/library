@@ -30,7 +30,7 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
     if ([...keys].some((key) => !available.has(key))) {
       throw new AppError("선택한 알라딘 항목이 변경되었습니다. 다시 검색해 주세요.", "STALE_SELECTION");
     }
-    // Keep a stable search order for equal or unavailable publication dates.
+    // Gather every selected page before applying title/date ordering or explicit click order.
     for (const item of result.items) {
       const key = item.isbn13 ?? item.isbn;
       if (key && keys.has(key) && !seen.has(key)) { seen.add(key); selected.push(item); }

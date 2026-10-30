@@ -20,6 +20,13 @@ globalThis.fetch = async function fixtureFetch(input, init) {
     }
     const page = Number(url.searchParams.get("start") ?? 1);
     const namespace = String(parseInt(createHash("sha256").update(url.searchParams.get("Query") ?? "").digest("hex").slice(0, 8), 16) % 1000000).padStart(6, "0");
+    if (query.startsWith("동일출간일역순검증")) {
+      return Response.json({ totalResults: 4, startIndex: page, itemsPerPage: 20, item: [33, 32, 31, 30].map(volume => ({
+        title: `츠구모모 ${volume}`, isbn13: `978${namespace}${String(volume).padStart(4, "0")}`,
+        author: "테스트 저자", description: "동일 출간일 역순 검색 결과", priceSales: 7200,
+        pubDate: volume === 30 ? "2026-09-29" : "2026-09-30"
+      })) });
+    }
     return Response.json({ totalResults: query.startsWith("페이지검증") ? 200 : 40, startIndex: page, itemsPerPage: Number(url.searchParams.get("MaxResults") ?? 20), item: (query.startsWith("권차순서검증") ? [1, 2, 3, 4] : [1, 2]).map((index) => ({
       title: `선택 샘플 ${page}-${index}`, isbn13: `978${namespace}${String(page * 10 + index).padStart(4, "0")}`,
       author: "테스트 저자", description: query === "선택 샘플 1-1"

@@ -29,7 +29,7 @@ test("profile hides deferred bulk enrichment controls while the authenticated AP
     await page.goto("/profile");
     await expect(page.getByRole("button", { name: "전체 책 저자·설명 채우기", exact: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "전체 책 정보 보강", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "미생성 표지 재생성", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "미생성 표지 재생성", exact: true })).toHaveCount(0);
     const started = await page.request.post("/api/books/enrich");
     expect([200, 202]).toContain(started.status());
     await page.reload();
