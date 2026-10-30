@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    image: bookshelf:3.5.0-local
+    image: bookshelf:3.5.1-local
     init: true
     restart: unless-stopped
     command: npm run start
@@ -16,7 +16,7 @@ services:
       - bookshelf-data:/data
   worker:
     build: .
-    image: bookshelf:3.5.0-local
+    image: bookshelf:3.5.1-local
     init: true
     restart: unless-stopped
     command: npm run worker
