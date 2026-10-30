@@ -1,8 +1,8 @@
 # Bookshelf
 
-Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **버전은 3.5.0이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP·책 정보 보강 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
+Next.js App Router + React + TypeScript + Drizzle + SQLite로 구성한 책장입니다. **버전은 3.5.1이며 프로젝트 루트에서 실행**합니다. 웹과 재고·표지 ZIP·책 정보 보강 워커는 같은 패키지와 DB를 사용하는 별도 프로세스입니다.
 
-[3.5.0 변경 내용과 업데이트 안내](docs/RELEASE_3.5.0.md)를 참고하세요. 정식 태그명은 `v3.5.0`입니다. GitHub Release와 Docker 이미지 발행을 확인한 뒤 설치합니다.
+[3.5.1 변경 내용과 업데이트 안내](docs/RELEASE_3.5.1.md)를 참고하세요. 정식 태그명은 `v3.5.1`입니다. GitHub Release와 Docker 이미지 발행을 확인한 뒤 설치합니다.
 
 책 상세는 요약·저자와 권 목록을 먼저 표시하고, **책 정보 수정** 버튼으로 편집 모달을 엽니다. 표지는 PC에서 호버하거나 터치로 450ms 누르면 원본 크기로 확대하며, 완료 알림은 토스트로 표시합니다.
 
@@ -59,7 +59,7 @@ DB·표지·업로드·백업은 한 데이터 루트에 보관합니다. 로컬
 
 `BOOKSHELF_DATA_DIR` 기본값은 `./data`이며 DB는 그 안의 `bookshelf.sqlite`를 사용합니다. 원클릭 이전 기록이 있으면 같은 데이터 루트의 `migrations/handover-*`를 선택합니다. `BOOKSHELF_DB_PATH`는 별도 DB를 명시할 때만 설정합니다. `.env`도 루트에서 읽으며, 이동을 마치면 `next/` 폴더는 필요하지 않습니다. 이전 `next/data`만 남은 상태에서 새 빈 DB를 만드는 대신 이동 안내와 함께 시작을 중단합니다.
 
-3.5.0은 Java 소스·Gradle·이전용 실행기를 포함하지 않습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
+3.5.1은 Java 소스·Gradle·이전용 실행기를 포함하지 않습니다. 아직 Java 데이터 이전 전이면 [ca2 이전용 이미지와 안내](https://github.com/ts2580/library/releases/tag/v3.0.0-ca2)를 먼저 사용합니다. [이전·전환 절차](docs/ONE_CLICK_MIGRATION.md)에 기존 DB·표지 정리까지 설명했습니다.
 
 ## Docker
 
@@ -81,7 +81,7 @@ docker compose up -d --build
 
 새 데이터 볼륨은 `BOOKSHELF_DATA_VOLUME` → ca2의 `BOOKSHELF_NEXT_VOLUME` → `Bookshelf-next` 순서로 비어 있지 않은 값을 사용합니다. ca2에서 `BOOKSHELF_NEXT_VOLUME`만 지정한 설정도 그대로 사용할 수 있습니다.
 
-발행용 Compose는 `trstyq/bookshelf:3.5.0`을 사용합니다. 해당 태그의 이미지 발행을 확인한 뒤 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
+발행용 Compose는 `trstyq/bookshelf:3.5.1`을 사용합니다. 해당 태그의 이미지 발행을 확인한 뒤 기존 `.env`와 실제 볼륨 이름을 확인하고 이전 웹·워커를 종료한 뒤 함께 교체합니다.
 
 ```bash
 docker compose -f docker-compose.release.yml pull
@@ -133,9 +133,9 @@ npm run db:verify
 `db:verify`는 설정된 실제 DB를 대상으로 실행하며 필요한 bootstrap을 수행합니다. 단위·통합·Playwright 검사는 임시 DB·계정만 사용하며, Playwright가 `25648`의 웹과 별도 워커를 시작합니다. 알라딘은 테스트 프로세스에서 fixture 응답을 사용합니다.
 
 ```bash
-docker build -t bookshelf:3.5.0-local .
-npm run test:docker -- bookshelf:3.5.0-local
-CLEANUP_DOCKER_IMAGE=bookshelf:3.5.0-local npm run test:cleanup:docker
+docker build -t bookshelf:3.5.1-local .
+npm run test:docker -- bookshelf:3.5.1-local
+CLEANUP_DOCKER_IMAGE=bookshelf:3.5.1-local npm run test:cleanup:docker
 ```
 
 Docker 검사도 별도 임시 컨테이너·볼륨을 사용합니다. `test:cleanup:docker`는 관리자 로그인 세션으로 정리 API를 호출해 완료 상태, 원본 DB·표지 삭제, 이전본·백업 보존과 인증된 표지 접근을 확인합니다. [ca3 변경·검증 기록](docs/CA3_ROOT_LAYOUT.md), [인증·백업·재고 리뷰 수정](docs/CANARY_REVIEW_20261019.md), [기존 기능 대조 기록](docs/FEATURE_PARITY_AUDIT.md), [아키텍처](docs/ARCHITECTURE.md)를 참고하세요.
