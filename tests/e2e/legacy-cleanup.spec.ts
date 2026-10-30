@@ -12,7 +12,9 @@ async function profile(page: Page) {
 async function expectProfileWithoutMigration(page: Page) {
   await expect(page.getByRole("heading", { name: "기본 정보", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "비밀번호 변경", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "표지 재생성", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "표지 재생성", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "미생성 표지 재생성", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "데이터 백업", exact: true })).toBeVisible();
   await expect(page.getByText("Migration", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "기존 데이터 정리", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "기존 DB·표지 삭제", exact: true })).toHaveCount(0);

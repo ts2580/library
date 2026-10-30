@@ -9,8 +9,7 @@ import { requireUser } from "@/features/auth/authorization";
 import { hashPassword, verifyPassword } from "@/features/auth/password";
 import { createSession, CredentialsChangedError } from "@/features/auth/session";
 import { passwordChangeSchema, profileSchema } from "@/features/profile/validation";
-import { regeneratePendingCovers } from "@/features/covers/regeneration";
-import { errorCode, errorMessage, errorParams } from "@/lib/errors";
+import { errorCode, errorMessage } from "@/lib/errors";
 import { addCategory, removeCategory } from "@/features/books/categories";
 
 function v(formData: FormData, key: string): string {
@@ -78,18 +77,4 @@ export async function changePasswordAction(formData: FormData): Promise<never> {
     throw error;
   }
   redirect(`/profile?message=${encodeURIComponent("비밀번호를 변경하고 다른 로그인 세션을 종료했습니다.")}`);
-}
-
-export async function regenerateCoversAction(): Promise<never> {
-  const user = await requireUser();
-  let summary: string;
-  try {
-    const result = await regeneratePendingCovers(user.id);
-    summary = result.summary;
-  } catch (error) {
-    redirect(`/profile?${errorParams(error, "커버를 재생성하지 못했습니다.")}`);
-  }
-  revalidatePath("/books", "layout");
-  revalidatePath("/dashboard");
-  redirect(`/profile?message=${encodeURIComponent(summary)}`);
 }

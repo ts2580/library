@@ -124,7 +124,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "등록에 실패했습니다.");
       const message = (body.count ? `${body.count}권을 등록했습니다.` : "책을 추가했습니다.")
-        + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 프로필에서 표지 재생성을 실행해 주세요.` : "");
+        + (body.coverFailures ? ` 표지 ${body.coverFailures}건은 내려받지 못했습니다. 책 상세에서 표지 파일을 올려 주세요.` : "");
       const source = new URL(window.location.href);
       if (source.pathname === "/aladin/search") {
         source.searchParams.set("query", query);

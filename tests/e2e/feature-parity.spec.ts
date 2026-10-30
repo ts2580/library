@@ -185,11 +185,11 @@ test("author search survives paging and selected-item registration", async ({ pa
   expect(new URL(page.url()).searchParams.get("page")).toBe("2");
 });
 
-test("cover regeneration reports success and invalid ISBN remains on the search page", async ({ page }) => {
+test("profile omits cover regeneration controls and invalid ISBN remains on the search page", async ({ page }) => {
   await login(page); await page.goto("/profile");
-  await page.getByRole("button", { name: "미생성 표지 재생성", exact: true }).click();
-  await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.locator(".toast-message").last()).toContainText("커버 재생성 완료", { timeout: 30000 });
+  await expect(page.getByRole("heading", { name: "표지 재생성", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "미생성 표지 재생성", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "데이터 백업", exact: true })).toBeVisible();
   await page.goto("/aladin/used?isbn=invalid");
   await expect(page.getByRole("heading", { name: "ISBN 재고 조회" })).toBeVisible();
   await expect(page.locator(".flash-error")).toContainText("ISBN10 또는 ISBN13");
