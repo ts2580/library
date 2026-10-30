@@ -65,7 +65,7 @@ describe("Java feature parity regressions", () => {
       { name: "선택 3", volume: 2 }, { name: "선택 2", volume: null }, { name: "선택 1", volume: 3 }
     ]);
   });
-  it("breaks equal publication dates by search page and result order", async () => {
+  it("breaks equal publication dates by natural title order across pages", async () => {
     api.mockImplementation(async (_endpoint, params) => ({ startIndex: params.start, itemsPerPage: 20, totalResults: 40,
       item: [1, 2].map(index => ({ title: `검색 ${params.start}-${index}`, isbn13: `9780000000${params.start}0${index}`, pubDate: "2026-05-29" })) }));
     await importAladinSelection(1, { query: "검색", seriesName: "기존 책", targetBookId: 1, sideStory: false,
@@ -73,6 +73,17 @@ describe("Java feature parity regressions", () => {
     expect(sqlite.prepare("SELECT name,volume FROM book_volumes WHERE book=1 ORDER BY volume").all()).toEqual([
       { name: "검색 1-1", volume: 1 }, { name: "검색 1-2", volume: 2 }, { name: "검색 2-1", volume: 3 }, { name: "검색 2-2", volume: 4 }
     ]);
+  });
+  it("assigns screenshot titles to matching volumes when search results are descending", async () => {
+    volume(1, 1, 29);
+    api.mockResolvedValue({ startIndex: 1, itemsPerPage: 20, totalResults: 4,
+      item: [33, 32, 31, 30].map(number => ({ title: `츠구모모 ${number}`, isbn13: `9791167695${number}0`,
+        pubDate: number === 30 ? "2026-09-29" : "2026-09-30" })) });
+    await importAladinSelection(1, { query: "검색", seriesName: "기존 책", targetBookId: 1, sideStory: false,
+      selection: [33, 32, 31, 30].map(number => ({ page: 1, key: `9791167695${number}0` })) });
+    expect(sqlite.prepare("SELECT name,volume FROM book_volumes WHERE book=1 AND isbn13 IS NOT NULL ORDER BY volume").all()).toEqual(
+      [30, 31, 32, 33].map(number => ({ name: `츠구모모 ${number}`, volume: number }))
+    );
   });
   it.each([
     "&lt;책&gt; &amp; &quot;설명&quot; &#39;인용&#39; &#x1F4DA; &nbsp;",

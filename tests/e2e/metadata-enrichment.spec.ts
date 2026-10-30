@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-test("profile enriches all owned books and volumes through the worker and resumes status after reload", async ({ page }, testInfo) => {
+test("profile hides deferred bulk enrichment controls while the authenticated API preserves worker behavior", async ({ page }, testInfo) => {
   expect((await page.request.post("/api/books/enrich")).status()).toBe(401);
   const directory = process.env.BOOKSHELF_E2E_DATA;
   if (!directory || path.dirname(directory) !== tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");
@@ -27,20 +27,23 @@ test("profile enriches all owned books and volumes through the worker and resume
     await expect(page).toHaveURL(/\/dashboard/);
     expect((await page.request.post("/api/books/enrich", { headers: { origin: "https://untrusted.example" } })).status()).toBe(403);
     await page.goto("/profile");
-    const panel = page.getByRole("region", { name: "전체 책 정보 보강", exact: true });
-    await panel.getByRole("button", { name: "전체 책 저자·설명 채우기", exact: true }).click();
-    await expect(panel.getByRole("button")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "전체 책 저자·설명 채우기", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "전체 책 정보 보강", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "미생성 표지 재생성", exact: true })).toHaveCount(0);
+    const started = await page.request.post("/api/books/enrich");
+    expect([200, 202]).toContain(started.status());
     await page.reload();
     await expect.poll(() => db.prepare("SELECT status FROM metadata_enrichment_job WHERE owner_id=?").get(owner), { timeout: 30000 }).toEqual({ status: "COMPLETED" });
-    await expect(panel).toContainText("확인 5/5책");
-    await expect(panel).toContainText("책 보강 5");
-    await expect(panel).toContainText("권 보강 5");
+    const progress = await (await page.request.get("/api/books/enrich")).json();
+    expect(progress.progress).toMatchObject({ status: "COMPLETED", total: 5, processed: 5, booksUpdated: 5, volumesUpdated: 5 });
+    await expect(page.getByRole("button", { name: "전체 책 저자·설명 채우기", exact: true })).toHaveCount(0);
     expect(db.prepare("SELECT COUNT(*) n FROM books WHERE owner_id=? AND author='테스트 저자'").get(owner)).toEqual({ n: 5 });
     expect(db.prepare("SELECT DISTINCT description FROM book_volumes WHERE book IN (SELECT id FROM books WHERE owner_id=?)").all(owner)).toEqual([{ description: "직접 입력 설명" }]);
     expect(db.prepare("SELECT author,description FROM books WHERE id=2").get()).toEqual(foreign);
-    await page.screenshot({ path: testInfo.outputPath("metadata-enrichment-completed.png"), fullPage: true });
-    await panel.getByRole("button", { name: "전체 책 저자·설명 채우기", exact: true }).click();
-    await expect(page.locator(".toast-message").last()).toHaveText("채울 저자·설명이 없습니다.");
+    await page.screenshot({ path: testInfo.outputPath("profile-bulk-enrichment-deferred.png"), fullPage: true });
+    const repeated = await page.request.post("/api/books/enrich");
+    expect(repeated.status()).toBe(200);
+    expect((await repeated.json()).progress).toMatchObject({ status: "COMPLETED", total: 0 });
   } finally {
     await page.close();
     db.prepare("DELETE FROM books WHERE owner_id=?").run(owner);
