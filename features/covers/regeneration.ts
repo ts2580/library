@@ -1,8 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import { sqlite } from "@/db";
-import { aladinJson, isAladinConfigured } from "@/features/aladin/client";
-import { searchAladinBooks } from "@/features/aladin/service";
+import { searchAladinBooks, hydrateAladinItem } from "@/features/aladin/service";
 import { largeAladinCover } from "@/features/aladin/cover-url";
 import { deleteCoverIfUnused, persistCover, storedCoverPath } from "@/features/covers/service";
 import { logger } from "@/lib/logger";
@@ -44,24 +43,14 @@ function localCoverExists(reference: string | null): boolean {
   return target != null && fs.existsSync(target) && fs.statSync(target).isFile();
 }
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
 async function lookupCoverByIsbn(isbn13: string): Promise<string | null> {
-  if (!isAladinConfigured()) return null;
   try {
-    const raw = object(await aladinJson("ItemLookUp.aspx", {
-      ItemId: isbn13,
-      itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
-      Cover: "Big"
-    }));
-    const first = Array.isArray(raw?.item) ? object(raw.item[0]) : null;
-    return largeAladinCover(stringValue(first?.cover));
+    const result = await searchAladinBooks({ query: isbn13, queryType: "Keyword", searchTarget: "All", page: 1 });
+    for (const candidate of result.items) {
+      const item = await hydrateAladinItem(candidate);
+      if (item.isbn13 === isbn13 || item.isbn === isbn13) return largeAladinCover(item.cover);
+    }
+    return null;
   } catch (error) {
     logger.warn("Aladin cover lookup by ISBN failed", {
       isbn13,
@@ -72,7 +61,6 @@ async function lookupCoverByIsbn(isbn13: string): Promise<string | null> {
 }
 
 async function lookupCoverByTitle(title: string): Promise<string | null> {
-  if (!isAladinConfigured()) return null;
   try {
     const result = await searchAladinBooks({ query: title, page: 1 });
     return result.items.find((item) => item.cover)?.cover ?? null;

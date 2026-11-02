@@ -1,235 +1,125 @@
 import "server-only";
-import { load } from "cheerio";
-import { decodeHTMLStrict } from "entities";
-import { AladinRateLimitError, aladinHtml, aladinJson, isAladinConfigured } from "@/features/aladin/client";
-import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
+import { aladinHtml } from "@/features/aladin/client";
+import { parseProductPage, parseSearchPage, parseUsedPage, changed } from "@/features/aladin/html";
+import { asIsbn13 } from "@/features/aladin/item-key";
 import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
-import { largeAladinCover } from "@/features/aladin/cover-url";
-import { logger } from "@/lib/logger";
+import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
 import { AppError } from "@/lib/errors";
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function array(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function aladinDescription(value: unknown): string | null {
-  const description = text(value);
-  return description == null ? null : decodeHTMLStrict(description);
-}
-
-function number(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-
-function absoluteAladinUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value, "https://www.aladin.co.kr");
-    if (url.protocol === "http:") url.protocol = "https:";
-    if (url.protocol !== "https:" || !["aladin.co.kr", "www.aladin.co.kr"].includes(url.hostname.toLowerCase())) return null;
-    if (url.username || url.password || (url.port && url.port !== "443")) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-async function branchStocks(input: {
-  branch: string;
-  branchName: string;
-  branchLink: string | null;
-  title: string | null;
-}): Promise<{ stocks: AladinBranchStock[]; partial: boolean }> {
-  const fallback: AladinBranchStock = {
-    verified: false,
-    branch: input.branch,
-    branchName: input.branchName,
-    grade: null,
-    bookLink: input.branchLink,
-    purchaseLink: input.branchLink,
-    price: null,
-    title: input.title
-  };
-  if (!input.branchLink) return { stocks: [fallback], partial: true };
-  try {
-    const html = await aladinHtml(input.branchLink);
-    const $ = load(html);
-    const parsed: AladinBranchStock[] = [];
-    const boxes = $("div.ss_book_box");
-    if (boxes.length > 0) {
-      boxes.each((_index, element) => {
-        const box = $(element);
-        const price = box.find("span.ss_p2 b").first().text().replace(/[^0-9,]/g, "").trim();
-        const grade = box.find("span.us_f_bob").first().text().trim();
-        if (!price || !grade) return;
-        const href = box.find("a[href*='/shop/UsedShop/wuseditemall.aspx?']").first().attr("href") ?? null;
-        parsed.push({
-          branch: input.branch,
-          branchName: input.branchName,
-          grade,
-          bookLink: input.branchLink,
-          purchaseLink: absoluteAladinUrl(href),
-          price,
-          title: input.title
-        });
-      });
-    } else {
-      const prices = $("span.ss_p2 b");
-      const grades = $("span.us_f_bob");
-      const links = $("a[href*='/shop/UsedShop/wuseditemall.aspx?']");
-      const size = Math.min(prices.length, grades.length);
-      for (let index = 0; index < size; index += 1) {
-        const price = prices.eq(index).text().replace(/[^0-9,]/g, "").trim();
-        const grade = grades.eq(index).text().trim();
-        if (!price || !grade) continue;
-        parsed.push({
-          branch: input.branch,
-          branchName: input.branchName,
-          grade,
-          bookLink: input.branchLink,
-          purchaseLink: absoluteAladinUrl(links.eq(index).attr("href") ?? null),
-          price,
-          title: input.title
-        });
+const cache = new Map<string, { until: number; value: unknown; bytes: number }>();
+const pending = new Map<string, Promise<unknown>>();
+let cacheBytes = 0;
+async function cached<T>(key: string, ttl: number, read: () => Promise<T>, fresh = false): Promise<T> {
+  const now = Date.now();
+  for (const [k, entry] of cache) if (entry.until <= now) { cacheBytes -= entry.bytes; cache.delete(k); }
+  if (!fresh && cache.has(key)) return structuredClone(cache.get(key)!.value) as T;
+  const requestKey = `${fresh ? "fresh:" : ""}${key}`;
+  if (!pending.has(requestKey)) {
+    pending.set(requestKey, read().then(value => {
+      const bytes = Buffer.byteLength(JSON.stringify(value));
+      if (bytes <= 1024 * 1024) {
+        if (cache.has(key)) { cacheBytes -= cache.get(key)!.bytes; cache.delete(key); }
+        while (cache.size >= 128 || cacheBytes + bytes > 8 * 1024 * 1024) {
+          const oldest = cache.keys().next().value!; cacheBytes -= cache.get(oldest)!.bytes; cache.delete(oldest);
+        }
+        cache.set(key, { until: Date.now() + ttl, value, bytes }); cacheBytes += bytes;
       }
-    }
-    return parsed.length ? { stocks: parsed, partial: false } : { stocks: [fallback], partial: true };
-  } catch (error) {
-    // A rate limit must reach the lookup/job retry and stop policy.
-    if (error instanceof AladinRateLimitError) throw error;
-    logger.warn("Branch inventory detail could not be verified", { branch: input.branch });
-    return { stocks: [fallback], partial: true };
+      return value;
+    }).finally(() => pending.delete(requestKey)));
   }
+  return structuredClone(await pending.get(requestKey)) as T;
 }
 
-export async function searchAladinBooks(input: unknown): Promise<AladinSearchResult> {
-  const { query, page, ...options } = aladinSearchSchema.parse(input);
-  if (!isAladinConfigured()) return { items: [], totalResults: 0, page, pageSize: options.maxResults };
-  const raw = object(await aladinJson("ItemSearch.aspx", {
-    Query: query,
-    QueryType: options.queryType,
-    MaxResults: options.maxResults,
-    start: page,
-    Cover: options.cover,
-    SearchTarget: options.searchTarget,
-    Sort: options.sort,
-    CategoryId: options.categoryId,
-    RecentPublishFilter: options.recentPublishFilter,
-    outofStockfilter: options.outOfStockFilter
-  })) ?? {};
-  const items = array(raw.item).map(object).filter((item): item is Record<string, unknown> => Boolean(item)).map((item): AladinBookItem => ({
-    title: text(item.title) ?? "제목 없음",
-    author: text(item.author),
-    description: aladinDescription(item.description),
-    isbn: text(item.isbn),
-    isbn13: text(item.isbn13),
-    cover: largeAladinCover(text(item.cover)),
-    priceSales: number(item.priceSales),
-    link: text(item.link),
-    pubDate: text(item.pubDate),
-    categoryName: text(item.categoryName)
-  }));
-  return {
-    items,
-    totalResults: number(raw.totalResults) ?? items.length,
-    page: number(raw.startIndex) ?? page,
-    pageSize: number(raw.itemsPerPage) ?? options.maxResults
-  };
+const sorts = { PublishTime: 5, Accuracy: 11, Title: 1, SalesPoint: 2, CustomerRating: 3, MyReviewCount: 4 };
+export async function searchAladinBooks(input: unknown, { fresh = false } = {}): Promise<AladinSearchResult> {
+  const options = aladinSearchSchema.parse(input);
+  const url = new URL("https://www.aladin.co.kr/search/wsearchresult.aspx");
+  const field = options.queryType === "Keyword" ? "SearchWord" : `Key${options.queryType}`;
+  const params = { [field]: options.query, SearchTarget: options.searchTarget === "eBook" ? "EBook" : options.searchTarget,
+    SortOrder: sorts[options.sort], ViewRowCount: options.maxResults, page: options.page, ViewType: "Detail",
+    KeyRecentPublish: options.recentPublishFilter, OutStock: Number(options.outOfStockFilter),
+    ...(options.categoryId ? { CategorySearch: options.categoryId } : {}) };
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+  const result = await cached(url.toString(), 300_000, async () => parseSearchPage(await aladinHtml(url.toString()), options.page), fresh);
+  const sizes = { Big: "cover500", MidBig: "cover150", Mid: "cover150", Small: "coversum", Mini: "coversum", None: "" };
+  return { ...result, items: result.items.map(item => ({ ...item, cover: options.cover === "None" ? null
+    : item.cover?.replace(/\/(?:cover\d+|coversum)\//i, `/${sizes[options.cover]}/`) ?? null })) };
+}
+
+export async function getAladinProduct(itemId: string, { fresh = false } = {}): Promise<AladinBookItem> {
+  if (!/^\d+$/.test(itemId)) throw new AppError("알라딘 상품 번호가 올바르지 않습니다.", "ALADIN_INVALID_ITEM");
+  return cached(`product:${itemId}`, 86_400_000, async () => parseProductPage(
+    await aladinHtml(`https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=${itemId}`), itemId), fresh);
+}
+
+export async function hydrateAladinItem(item: AladinBookItem): Promise<AladinBookItem> {
+  if (!item.itemId) return item;
+  const detail = await getAladinProduct(item.itemId);
+  if (item.isbn13 && asIsbn13(detail.isbn13 ?? detail.isbn) !== asIsbn13(item.isbn13)) {
+    throw new AppError("알라딘 상품의 ISBN이 변경되었습니다. 다시 검색해 주세요.", "ALADIN_ISBN_MISMATCH", 502);
+  }
+  // Selection uses the publication precision shown in the search preview.
+  return { ...detail, pubDate: item.pubDate ?? detail.pubDate, cover: item.cover === null ? null : detail.cover };
+}
+
+async function exactProduct(isbn: string) {
+  const result = await searchAladinBooks({ query: isbn, queryType: "Keyword", searchTarget: "All", maxResults: 25 }, { fresh: true });
+  for (const item of result.items) {
+    if (item.isbn13 && asIsbn13(item.isbn13) !== asIsbn13(isbn)) continue;
+    const detail = item.itemId ? await getAladinProduct(item.itemId) : item;
+    if (asIsbn13(detail.isbn13 ?? detail.isbn) === asIsbn13(isbn)) return detail;
+  }
+  throw new AppError("ISBN이 일치하는 알라딘 상품을 확인하지 못했습니다. 기존 재고를 유지합니다.", "ALADIN_ITEM_NOT_FOUND", 502);
+}
+
+async function usedOffers(itemId: string): Promise<AladinBranchStock[]> {
+  const result: AladinBranchStock[] = [];
+  const seen = new Set<string>();
+  let snapshot: string | undefined;
+  let privateCount = 0;
+  for (let page = 1; page <= 100; page++) {
+    const url = `https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=${itemId}&TabType=0&Fix=1&page=${page}`;
+    const current = parseUsedPage(await aladinHtml(url), itemId, 0, page);
+    const signature = JSON.stringify([current.count, current.pages, current.totals]);
+    if (snapshot != null && signature !== snapshot) changed("조회 중 알라딘 재고가 변경되었습니다. 기존 재고를 유지합니다.");
+    snapshot = signature;
+    for (const offer of current.offers) {
+      if (seen.has(offer)) changed();
+      seen.add(offer);
+    }
+    result.push(...current.stocks);
+    privateCount += current.privateCount;
+    if (seen.size > current.count) changed();
+    if (current.count === 0 || page === current.pages) {
+      const direct = result.filter(stock => stock.branch === "ALADIN_DROPSHIPPING").length;
+      const stores = result.length - direct;
+      // Store tab counts include copies not listed as separate online offers.
+      // Verify all rendered pages and exact non-store totals instead of equating copies with rows.
+      if (direct !== current.totals.direct || privateCount !== current.totals.private
+        || stores > current.totals.store || (current.totals.store > 0 && !stores)) {
+        changed("알라딘 중고 목록의 건수를 확인하지 못했습니다. 기존 재고를 유지합니다.");
+      }
+      return result;
+    }
+  }
+  changed("알라딘 재고 페이지 한도를 초과했습니다. 기존 재고를 유지합니다.");
 }
 
 export async function lookupUsedStocks(isbnInput: string, sourceInput?: string): Promise<StockLookupResult> {
-  const isbn13 = isbn13Schema.parse(isbnInput);
-  const source = usedSourceSchema.parse(sourceInput);
-  if (!isAladinConfigured()) return { successful: false, stocks: [], errorCode: "ALADIN_NOT_CONFIGURED", errorMessage: "알라딘 API 키가 없습니다." };
+  const isbn = isbn13Schema.parse(isbnInput), source = usedSourceSchema.parse(sourceInput);
   try {
-    const lookupRaw = await aladinJson("ItemLookUp.aspx", {
-      ItemId: isbn13,
-      itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
-      Cover: "Big",
-      OptResult: "usedList"
-    });
-    const lookup = object(lookupRaw) ?? {};
-    const first = object(array(lookup.item)[0]);
-    if (!first && source === "dropshipping") return { successful: true, stocks: [], raw: lookupRaw };
-    const subInfo = object(first?.subInfo);
-    const usedList = object(subInfo?.usedList);
-    const aladinUsed = object(usedList?.aladinUsed);
-    const title = text(first?.title);
-    const stocks: AladinBranchStock[] = [];
-    let raw = lookupRaw;
-    let partial = false;
-
-    if (source !== "offstore" && (number(aladinUsed?.itemCount) ?? 0) > 0) {
-      const link = text(aladinUsed?.link)?.replaceAll("amp;", "") ?? null;
-      stocks.push({
-        branch: "ALADIN_DROPSHIPPING",
-        branchName: "알라딘 직배송",
-        grade: null,
-        bookLink: link,
-        purchaseLink: link,
-        price: number(aladinUsed?.minPrice)?.toString() ?? null,
-        title
-      });
-    }
-
-    // Off-store inventory is independent of the item lookup's used-list summary.
-    if (source !== "dropshipping") {
-      const offRaw = await aladinJson("ItemOffStoreList.aspx", {
-        ItemId: isbn13,
-        itemIdType: isbn13.length === 10 ? "ISBN" : "ISBN13",
-        Cover: "Big"
-      });
-      const off = object(offRaw) ?? {};
-      raw = source === "offstore" ? offRaw : { lookup: lookupRaw, offStores: offRaw };
-      const branches = array(off.itemOffStoreList).map(object).filter((item): item is Record<string, unknown> => Boolean(item));
-      for (const branch of branches) {
-        const link = absoluteAladinUrl(text(branch.link)?.replaceAll("amp;", "") ?? null);
-        const branchCode = text(branch.offCode) ?? text(branch.offName) ?? "UNKNOWN";
-        const branchName = text(branch.offName) ?? text(branch.offCode) ?? "지점";
-        const detail = await branchStocks({
-          branch: branchCode,
-          branchName,
-          branchLink: link,
-          title
-        });
-        partial ||= detail.partial;
-        stocks.push(...detail.stocks);
-      }
-    }
-
-    return { successful: true, stocks, raw, partial,
-      warning: partial ? "일부 지점의 상세 재고를 확인하지 못했습니다. 해당 지점의 가격은 미확인이며, 이 권의 조회 결과는 일괄 재고 저장에서 제외됩니다." : undefined };
+    const product = await exactProduct(isbn);
+    if (!product.itemId) changed();
+    const offers = await usedOffers(product.itemId);
+    const stocks = offers.filter(stock => source === "all"
+      || (source === "dropshipping" ? stock.branch === "ALADIN_DROPSHIPPING" : stock.branch !== "ALADIN_DROPSHIPPING"));
+    return { successful: true, stocks, raw: { itemId: product.itemId, source }, partial: false };
   } catch (error) {
-    const rateLimited = error instanceof AladinRateLimitError;
-    const httpStatus = error instanceof Error ? /^Aladin HTTP (\d{3})$/.exec(error.message)?.[1] : undefined;
-    logger.warn("Aladin used stock lookup failed", {
-      isbn13,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return {
-      successful: false,
-      stocks: [],
-      errorCode: rateLimited ? "ALADIN_RATE_LIMIT" : error instanceof AppError ? error.code
-        : httpStatus ? "ALADIN_HTTP_ERROR"
-        : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "ALADIN_TIMEOUT"
-        : error instanceof TypeError ? "ALADIN_NETWORK_ERROR" : "ALADIN_LOOKUP_FAILED",
-      errorMessage: rateLimited
-        ? "알라딘 API 호출 제한(429)으로 조회하지 못했습니다. 잠시 후 다시 시도해 주세요."
-        : error instanceof AppError ? error.message
-        : httpStatus ? `알라딘 API 응답 오류(HTTP ${httpStatus})로 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.`
-        : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "알라딘 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요."
-        : error instanceof TypeError ? "알라딘 서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요."
-        : "알라딘 중고 재고 조회에 실패했습니다."
-    };
+    return { successful: false, stocks: [], errorCode: error instanceof AppError ? error.code
+      : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "ALADIN_TIMEOUT"
+      : error instanceof TypeError ? "ALADIN_NETWORK_ERROR" : "ALADIN_LOOKUP_FAILED",
+      errorMessage: error instanceof AppError ? error.message
+        : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "알라딘 응답 시간이 초과되었습니다. 기존 재고를 유지합니다."
+        : error instanceof TypeError ? "알라딘 서버에 연결하지 못했습니다. 기존 재고를 유지합니다." : "알라딘 재고 조회에 실패했습니다. 기존 재고를 유지합니다." };
   }
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 6;
+const BOOTSTRAP_VERSION = 7;
 
 type Database = BetterSqlite3.Database;
 
@@ -357,6 +357,24 @@ export function bootstrapDatabase(sqlite: Database): void {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`);
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (6, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(7)) {
+      sqlite.exec(`CREATE TABLE stock_refresh_run (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id INTEGER NOT NULL REFERENCES member(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        total INTEGER NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX idx_stock_refresh_run_owner_id ON stock_refresh_run(owner_id,id DESC);
+      INSERT INTO stock_refresh_run(owner_id,run_id,status,total,started_at,finished_at)
+        SELECT requested_by,run_id,status,total,started_at,finished_at FROM stock_refresh_job
+        WHERE requested_by IS NOT NULL AND run_id IS NOT NULL AND status<>'IDLE';`);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (7, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
   });

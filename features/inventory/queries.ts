@@ -33,7 +33,8 @@ export function searchInventory(ownerId: number, input: { query?: string; branch
   const items = sqlite.prepare(`SELECT bb.id, bb.branch,
     COALESCE(NULLIF(TRIM(bb.branchname), ''), bb.branch) AS branchName,
     b.id AS bookId, b.name AS bookName, COALESCE(bv.name, bb.name) AS volumeName,
-    bb.grade, bv.isbn13, bv.cover, bb.price, bb.booklink AS bookLink, bb.purchaseurl AS purchaseUrl
+    bb.grade, bv.isbn13, bv.cover, bb.price, bb.systemmodstamp AS checkedAt,
+    (SELECT l.status FROM stock_refresh_log l WHERE l.volume_id=bv.id AND l.owner_id=b.owner_id ORDER BY l.id DESC LIMIT 1) AS lastLookupStatus, bb.booklink AS bookLink, bb.purchaseurl AS purchaseUrl
     ${from} ORDER BY ${inventoryOrder} LIMIT 24 OFFSET ?`).all(...args, (page - 1) * 24) as BranchStockItem[];
   return { items, total, page, totalPages, query };
 }
@@ -107,7 +108,8 @@ export function getBranchStocks(ownerId: number, branch: string): BranchStockIte
   return sqlite.prepare(`
     SELECT bb.id, bb.branch, NULLIF(NULLIF(TRIM(bb.branchname), ''), 'branchname') AS branchName,
            b.id AS bookId, b.name AS bookName, COALESCE(bv.name, bb.name) AS volumeName,
-           bb.grade, bv.isbn13, bv.cover, bb.price, bb.booklink AS bookLink, bb.purchaseurl AS purchaseUrl
+           bb.grade, bv.isbn13, bv.cover, bb.price, bb.systemmodstamp AS checkedAt,
+    (SELECT l.status FROM stock_refresh_log l WHERE l.volume_id=bv.id AND l.owner_id=b.owner_id ORDER BY l.id DESC LIMIT 1) AS lastLookupStatus, bb.booklink AS bookLink, bb.purchaseurl AS purchaseUrl
     FROM branchbook bb
     JOIN books b ON b.id = bb.book AND b.owner_id = ?
     LEFT JOIN book_volumes bv

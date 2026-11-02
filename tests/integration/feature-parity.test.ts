@@ -6,10 +6,26 @@ import ExcelJS from "exceljs";
 
 vi.mock("server-only", () => ({}));
 const api = vi.hoisted(() => vi.fn());
-vi.mock("@/features/aladin/client", () => ({
-  aladinJson: api, aladinHtml: vi.fn(), isAladinConfigured: () => true,
-  AladinRateLimitError: class extends Error {}
-}));
+// Business-rule regressions use normalized provider fixtures. HTML parsing/transport
+// contracts are exercised separately in aladin-html and aladin-client tests.
+const stockLookup = vi.hoisted(() => vi.fn());
+vi.mock("@/features/aladin/service", async original => {
+  const actual = await original<typeof import("@/features/aladin/service")>();
+  const { aladinSearchSchema } = await import("@/features/aladin/validation");
+  const { decodeHTMLStrict } = await import("entities");
+  return { ...actual, lookupUsedStocks: stockLookup, searchAladinBooks: async (input: unknown) => {
+    const p = aladinSearchSchema.parse(input);
+    const raw = await api("ItemSearch.aspx", { Query:p.query, QueryType:p.queryType, SearchTarget:p.searchTarget,
+      Sort:p.sort, Cover:p.cover, MaxResults:p.maxResults, start:p.page, RecentPublishFilter:p.recentPublishFilter,
+      CategoryId:p.categoryId, outofStockfilter:p.outOfStockFilter });
+    return { page:raw.startIndex ?? p.page, pageSize:raw.itemsPerPage ?? p.maxResults,
+      totalResults:raw.totalResults ?? raw.item?.length ?? 0, items:(raw.item ?? []).map((i: Record<string, unknown>) => ({
+        title:"제목 없음", author:null, isbn13:null, isbn:null, cover:null, priceSales:null,
+        link:null, pubDate:null, categoryName:null, ...i,
+        description:typeof i.description === "string" ? decodeHTMLStrict(i.description) : null
+      })) };
+  }};
+});
 const remoteCover = vi.hoisted(() => vi.fn());
 vi.mock("@/features/covers/service", async (original) => {
   const actual = await original<typeof import("@/features/covers/service")>();
@@ -38,6 +54,7 @@ beforeEach(() => {
   sqlite.exec("INSERT INTO member(id,username,password_hash) VALUES(1,'audit','test'),(2,'foreign','test'); INSERT INTO books(id,name,owner_id,cover_generated) VALUES(1,'시리즈',1,1),(2,'다른 계정',2,1);");
   sqlite.exec("UPDATE stock_refresh_job SET status='IDLE', requested_by=NULL, running=0");
   api.mockReset().mockResolvedValue({ item: [] });
+  stockLookup.mockReset().mockResolvedValue({ successful:true,stocks:[],raw:null });
   remoteCover.mockReset().mockImplementation(async () => {
     mkdirSync(path.join(directory, "covers/1"), { recursive: true });
     writeFileSync(path.join(directory, "covers/1/rebuilt.webp"), "fixture");
@@ -221,19 +238,7 @@ describe("Java feature parity regressions", () => {
     expect(searchOwnedVolumes(1, { query: "123456789X" }).items.map((item) => item.id)).toEqual([1]);
     expect(searchOwnedVolumes(1, { sort: "recent" }).items.map((item) => item.id)).toEqual([1, 2]);
   });
-  it("selects dropshipping or offstore inventory and returns the matching raw response", async () => {
-    api.mockImplementation(async (endpoint) => endpoint === "ItemLookUp.aspx"
-      ? { item: [{ title: "중고 책", subInfo: { usedList: { aladinUsed: { itemCount: 1, minPrice: 2000 }, spaceUsed: { itemCount: 1, minPrice: 1000 } } } }] }
-      : { itemOffStoreList: [{ offCode: "SEOUL", offName: "서울점" }] });
-    const direct = await lookupUsedStocks("123456789X", "dropshipping");
-    expect(direct.stocks.map((stock) => stock.branch)).toEqual(["ALADIN_DROPSHIPPING"]);
-    expect(api).toHaveBeenCalledTimes(1);
-    const store = await lookupUsedStocks("123456789X", "offstore");
-    expect(store.stocks.map((stock) => stock.branch)).toEqual(["SEOUL"]);
-    expect(store.raw).toHaveProperty("itemOffStoreList");
-    api.mockImplementation(async (endpoint) => endpoint === "ItemLookUp.aspx" ? { item: [] } : { itemOffStoreList: [] });
-    expect(await lookupUsedStocks("123456789X", "offstore")).toMatchObject({ successful: true, stocks: [], raw: { itemOffStoreList: [] } });
-  });
+
   it("preserves multiple identically named books and volumes through repeated Excel restores", async () => {
     const workbook = new ExcelJS.Workbook();
     const books = workbook.addWorksheet("Books"); books.addRow(["source_id", "name"]); books.addRow(["A", "같은 책"]); books.addRow(["B", "같은 책"]);
@@ -311,6 +316,15 @@ describe("Java feature parity regressions", () => {
     expect(getBookDetail(1, 1)?.description).toBe('조회한 <설명> & "인용"');
     expect(getBookDetail(1, 1)?.volumes[0]?.description).toBe('조회한 <설명> & "인용"');
     api.mockClear(); await expect(enrichMissingBookInfo(1, 2)).rejects.toThrow(); expect(api).not.toHaveBeenCalled();
+  });
+  it("enriches foreign books through an all-target ISBN search", async () => {
+    volume();
+    sqlite.exec("UPDATE books SET author='직접 입력 저자',description='기존 설명' WHERE id=1; UPDATE book_volumes SET isbn13='9780590353403',description='기존 권 설명'");
+    api.mockImplementation(async (_endpoint, params) => ({ item: params.SearchTarget === "All" && params.Query === "9780590353403"
+      ? [{ title: "Foreign edition", isbn13: "9780590353403", author: "J.K. Rowling", link: "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=226560" }] : [] }));
+    expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ booksUpdated: 0, volumesUpdated: 1 });
+    expect(sqlite.prepare("SELECT author,description FROM book_volumes WHERE id=1").get()).toEqual({ author: "J.K. Rowling", description: "기존 권 설명" });
+    expect(sqlite.prepare("SELECT author FROM books WHERE id=1").get()).toEqual({ author: "직접 입력 저자" });
   });
   it.each([null, "", "   ", "\t", "\r\n", "\u00a0", "\u3000", " \t\r\n\u00a0\u3000\ufeff"])("enriches a missing purchase link %s when author and description are already complete", async (link) => {
     volume(); volume(2, 1, 2); volume(3, 2, 1);
@@ -489,14 +503,8 @@ describe("Java feature parity regressions", () => {
     await importExcelBackup(1, new File([new Uint8Array(output)], "roundtrip.xlsx"));
     expect(sqlite.prepare("SELECT isbn,cover FROM book_volumes").get()).toEqual({ isbn: "123456789X", cover: "/covers/legacy.jpg" });
   });
-  it("accepts ISBN10 ending in X and requests the matching Aladin identifier type", async () => {
-    expect((await lookupUsedStocks("123456789X")).successful).toBe(true);
-    expect(api).toHaveBeenCalledWith("ItemLookUp.aspx", expect.objectContaining({ ItemId: "123456789X", itemIdType: "ISBN" }));
-  });
-  it("rejects 11 and 12 digit identifiers", async () => {
-    await expect(lookupUsedStocks("12345678901")).rejects.toThrow();
-    await expect(lookupUsedStocks("123456789012")).rejects.toThrow();
-  });
+
+
   it("keeps Aladin registration available when a remote cover fails", async () => {
     api.mockResolvedValue({ startIndex: 1, itemsPerPage: 20, totalResults: 1, item: [{ title: "등록할 권", isbn13: "9780000000001", cover: "https://example.com/broken.jpg", categoryName: "국내도서>만화>판타지" }] });
     remoteCover.mockRejectedValue(new Error("image download failed"));
@@ -507,9 +515,9 @@ describe("Java feature parity regressions", () => {
   });
   it("does not save stale stock when a volume is purchased during the lookup", async () => {
     volume(); sqlite.exec("UPDATE book_volumes SET isbn13='9780000000001'");
-    api.mockImplementation(async () => {
+    stockLookup.mockImplementation(async () => {
       sqlite.exec("UPDATE book_volumes SET ispurchased=1 WHERE id=1");
-      return { item: [{ title: "재고", subInfo: { usedList: { aladinUsed: { itemCount: 1, minPrice: 1000 } } } }] };
+      return { successful:true, stocks:[{branch:"SEOUL",branchName:"서울",price:"1000",grade:"상",bookLink:null,purchaseLink:null,title:"재고"}],raw:null };
     });
     requestStockRefresh(1); await processNextStockRefreshJob();
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM branchbook").get()).toEqual({ n: 0 });
