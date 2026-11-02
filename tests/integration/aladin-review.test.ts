@@ -114,3 +114,45 @@ it("rejects an ISBN10-only preview when detail belongs to another edition", asyn
   const search=await searchAladinBooks({query:"059035342X"});
   await expect(hydrateAladinItem({...search.items[0]!,isbn13:null,isbn:"0590353403"})).rejects.toMatchObject({code:"ALADIN_ISBN_MISMATCH"});
 });
+
+it.each(['9780590353427','K123456789','U123456789'])('rejects a legacy ISBN10 duplicate when preview exposes %s', async code => {
+  await useCapturedIsbn10();
+  const product={itemId:'208556',isbn13:code,title:'다른 부제로 검색한 권'};
+  html.mockImplementation(async(raw:string)=>raw.includes('/shop/wproduct')?captured('product'):searchPage([product]));
+  sqlite.exec("INSERT INTO book_volumes(id,book,volume,name,isbn) VALUES(1,1,1,'기존 권','059035342X')");
+  await expect(importAladinSelection(1,isbn10Selection)).rejects.toThrow('이미 등록');
+  expect(sqlite.prepare('SELECT COUNT(*) n FROM book_volumes').get()).toEqual({n:1});
+});
+it('rejects two selected product IDs that hydrate to the same ISBN without saving any volume',async()=>{
+  const products=[{itemId:'820001',isbn13:'K123456789',title:'동일 ISBN 상품 1'},{itemId:'820002',isbn13:'9780590353427',title:'동일 ISBN 상품 2'}];
+  html.mockImplementation(async(raw:string)=>{
+    const url=new URL(raw);
+    if(url.pathname.includes('wsearchresult'))return searchPage(products);
+    return productPage({...products.find(item=>item.itemId===url.searchParams.get('ItemId'))!,isbn13:'9780590353427'});
+  });
+  await expect(importAladinSelection(1,{...isbn10Selection,selection:products.map(item=>({key:`item:${item.itemId}`,page:1}))})).rejects.toThrow('ISBN');
+  expect(sqlite.prepare('SELECT COUNT(*) n FROM book_volumes').get()).toEqual({n:0});
+});
+
+it('recognizes an owned ISBN13 preview from a formatted legacy ISBN10', async()=>{
+  await useCapturedIsbn10();
+  sqlite.exec("INSERT INTO book_volumes(id,book,volume,name,isbn) VALUES(1,1,1,'기존 권','0-590-35342-X')");
+  const {withOwnership}=await import('@/features/aladin/ownership');
+  const result=await searchAladinBooks({query:'059035342X'},{fresh:true});
+  expect(withOwnership(1,{...result,items:result.items.map(item=>({...item,isbn:null}))}).items[0]?.owned).toBe(true);
+});
+it('keeps canonical duplicate checks scoped to the importing owner',async()=>{
+  await useCapturedIsbn10();
+  sqlite.exec("INSERT INTO member(id,username,password_hash) VALUES(2,'other','fixture'); INSERT INTO books(id,name,owner_id) VALUES(2,'다른 계정',2); INSERT INTO book_volumes(book,volume,name,isbn) VALUES(2,1,'다른 계정 권','059035342X')");
+  await expect(importAladinSelection(1,isbn10Selection)).resolves.toMatchObject({count:1});
+  expect(sqlite.prepare('SELECT COUNT(*) n FROM book_volumes').get()).toEqual({n:2});
+});
+it('does not collapse unrelated ISBN-free products into one null identifier',async()=>{
+  const products=[{itemId:'820011',title:'ISBN 없는 상품 1'},{itemId:'820012',title:'ISBN 없는 상품 2'}];
+  html.mockImplementation(async(raw:string)=>{
+    const url=new URL(raw);
+    return url.pathname.includes('wsearchresult')?searchPage(products):productPage(products.find(item=>item.itemId===url.searchParams.get('ItemId'))!);
+  });
+  await expect(importAladinSelection(1,{...isbn10Selection,selection:products.map(item=>({key:`item:${item.itemId}`,page:1}))})).resolves.toMatchObject({count:2});
+  expect(sqlite.prepare('SELECT COUNT(*) n FROM book_volumes').get()).toEqual({n:2});
+});

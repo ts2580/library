@@ -2,7 +2,7 @@
 
 도서·권 관리, 알라딘 검색·등록, 직배송·우주점 중고 재고 조회를 제공하는 책장입니다. Next.js·React·TypeScript·Drizzle·SQLite를 사용합니다.
 
-**4.0.0 canary 검토 중** · [변경 내용](docs/RELEASE_4.0.0.md) · [검증 기록](docs/WORKLOG_4.0.0.md)
+**4.0.0 출시 준비 중** · [변경 내용](docs/RELEASE_4.0.0.md) · [검증 기록](docs/WORKLOG_4.0.0.md)
 
 [로컬 실행](#로컬-실행) · [Docker](#docker) · [OpenAPI 종료 후 운영 방법](#알라딘-운영)
 

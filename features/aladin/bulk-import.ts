@@ -1,3 +1,4 @@
+import { canonicalIsbns, getOwnedAladinIdentifiers, isOwnedAladinItem } from "@/features/aladin/duplicates";
 import { aladinItemKey } from "@/features/aladin/item-key";
 import "server-only";
 import { sqlite } from "@/db";
@@ -42,18 +43,19 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
     input.selection.forEach((entry, index) => { if (!rank.has(entry.key)) rank.set(entry.key, index); });
     selected.sort((a, b) => rank.get((aladinItemKey(a))!)! - rank.get((aladinItemKey(b))!)!);
   } else selected = orderByPublicationDate(selected);
-  // The shared gate already serializes HTTP. Queue one detail at a time so a
-  // large selection does not exhaust the gate's lock-wait deadline by itself.
+  // Hydrate details sequentially so a large selection uses a bounded request queue.
   for (let index = 0; index < selected.length; index++) {
     selected[index] = await hydrateAladinItem(selected[index]!);
   }
   function assertNoDuplicates() {
-    const duplicate = sqlite.prepare(`SELECT 1 FROM book_volumes bv JOIN books b ON b.id = bv.book
-      WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ? OR bv.link = ?) LIMIT 1`);
+    const owned = getOwnedAladinIdentifiers(ownerId);
+    const selectedIsbns = new Set<string>();
     for (const item of selected) {
-      for (const key of [item.isbn13, item.isbn, item.link].filter(Boolean)) {
-        if (duplicate.get(ownerId, key, key, item.link)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
+      for (const isbn of canonicalIsbns(item)) {
+        if (selectedIsbns.has(isbn)) throw new AppError("선택한 항목에 같은 ISBN의 상품이 포함되어 있습니다. 하나만 선택해 주세요.");
+        selectedIsbns.add(isbn);
       }
+      if (isOwnedAladinItem(owned, item)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
     }
   }
   assertNoDuplicates();
