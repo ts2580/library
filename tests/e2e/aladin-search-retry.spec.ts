@@ -16,7 +16,7 @@ test("a failed server search can be retried without reloading or losing the book
   const error = page.locator(".flash-error[role=alert]");
   await form.getByLabel("검색어", { exact: true }).fill(`검색재시도검증 ${testInfo.project.name}`);
   await form.getByRole("button", { name: "검색", exact: true }).click();
-  await expect(error).toContainText("알라딘 API가 요청을 거절했습니다");
+  await expect(error).toContainText("알라딘 페이지 구조를 확인하지 못했습니다");
   await expect(page.locator(".search-result-card")).toHaveCount(0);
   const failedUrl = page.url();
   await page.getByRole("alertdialog").getByRole("button", { name: "확인", exact: true }).click();

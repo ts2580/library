@@ -1,8 +1,9 @@
 # Existing ca2 Docker installation: reuse the migrated volume, never create an empty replacement.
-# Pin the stable release image; BOOKSHELF_IMAGE can select another verified version.
+# Target version 4.0.0 is prepared locally; verify publication before pulling or deploying.
+# BOOKSHELF_IMAGE can select another verified version.
 services:
   permissions:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.5.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.0}
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -11,7 +12,7 @@ services:
       - bookshelf-data:/data
       - legacy-data:/data/legacy
   web:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.5.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.0}
     init: true
     restart: unless-stopped
     command: npm run start
@@ -29,7 +30,7 @@ services:
       permissions:
         condition: service_completed_successfully
   worker:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:3.5.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.0}
     init: true
     restart: unless-stopped
     command: npm run worker

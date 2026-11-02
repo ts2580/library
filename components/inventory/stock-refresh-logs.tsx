@@ -12,7 +12,16 @@ import type { StockRefreshLogPage, StockRefreshProgress } from "@/features/inven
 import styles from "./stock-refresh-logs.module.css";
 
 type Snapshot = { logs: StockRefreshLogPage; progress: StockRefreshProgress };
-const labels = { SUCCESS: "성공", EMPTY: "재고 없음", FAILED: "실패" };
+const labels = { SUCCESS: "성공", EMPTY: "재고 없음", FAILED: "실패", QUEUED: "대기", RUNNING: "진행 중", COMPLETED: "완료", CANCELLED: "취소", IDLE: "대기" };
+function timestamp(value: string | null): string {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("ko-KR", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})
+    .format(new Date(`${value.replace(" ","T")}Z`));
+}
+function duration(seconds: number | null): string {
+  if (seconds == null) return "—";
+  return [seconds >= 3600 ? `${Math.floor(seconds/3600)}시간` : "", seconds >= 60 ? `${Math.floor(seconds%3600/60)}분` : "", `${seconds%60}초`].filter(Boolean).join(" ");
+}
 
 export function StockRefreshLogs({ initial, status }: { initial: Snapshot; status: "failed" | "all" }) {
   const [snapshot, setSnapshot] = useState(initial);
@@ -113,22 +122,32 @@ export function StockRefreshLogs({ initial, status }: { initial: Snapshot; statu
     <section className="panel stack-md" aria-label="로그 갱신 작업">
       <div className="section-heading"><h2>미해결 실패 {logs.pendingFailures}권</h2><span className={`status-badge status-${progress.status.toLowerCase()}`}>{progress.status}</span></div>
       <p className="muted" aria-live="polite">{progress.message}</p>
-      <p className="muted">선택한 권만 갱신합니다. 조회에 실패하면 해당 권의 기존 재고를 유지합니다.</p>
+      {status === "failed" && <p className="muted">실패한 권을 직접 검색하거나 다시 갱신할 수 있습니다. 조회 실패 시 기존 재고를 유지합니다.</p>}
       <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker" eventId={progress.runId ?? progress.completionId ?? progress.updatedAt ?? undefined}/>
       {error && <p className="flash flash-error" role="alert">{error}</p>}
       {(busy || active || checking) && !unavailable && <ProgressIndicator label={checking ? "갱신 상태 확인 중" : "재고 갱신 중"}/>}
       {active && <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고 없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>}
       <div className="button-row">
         <button className="button" disabled={disabled || logs.pendingFailures === 0} onClick={() => void mutate()}>실패 건 재시도 ({logs.pendingFailures})</button>
-        <button className="button button-secondary" disabled={disabled || !checked.length} onClick={() => void mutate(checked)}>선택 갱신 ({checked.length})</button>
+        {status === "failed" && <button className="button button-secondary" disabled={disabled || !checked.length} onClick={() => void mutate(checked)}>선택 갱신 ({checked.length})</button>}
         {active && progress.runId !== undefined && <button className="button button-danger-outline" disabled={busy || unavailable} onClick={() => void mutate(undefined, true)}>갱신 취소</button>}
       </div>
     </section>
     <div className="section-heading"><div className="button-row" aria-label="로그 필터">
-      <Link className={`button ${status === "failed" ? "" : "button-secondary"}`} aria-current={status === "failed" ? "page" : undefined} href="/inventory/logs">미해결 실패</Link>
-      <Link className={`button ${status === "all" ? "" : "button-secondary"}`} aria-current={status === "all" ? "page" : undefined} href="/inventory/logs?status=all">전체 기록</Link>
+      <Link className={`button ${status === "all" ? "" : "button-secondary"}`} aria-current={status === "all" ? "page" : undefined} href="/inventory/logs">작업 기록</Link>
+      <Link className={`button ${status === "failed" ? "" : "button-secondary"}`} aria-current={status === "failed" ? "page" : undefined} href="/inventory/logs?status=failed">미해결 실패</Link>
     </div><span className="muted">{logs.total}건</span></div>
-    {logs.items.length ? <>
+    {status === "all" ? <>
+      {logs.runs.length ? <div className="stack-md">{logs.runs.map(run => <article key={run.id} className={`panel ${styles.entry}`} data-testid="stock-run-entry">
+        <div className={styles.heading}><h3>총 {run.total.toLocaleString("ko-KR")}권</h3><span className={`status-badge status-${run.status.toLowerCase()}`}>{labels[run.status]}</span></div>
+        <dl className={styles.timing}>
+          <div><dt>시작시간 (KST)</dt><dd>{timestamp(run.startedAt)}</dd></div>
+          <div><dt>종료시간 (KST)</dt><dd>{timestamp(run.finishedAt)}</dd></div>
+          <div><dt>작업시간</dt><dd>{duration(run.durationSeconds)}</dd></div>
+        </dl>
+      </article>)}</div> : <div className="empty">아직 작업 기록이 없습니다.</div>}
+      <Pagination page={logs.page} totalPages={logs.totalPages} label="갱신 로그 페이지" href={target => `/inventory/logs?status=all&page=${target}`}/>
+    </> : logs.items.length ? <>
       <label className={styles.select}><input type="checkbox" checked={eligible.length > 0 && checked.length === eligible.length} disabled={disabled || !eligible.length}
         onChange={event => setSelected(event.target.checked ? eligible : [])}/>이 페이지 전체 선택</label>
       <div className="stack-md">{logs.items.map(item => <article key={item.id} className={`panel ${styles.entry}`} data-testid="stock-log-entry">
@@ -138,10 +157,12 @@ export function StockRefreshLogs({ initial, status }: { initial: Snapshot; statu
         <h3>{item.volumeName}{item.volume != null && <span className="muted"> · {item.volume}권</span>}</h3>
         <p className="muted">ISBN {item.isbn13 || "미등록"} · {item.createdAt} UTC</p>
         <p className={styles.reason}>{item.message}</p>
-        <div className={styles.footer}><code>{item.code}</code><button className="button button-secondary" disabled={disabled || !item.retryable}
-          onClick={() => void mutate([item.volumeId])}>개별 갱신</button></div>
+        <div className={styles.footer}><code>{item.code}</code><div className="button-row">
+          {item.isbn13 && <Link className="button button-secondary" href={`/aladin/used?isbn=${encodeURIComponent(item.isbn13)}`}>재고 직접 검색</Link>}
+          <button className="button button-secondary" disabled={disabled || !item.retryable}
+          onClick={() => void mutate([item.volumeId])}>개별 갱신</button></div></div>
       </article>)}</div>
       <Pagination page={logs.page} totalPages={logs.totalPages} label="갱신 로그 페이지" href={target => `/inventory/logs?status=${status}&page=${target}`}/>
-    </> : <div className="empty">{status === "failed" ? "미해결 갱신 실패가 없습니다." : "아직 갱신 기록이 없습니다."}<br/>상세 기록은 이 버전에서 실행한 작업부터 저장됩니다.</div>}
+    </> : <div className="empty">미해결 갱신 실패가 없습니다.</div>}
   </div>;
 }

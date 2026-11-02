@@ -24,7 +24,7 @@ export default defineConfig({
       BOOKSHELF_DATA_DIR: fixtureDirectory,
       BOOKSHELF_LEGACY_OWNER_USERNAME: "fixture-admin",
       REGISTRATION: process.env.BOOKSHELF_E2E_SIGNUP === "true" ? "true" : "false",
-      ALADIN_TTB_KEY: "fixture-only-api-key",
+      ALADIN_PAGE_INTERVAL_MS: "0",
       NEXT_TELEMETRY_DISABLED: "1"
     }
   },

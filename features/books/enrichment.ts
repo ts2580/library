@@ -1,10 +1,10 @@
 import "server-only";
 import { sqlite } from "@/db";
 import { AppError, NotFoundError } from "@/lib/errors";
-import { isAladinConfigured } from "@/features/aladin/client";
-import { searchAladinBooks } from "@/features/aladin/service";
+import { searchAladinBooks, hydrateAladinItem } from "@/features/aladin/service";
 import type { AladinBookItem } from "@/features/aladin/types";
 import { normalizeHttpUrl } from "@/lib/urls";
+import { asIsbn13 } from "@/features/aladin/item-key";
 
 interface Metadata { id: number; name: string | null; author: string | null; description: string | null }
 interface VolumeLink { isbn13: string | null; isbn: string | null; link: string | null }
@@ -12,7 +12,8 @@ interface Volume extends Metadata, VolumeLink {}
 const blank = (value: string | null) => !value?.trim();
 const normalizeIsbn = (value: string | null) => value?.replace(/[-\s]/g, "").toUpperCase() ?? "";
 const isbnKeys = (volume: Pick<VolumeLink, "isbn13" | "isbn">) => [volume.isbn13, volume.isbn].map(normalizeIsbn).filter(Boolean);
-const matchesIsbn = (keys: string[], item: AladinBookItem) => isbnKeys(item).some(key => keys.includes(key));
+const matchesIsbn = (keys: string[], item: AladinBookItem) => isbnKeys(item)
+  .some(key => keys.some(expected => (asIsbn13(expected) ?? expected) === (asIsbn13(key) ?? key)));
 
 export async function enrichMissingBookInfo(ownerId: number, bookId: number, { includeLinks = true }: { includeLinks?: boolean } = {}) {
   const book = sqlite.prepare("SELECT id,name,author,description FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as Metadata | undefined;
@@ -21,25 +22,34 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number, { i
   if (!blank(book.author) && !blank(book.description) && volumes.every((volume) => !blank(volume.author) && !blank(volume.description) && (!includeLinks || !blank(volume.link)))) {
     return { booksUpdated: 0, volumesUpdated: 0, summary: "채울 저자/설명/상품 링크가 없습니다." };
   }
-  if (!isAladinConfigured()) throw new AppError("알라딘 검색을 설정한 뒤 다시 시도해 주세요.");
   const cache = new Map<string, AladinBookItem[]>();
   async function search(query: string | null, queryType: "Title" | "Keyword" = "Title") {
     const value = query?.trim();
     if (!value) return [];
     const key = `${queryType}:${value}`;
-    if (!cache.has(key)) cache.set(key, (await searchAladinBooks({ query: value.slice(0, 200), queryType, page: 1 })).items);
+    if (!cache.has(key)) cache.set(key, (await searchAladinBooks({ query: value.slice(0, 200), queryType, searchTarget: "All", page: 1 })).items);
     return cache.get(key)!;
   }
   async function match(volume: Volume) {
     const items = await search(volume.name);
     const keys = isbnKeys(volume);
     const exact = items.find((item) => matchesIsbn(keys, item));
-    if (exact) return exact;
-    for (const key of keys) {
-      const found = (await search(key, "Keyword")).find((item) => matchesIsbn([key], item));
-      if (found) return found;
+    if (exact) {
+      const detail = await hydrateAladinItem(exact);
+      if (matchesIsbn(keys, detail)) return detail;
     }
-    return items.find((item) => item.title.normalize("NFC").trim() === volume.name?.normalize("NFC").trim()) ?? null;
+    for (const key of keys) {
+      for (const candidate of await search(key, "Keyword")) {
+        if (isbnKeys(candidate).length && !matchesIsbn([key], candidate)) continue;
+        // K/U search codes carry no ISBN. Verify the product before discarding it.
+        const detail = await hydrateAladinItem(candidate);
+        if (matchesIsbn([key], detail)) return detail;
+      }
+    }
+    // A same-title edition cannot substitute for an explicitly stored ISBN.
+    if (keys.length) return null;
+    const candidate = items.find((item) => item.title.normalize("NFC").trim() === volume.name?.normalize("NFC").trim());
+    return candidate ? hydrateAladinItem(candidate) : null;
   }
   const patches: Array<{ id: number; item: AladinBookItem }> = [];
   let bookSource: AladinBookItem | undefined;
@@ -52,7 +62,8 @@ export async function enrichMissingBookInfo(ownerId: number, bookId: number, { i
     }
   }
   if (!bookSource && (blank(book.author) || blank(book.description))) {
-    bookSource = (await search(book.name)).find((item) => item.author || item.description);
+    const candidate = (await search(book.name))[0];
+    bookSource = candidate ? await hydrateAladinItem(candidate) : undefined;
   }
   return sqlite.transaction(() => {
     const currentBook = sqlite.prepare("SELECT author,description FROM books WHERE id=? AND owner_id=?").get(bookId, ownerId) as Pick<Metadata, "author" | "description"> | undefined;

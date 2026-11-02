@@ -33,7 +33,18 @@ export interface StockRefreshLogEntry {
   retryable: boolean;
 }
 
+export interface StockRefreshRun {
+  id: number;
+  runId: string;
+  status: StockRefreshProgress["status"];
+  total: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationSeconds: number | null;
+}
+
 export interface StockRefreshLogPage {
+  runs: StockRefreshRun[];
   items: StockRefreshLogEntry[];
   total: number;
   page: number;
@@ -50,6 +61,8 @@ export interface BranchInventoryItem {
 }
 
 export interface BranchStockItem {
+  checkedAt?: string | null;
+  lastLookupStatus?: string | null;
   id: number;
   branch: string | null;
   branchName: string | null;

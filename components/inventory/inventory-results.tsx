@@ -25,6 +25,7 @@ export function InventoryResults({ result, branch }: { result: ReturnType<typeof
       <div className="stock-cover"><CoverImage cover={item.cover} alt={item.volumeName ?? item.bookName ?? "책"}/></div>
       <div className="stack-xs"><BookDetailLink className="volume-title-link" bookId={item.bookId}>{item.volumeName ?? item.bookName ?? "제목 없음"}</BookDetailLink>
         <p className="muted small">{item.branchName} · {item.isbn13 ?? "ISBN 미상"}</p>
+        <p className="muted small">{item.lastLookupStatus === "FAILED" ? "최근 조회 실패 · 이전 재고 보존" : "저장된 조회 결과"}{item.checkedAt ? ` · ${item.checkedAt} UTC` : " · 확인 시각 미상"}</p>
         <div className="button-row">{item.grade && <span className="chip">{item.grade}</span>}<strong>{item.price ? formatWon(item.price) : "가격 미상"}</strong></div>
       </div><div className="button-row">{stockPurchaseUrl(item)
         ? <ExternalLink className="button button-secondary button-small" href={stockPurchaseUrl(item)}>구매</ExternalLink>

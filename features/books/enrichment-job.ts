@@ -2,7 +2,6 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { sqlite } from "@/db";
 import { AppError, NotFoundError } from "@/lib/errors";
-import { isAladinConfigured } from "@/features/aladin/client";
 import { enrichMissingBookInfo } from "@/features/books/enrichment";
 import type { MetadataEnrichmentProgress } from "@/features/books/enrichment-types";
 import { logger } from "@/lib/logger";
@@ -16,7 +15,6 @@ export function getMetadataEnrichmentProgress(ownerId: number): MetadataEnrichme
 }
 
 export function requestMetadataEnrichment(ownerId: number): MetadataEnrichmentProgress {
-  if (!isAladinConfigured()) throw new AppError("알라딘 검색을 설정한 뒤 다시 시도해 주세요.");
   return sqlite.transaction(() => {
     const current = getMetadataEnrichmentProgress(ownerId);
     if (active(current)) throw new AppError("전체 정보 보강이 이미 진행 중입니다.", "JOB_ACTIVE", 409);

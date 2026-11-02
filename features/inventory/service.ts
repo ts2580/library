@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import { sqlite } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-import { AladinRateLimitError, isAladinConfigured } from "@/features/aladin/client";
+import { AladinRateLimitError } from "@/features/aladin/client";
 import { lookupUsedStocks } from "@/features/aladin/service";
 import { isbn13Schema } from "@/features/aladin/validation";
 import { stockIdentity, uniqueStocks } from "@/features/inventory/stock-identity";
-import { getFailedStockVolumeIds, recordStockRefreshResult } from "@/features/inventory/refresh-log";
+import { getFailedStockVolumeIds, recordStockRefreshResult, recordStockRefreshRun } from "@/features/inventory/refresh-log";
 import type { AladinBranchStock } from "@/features/aladin/types";
+
+export const STOCK_REFRESH_CONCURRENCY = 10;
 
 interface RefreshTarget {
   id: number;
@@ -36,6 +38,7 @@ function rebuildSummaryStatements(): void {
 }
 
 function rememberStockCompletion(): void {
+  recordStockRefreshRun();
   sqlite.prepare(`INSERT INTO stock_refresh_completion(owner_id, run_id)
     SELECT requested_by, COALESCE(run_id, ?) FROM stock_refresh_job
     WHERE id=1 AND requested_by IS NOT NULL
@@ -82,7 +85,6 @@ export function cancelStockRefresh(ownerId: number, runId: string | null): void 
 function queueStockJob(ownerId: number, bookId: number | null, selection?: number[] | "failed"): { started: boolean; message: string } {
   return sqlite.transaction(() => {
     if (bookId != null) assertScopedBook(ownerId, bookId);
-    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
     const selected = selection === "failed" ? getFailedStockVolumeIds(ownerId) : selection ? [...new Set(selection)] : null;
     if (selected) {
       if (!selected.length) throw new AppError("갱신할 권이 없습니다.", "NO_RETRY_TARGETS", 400);
@@ -109,6 +111,7 @@ function queueStockJob(ownerId: number, bookId: number | null, selection?: numbe
     `).run(selected ? selected.length : total, selected ? "선택한 권의 재고 갱신을 기다리고 있습니다." : bookId == null ? "중고 재고 일괄 갱신 대기 중입니다." : "이 책의 재고 검색을 기다리고 있습니다. 기존 재고는 유지합니다.",
       selected ? "REFRESH_SELECTED" : bookId == null ? "REPLACE_ALL" : "APPEND_BOOK", bookId, ownerId, randomUUID());
     if (result.changes !== 1) return { started: false, message: "이미 재고 갱신이 진행 중입니다." };
+    recordStockRefreshRun();
     sqlite.prepare("DELETE FROM stock_refresh_job_target WHERE job_id=1").run();
     const insert = sqlite.prepare("INSERT INTO stock_refresh_job_target(job_id,volume_id) VALUES(1,?)");
     for (const id of selected ?? []) insert.run(id);
@@ -153,17 +156,20 @@ export function recoverInterruptedStockJob(): void {
 }
 
 function claimStockJob(): { ownerId: number; total: number; lockToken: string; mode: string; bookId: number | null } | null {
-  const lockToken = randomUUID();
-  const row = sqlite.prepare(`
-    UPDATE stock_refresh_job SET status = 'RUNNING', running = 1, lock_token = ?,
-      started_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
-      message = CASE WHEN mode='APPEND_BOOK' THEN '이 책의 재고 검색을 준비 중입니다.' WHEN mode='REFRESH_SELECTED' THEN '선택한 권의 재고 갱신을 준비 중입니다.' ELSE '재고 초기화를 준비 중입니다.' END
-    WHERE id = 1 AND status = 'QUEUED'
-    RETURNING requested_by AS ownerId, total, mode, scope_book_id AS bookId
-  `).get(lockToken) as { ownerId: number | null; total: number; mode: string; bookId: number | null } | undefined;
-  if (!row) return null;
-  if (!row.ownerId) throw new Error("재고 작업 요청 사용자가 없습니다.");
-  return { ownerId: row.ownerId, total: row.total, lockToken, mode: row.mode, bookId: row.bookId };
+  return sqlite.transaction(() => {
+    const lockToken = randomUUID();
+    const row = sqlite.prepare(`
+      UPDATE stock_refresh_job SET status = 'RUNNING', running = 1, lock_token = ?,
+        started_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+        message = CASE WHEN mode='APPEND_BOOK' THEN '이 책의 재고 검색을 준비 중입니다.' WHEN mode='REFRESH_SELECTED' THEN '선택한 권의 재고 갱신을 준비 중입니다.' ELSE '재고 초기화를 준비 중입니다.' END
+      WHERE id = 1 AND status = 'QUEUED'
+      RETURNING requested_by AS ownerId, total, mode, scope_book_id AS bookId
+    `).get(lockToken) as { ownerId: number | null; total: number; mode: string; bookId: number | null } | undefined;
+    if (!row) return null;
+    if (!row.ownerId) throw new Error("재고 작업 요청 사용자가 없습니다.");
+    recordStockRefreshRun();
+    return { ownerId: row.ownerId, total: row.total, lockToken, mode: row.mode, bookId: row.bookId };
+  }).immediate();
 }
 
 function updateProgress(lockToken: string, values: { processed: number; success: number; empty: number; fail: number; total: number; message: string }): void {
@@ -189,7 +195,7 @@ function assertRunningJob(lockToken: string): void {
 function saveStocks(lockToken: string, ownerId: number, target: RefreshTarget, stocks: AladinBranchStock[], append: boolean): boolean {
   const transaction = sqlite.transaction(() => {
     assertRunningJob(lockToken);
-    const current = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, bv.volume AS seq, bv.isbn13, bv.name
+    const current = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, bv.volume AS seq, COALESCE(NULLIF(bv.isbn13,''),bv.isbn) AS isbn13, bv.name
       FROM book_volumes bv JOIN books b ON b.id=bv.book
       WHERE bv.id=? AND b.owner_id=? AND COALESCE(bv.ispurchased,0)=0 AND COALESCE(bv.noneedtobuy,0)=0`)
       .get(target.id, ownerId) as RefreshTarget | undefined;
@@ -269,20 +275,22 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
   let processed = 0, success = 0, empty = 0, fail = 0;
   let total = claimed.total;
   try {
-    // A queued job can survive a restart with a different environment.
-    if (!isAladinConfigured()) throw new AppError("ALADIN_TTB_KEY가 설정되어 있지 않습니다.", "ALADIN_NOT_CONFIGURED");
     if (!["REPLACE_ALL", "APPEND_BOOK", "REFRESH_SELECTED"].includes(claimed.mode)) throw new AppError("알 수 없는 재고 작업입니다.");
     const append = claimed.mode === "APPEND_BOOK";
     if (append) assertScopedBook(claimed.ownerId, claimed.bookId);
-    const clear = sqlite.transaction(() => {
+    // Only remove locally known obsolete rows. Remote failures keep prior offers.
+    if (claimed.mode === "REPLACE_ALL") sqlite.transaction(() => {
       assertRunningJob(claimed.lockToken);
-      sqlite.prepare("DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id = ?)").run(claimed.ownerId);
-      sqlite.prepare("DELETE FROM branch_inventory_summary").run();
-    });
-    if (claimed.mode === "REPLACE_ALL") clear.immediate();
+      sqlite.prepare(`DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id=?)
+        AND NOT EXISTS (SELECT 1 FROM book_volumes bv WHERE bv.book=branchbook.book
+          AND (bv.id=branchbook.book_volume_id OR (branchbook.book_volume_id IS NULL AND bv.volume=branchbook.volume))
+          AND COALESCE(bv.ispurchased,0)=0 AND COALESCE(bv.noneedtobuy,0)=0)`)
+        .run(claimed.ownerId);
+      rebuildSummaryStatements();
+    }).immediate();
 
     const targets = sqlite.prepare(`
-      SELECT bv.id, bv.book AS bookId, bv.volume AS seq, bv.isbn13, bv.name
+      SELECT bv.id, bv.book AS bookId, bv.volume AS seq, COALESCE(NULLIF(bv.isbn13,''),bv.isbn) AS isbn13, bv.name
       FROM book_volumes bv JOIN books b ON b.id = bv.book
       WHERE b.owner_id = ? AND COALESCE(bv.ispurchased, 0) = 0 AND COALESCE(bv.noneedtobuy, 0) = 0
         AND (? IS NULL OR b.id = ?)
@@ -290,9 +298,13 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
       ORDER BY bv.id ASC
     `).all(claimed.ownerId, append ? claimed.bookId : null, append ? claimed.bookId : null, claimed.mode) as RefreshTarget[];
     total = targets.length;
-    sqlite.prepare("UPDATE stock_refresh_job SET total=? WHERE id=1 AND lock_token=? AND status='RUNNING'").run(total, claimed.lockToken);
+    sqlite.transaction(() => {
+      assertRunningJob(claimed.lockToken);
+      sqlite.prepare("UPDATE stock_refresh_job SET total=? WHERE id=1 AND lock_token=? AND status='RUNNING'").run(total, claimed.lockToken);
+      recordStockRefreshRun();
+    }).immediate();
 
-    for (const target of targets) {
+    const refreshTarget = async (target: RefreshTarget) => {
       assertRunningJob(claimed.lockToken);
       try {
         if (!target.isbn13) {
@@ -342,7 +354,23 @@ export async function processNextStockRefreshJob(): Promise<boolean> {
         processed, success, empty, fail, total,
         message: `${append ? "이 책의 재고를 검색 중입니다." : "중고 재고를 갱신 중입니다."} (${processed}/${total})`
       });
+    };
+    let next = 0;
+    let stopped = false;
+    let stopReason: unknown;
+    async function consume() {
+      while (!stopped && next < targets.length) {
+        const target = targets[next++]!;
+        try { await refreshTarget(target); }
+        catch (error) {
+          if (!stopped) { stopped = true; stopReason = error; }
+        }
+      }
     }
+    // Drain in-flight lookups before finalizing the job. Late results remain fenced
+    // by the same lock token after cancellation or replacement with another run.
+    await Promise.all(Array.from({length: Math.min(STOCK_REFRESH_CONCURRENCY, targets.length)}, () => consume()));
+    if (stopped) throw stopReason;
     completeJob(claimed.lockToken, total, processed, success, empty, fail, append);
   } catch (error) {
     if (error instanceof LostStockJobError) {

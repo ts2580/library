@@ -202,6 +202,17 @@ export const stockRefreshCompletions = sqliteTable("stock_refresh_completion", {
   runId: text("run_id").notNull()
 });
 
+export const stockRefreshRuns = sqliteTable("stock_refresh_run", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ownerId: integer("owner_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull().unique(),
+  status: text("status").notNull(),
+  total: integer("total").notNull(),
+  startedAt: text("started_at"),
+  finishedAt: text("finished_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+}, table => [index("idx_stock_refresh_run_owner_id").on(table.ownerId, table.id)]);
+
 export const stockRefreshLogs = sqliteTable("stock_refresh_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   ownerId: integer("owner_id").notNull().references(() => members.id, { onDelete: "cascade" }),

@@ -1,5 +1,6 @@
 "use client";
 
+import { aladinItemKey } from "@/features/aladin/item-key";
 import { apiFetch } from "@/lib/api-fetch";
 
 import { BookDetailLink } from "@/components/books/book-detail-link";
@@ -25,7 +26,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
   const [saved, setSaved] = useState<{ bookId: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const key = item.isbn13 ?? item.isbn;
+  const key = aladinItemKey(item);
   useEffect(() => {
     if (targetBook && !editedSequence) setSequence(String(targetBook.nextVolume));
   }, [targetBook?.nextVolume, editedSequence]);
@@ -51,7 +52,7 @@ function QuickAddItem({ item, query, page, targetBook, categories }: {
   }
   return <article className="panel stack-md quick-add-item">
     <div className="quick-add-heading"><div className="stock-cover"><CoverImage cover={item.cover} alt={`${item.title} 표지`}/></div>
-      <div className="stack-xs"><h3>{item.title}</h3><p className="muted small">{item.author} · {key ?? "ISBN 없음"}</p>
+      <div className="stack-xs"><h3>{item.title}</h3><p className="muted small">{item.author} · {item.isbn13 ?? item.isbn ?? "ISBN은 등록 시 확인"}</p>
         <p className="muted small">{item.priceSales == null ? "가격 미상" : formatWon(item.priceSales)}</p></div></div>
     {saved ? <div className="button-row"><span className="chip">등록됨</span><BookDetailLink bookId={saved.bookId} returnQuery={{ q: query, aladinPage: String(page) }}>추가한 책 보기</BookDetailLink></div>
       : item.owned ? <span className="chip">등록됨</span> : !key ? <p className="muted">ISBN이 없어 등록할 수 없습니다.</p>
@@ -99,7 +100,7 @@ export function AladinQuickAdd({ initialQuery = "", initial = null, targetBook, 
     {error && <p className="flash flash-error" role="alert">{error}</p>}
     {result && <>
       <p className="muted" role="status">검색 결과 {result.totalResults}건 · {result.page}페이지</p>
-      <div className="stack-md">{result.items.map((item, index) => <QuickAddItem key={`${searched}:${result.page}:${item.isbn13 ?? item.isbn ?? index}`} item={item} query={searched} page={result.page} targetBook={targetBook} categories={categories}/>)}</div>
+      <div className="stack-md">{result.items.map((item, index) => <QuickAddItem key={`${searched}:${result.page}:${aladinItemKey(item) ?? index}`} item={item} query={searched} page={result.page} targetBook={targetBook} categories={categories}/>)}</div>
       {!result.items.length && <p className="empty">검색 결과가 없습니다. 직접 입력으로 권을 추가할 수 있습니다.</p>}
       <Pagination page={result.page} totalPages={Math.min(50, Math.ceil(result.totalResults / Math.max(1, result.pageSize)))} label="알라딘 한 권 검색 페이지" disabled={loading} onPageChange={page => void search(searched, page)}/>
     </>}

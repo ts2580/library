@@ -2,7 +2,6 @@ import { SearchForm } from "@/components/ui/search-form";
 import Link from "next/link";
 import { requireUser } from "@/features/auth/authorization";
 import { lookupUsedStocks } from "@/features/aladin/service";
-import { isAladinConfigured } from "@/features/aladin/client";
 import { formatWon } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { ErrorReporter } from "@/components/ui/error-dialog";
@@ -22,12 +21,11 @@ export default async function UsedSearchPage({ searchParams }: { searchParams: P
   const prices = result?.stocks.map((stock) => stock.price?.replaceAll(",", "")).filter((value): value is string => Boolean(value && /^\d+$/.test(value))).map(Number) ?? [];
   const minimum = prices.length ? Math.min(...prices) : null;
   return <div className="page">
-    <header className="page-header"><div><p className="eyebrow">Used stock lookup</p><h1 className="page-title">ISBN 재고 조회</h1><p className="page-subtitle">알라딘 직배송과 지점별 중고 재고를 확인합니다.</p></div><Link className="button button-outline" href="/aladin/search">알라딘 검색</Link></header>
-    {!isAladinConfigured() && <div className="flash flash-error">알라딘 검색이 설정되어 있지 않습니다.</div>}
+    <header className="page-header"><div><p className="eyebrow">Used stock lookup</p><h1 className="page-title">ISBN 재고 조회</h1><p className="page-subtitle">알라딘 직배송과 이 광활한 우주점의 판매 상품을 확인합니다.</p></div><Link className="button button-outline" href="/aladin/search">알라딘 검색</Link></header>
     <section className="panel panel-soft"><SearchForm className="search-form" action="/aladin/used">
       <div className="field"><label htmlFor="isbn">ISBN10 또는 ISBN13</label><input className="input" id="isbn" name="isbn" pattern="([0-9]{13}|[0-9]{9}[0-9Xx])" defaultValue={isbn} required/></div>
       <div className="field"><label htmlFor="used-source">재고 종류</label><select className="select" id="used-source" name="type" defaultValue={query.type ?? "all"}>
-        <option value="all">전체 중고 재고</option><option value="dropshipping">알라딘 직배송</option><option value="offstore">알라딘 지점 중고</option>
+        <option value="all">전체 중고 재고</option><option value="dropshipping">알라딘 직배송</option><option value="offstore">이 광활한 우주점(매장)</option>
       </select></div><button className="button" type="submit">조회</button>
     </SearchForm></section>
     {result && (!result.successful ? <div className="flash flash-error" role="alert">{result.errorMessage}<ErrorReporter message={result.errorMessage} code="ALADIN_LOOKUP_FAILED" source="aladin-used"/></div> : <>
@@ -39,7 +37,7 @@ export default async function UsedSearchPage({ searchParams }: { searchParams: P
           <div className="button-row"><ExternalLink className="button button-secondary button-small" href={stock.purchaseLink}>{stock.verified === false ? "지점 목록" : "구매 링크"}</ExternalLink><ExternalLink className="button button-outline button-small" href={stock.bookLink}>상품 링크</ExternalLink></div>
         </article>)}</div> : <div className="empty">현재 확인되는 중고 재고가 없습니다.</div>}
       </section>
-      <details className="details-card"><summary>원본 JSON 응답</summary><pre className="details-body raw-response">{JSON.stringify(result.raw, null, 2)}</pre></details>
+      <p className="muted small">직배송·우주점 모두 전체 중고 목록에 표시된 상품별 가격입니다. 개인·전문 판매자는 제외합니다.</p>
     </>)}
   </div>;
 }
