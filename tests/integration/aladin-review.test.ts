@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { searchPage, productPage } from "../fixtures/aladin-pages.mjs";
@@ -8,11 +8,13 @@ import { withRequestGate } from "@/features/aladin/request-gate";
 vi.mock("server-only", () => ({}));
 const html = vi.hoisted(() => vi.fn());
 vi.mock("@/features/aladin/client", () => ({ aladinHtml: html }));
+vi.mock("@/features/aladin/covers", () => ({ persistAladinCover: async () => null }));
 const directory = mkdtempSync(path.join(tmpdir(), "bookshelf-aladin-review-"));
 process.env.BOOKSHELF_DATA_DIR = directory;
 process.env.BOOKSHELF_DB_PATH = path.join(directory, "bookshelf.sqlite");
 const { sqlite } = await import("@/db");
 const { importAladinSelection } = await import("@/features/aladin/bulk-import");
+const { getAladinProduct, searchAladinBooks, hydrateAladinItem } = await import("@/features/aladin/service");
 const { enrichMissingBookInfo } = await import("@/features/books/enrichment");
 
 beforeEach(() => {
@@ -87,4 +89,28 @@ it("rejects a K-code candidate whose detailed ISBN belongs to another edition", 
   expect(await enrichMissingBookInfo(1, 1)).toMatchObject({ volumesUpdated: 0 });
   expect(html.mock.calls.some(([url]) => String(url).includes("wproduct"))).toBe(true);
   expect(sqlite.prepare("SELECT author,description,link FROM book_volumes WHERE id=1").get()).toEqual({ author: null, description: null, link: null });
+});
+
+const captured = (name: string) => readFileSync(new URL(`../fixtures/aladin-html/${name}.html`, import.meta.url), "utf8");
+const isbn10Selection = { query: "059035342X", targetBookId: 1, seriesName: "기존 책", sideStory: false,
+  selection: [{ key: "item:208556", page: 1 }] };
+async function useCapturedIsbn10() {
+  html.mockImplementation(async (raw: string) => captured(raw.includes("/shop/wproduct") ? "product" : "isbn10"));
+  await getAladinProduct("208556", { fresh: true });
+}
+it("rejects duplicate registration of an ISBN10-only volume without a product link", async () => {
+  await useCapturedIsbn10();
+  sqlite.exec("INSERT INTO book_volumes(id,book,volume,name,isbn) VALUES(1,1,1,'기존 권','059035342X')");
+  await expect(importAladinSelection(1, isbn10Selection)).rejects.toThrow("이미 등록");
+  expect(sqlite.prepare("SELECT isbn,isbn13,link FROM book_volumes").all()).toEqual([{isbn:"059035342X",isbn13:null,link:null}]);
+});
+it("retains both equivalent ISBNs when registering a new volume from captured HTML", async () => {
+  await useCapturedIsbn10();
+  await expect(importAladinSelection(1, isbn10Selection)).resolves.toMatchObject({count:1});
+  expect(sqlite.prepare("SELECT isbn,isbn13 FROM book_volumes").all()).toEqual([{isbn:"059035342X",isbn13:"9780590353427"}]);
+});
+it("rejects an ISBN10-only preview when detail belongs to another edition", async () => {
+  await useCapturedIsbn10();
+  const search=await searchAladinBooks({query:"059035342X"});
+  await expect(hydrateAladinItem({...search.items[0]!,isbn13:null,isbn:"0590353403"})).rejects.toMatchObject({code:"ALADIN_ISBN_MISMATCH"});
 });

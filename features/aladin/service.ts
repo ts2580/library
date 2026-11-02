@@ -1,7 +1,7 @@
 import "server-only";
 import { aladinHtml } from "@/features/aladin/client";
 import { parseProductPage, parseSearchPage, parseUsedPage, changed } from "@/features/aladin/html";
-import { asIsbn13 } from "@/features/aladin/item-key";
+import { asIsbn13, normalizedIsbn } from "@/features/aladin/item-key";
 import { aladinSearchSchema, isbn13Schema, usedSourceSchema } from "@/features/aladin/validation";
 import type { AladinBookItem, AladinBranchStock, AladinSearchResult, StockLookupResult } from "@/features/aladin/types";
 import { AppError } from "@/lib/errors";
@@ -55,11 +55,15 @@ export async function getAladinProduct(itemId: string, { fresh = false } = {}): 
 export async function hydrateAladinItem(item: AladinBookItem): Promise<AladinBookItem> {
   if (!item.itemId) return item;
   const detail = await getAladinProduct(item.itemId);
-  if (item.isbn13 && asIsbn13(detail.isbn13 ?? detail.isbn) !== asIsbn13(item.isbn13)) {
+  const detailIsbn13 = asIsbn13(detail.isbn13 ?? detail.isbn);
+  if ([item.isbn13, item.isbn].some(isbn => isbn && asIsbn13(isbn) !== detailIsbn13)) {
     throw new AppError("알라딘 상품의 ISBN이 변경되었습니다. 다시 검색해 주세요.", "ALADIN_ISBN_MISMATCH", 502);
   }
+  const searchIsbn = normalizedIsbn(item.isbn);
+  // Keep the verified ISBN10 for duplicate checks against legacy ISBN10-only rows.
+  const isbn = detail.isbn ?? (searchIsbn?.length === 10 && asIsbn13(searchIsbn) === detailIsbn13 ? searchIsbn : null);
   // Selection uses the publication precision shown in the search preview.
-  return { ...detail, pubDate: item.pubDate ?? detail.pubDate, cover: item.cover === null ? null : detail.cover };
+  return { ...detail, isbn, pubDate: item.pubDate ?? detail.pubDate, cover: item.cover === null ? null : detail.cover };
 }
 
 async function exactProduct(isbn: string) {
