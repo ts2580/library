@@ -42,6 +42,15 @@ test("worker failures show reasons and individual and selected refresh clear onl
     const untouched = db.prepare("SELECT * FROM branchbook WHERE book_volume_id=?").all(volumes[3]);
     expect(untouched).toHaveLength(2);
     await page.getByRole("link", { name: "갱신 로그", exact: true }).click();
+    const runs = page.getByTestId("stock-run-entry");
+    await expect(runs).toHaveCount(1);
+    await expect(runs.first()).toContainText("총 4권");
+    await expect(runs.first()).toContainText("시작시간 (KST)");
+    await expect(runs.first()).toContainText("종료시간 (KST)");
+    await expect(runs.first()).toContainText("작업시간");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("stock-refresh-runs.png"), fullPage: true });
+    await page.getByRole("link", {name:"미해결 실패",exact:true}).click();
     await expect(page.getByRole("heading", { name: "미해결 실패 3권" })).toBeVisible();
     const entries = page.getByTestId("stock-log-entry");
     await expect(entries).toHaveCount(3);
@@ -64,12 +73,14 @@ test("worker failures show reasons and individual and selected refresh clear onl
     await expect(page.locator(".empty")).toContainText("미해결 갱신 실패가 없습니다.");
     await expect(entries).toHaveCount(0);
     await expect(page.locator("#top-progress-bar")).toBeHidden();
-    await page.getByRole("link", { name: "전체 기록", exact: true }).click();
-    await expect(entries).toHaveCount(7);
+    await page.getByRole("link", { name: "작업 기록", exact: true }).click();
+    await expect(entries).toHaveCount(0);
+    await expect(runs).toHaveCount(3);
     expect(db.prepare("SELECT * FROM branchbook WHERE book_volume_id=?").all(volumes[3])).toEqual(untouched);
     await page.getByRole("link", { name: "지점 재고로", exact: true }).click();
     await expect(page.getByRole("button", { name: /실패 건 재시도/ })).toHaveCount(0);
-    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_log WHERE owner_id=?").get(owner)).toEqual({ n: 7 });
+    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_log WHERE owner_id=?").get(owner)).toEqual({ n: 0 });
+    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_run WHERE owner_id=?").get(owner)).toEqual({ n: 3 });
   });
 });
 
@@ -90,7 +101,8 @@ test("inventory failure retry uses the worker and rejects foreign and malformed 
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
     await expect(page.getByRole("button", { name: /실패 건 재시도/ })).toHaveCount(0);
     expect(db.prepare("SELECT * FROM branchbook WHERE book_volume_id=?").all(volumes[3])).toEqual(untouched);
-    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_log WHERE owner_id=?").get(owner)).toEqual({ n: 4 });
+    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_log WHERE owner_id=?").get(owner)).toEqual({ n: 0 });
+    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_run WHERE owner_id=?").get(owner)).toEqual({ n: 1 });
     expect((await page.request.get("/api/stock-refresh/logs")).status()).toBe(200);
     expect((await (await page.request.get("/api/stock-refresh/logs")).json()).logs.pendingFailures).toBe(0);
   });
@@ -99,7 +111,7 @@ test("inventory failure retry uses the worker and rejects foreign and malformed 
 test("log retry errors open a popup and release request progress", async ({ page }, testInfo) => {
   await withLogs(page, `stock-log-errors-${testInfo.project.name}`, async (db, owner, volumes) => {
     db.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,status,code,message) SELECT ?,book,id,'prior','FAILED','ISBN_MISSING','ISBN 미등록' FROM book_volumes WHERE id=?").run(owner, volumes[0]);
-    await page.goto("/inventory/logs");
+    await page.goto("/inventory/logs?status=failed");
     await page.route("**/api/stock-refresh/retry", route => route.fulfill({ status: 503, json: { code: "WORKER_UNAVAILABLE", message: "갱신 요청 테스트 오류" } }));
     for (let attempt = 0; attempt < 2; attempt++) {
       await page.getByRole("button", { name: "개별 갱신" }).click();
@@ -108,5 +120,16 @@ test("log retry errors open a popup and release request progress", async ({ page
       await expect(page.getByRole("button", { name: "개별 갱신" })).toBeEnabled();
       await expect(page.locator("#top-progress-bar")).toBeHidden();
     }
+  });
+});
+
+test("unresolved failures link directly to ISBN stock search without resolving themselves",async({page},testInfo)=>{
+  await withLogs(page,`stock-direct-${testInfo.project.name}`,async(db,owner,volumes)=>{
+    db.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,isbn13,status,code,message) SELECT ?,book,id,'direct-search',isbn13,'FAILED','ALADIN_TIMEOUT','응답 시간 초과' FROM book_volumes WHERE id=?").run(owner,volumes[3]);
+    await page.goto("/inventory/logs?status=failed");
+    await page.getByRole("link",{name:"재고 직접 검색",exact:true}).click();
+    await expect(page).toHaveURL(/\/aladin\/used\?isbn=9780000000193/);
+    await expect(page.locator(".branch-card")).toHaveCount(2);
+    expect(db.prepare("SELECT COUNT(*) n FROM stock_refresh_log WHERE owner_id=?").get(owner)).toEqual({n:1});
   });
 });

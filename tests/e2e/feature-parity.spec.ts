@@ -90,7 +90,7 @@ test("product quick registration keeps the page and supports existing books and 
   await deleteCurrentBook(page);
 });
 
-test("used inventory restores source selection, minimum price and the corresponding raw JSON", async ({ page }) => {
+test("used inventory preserves source selection and shows individual store and direct offers", async ({ page }) => {
   await login(page); await page.goto("/aladin/used?isbn13=123456789X&type=dropshipping");
   await expect(page.locator(".branch-card")).toHaveCount(1);
   await expect(page.locator(".branch-card")).toContainText("알라딘 직배송");
@@ -99,8 +99,8 @@ test("used inventory restores source selection, minimum price and the correspond
   await page.getByRole("button", { name: "조회", exact: true }).click();
   await expect(page.locator(".branch-card")).toHaveCount(1);
   await expect(page.locator(".branch-card")).toContainText("갱신 서울점");
-  await page.getByText("원본 JSON 응답", { exact: true }).click();
-  await expect(page.locator(".raw-response")).toContainText("itemOffStoreList");
+  await expect(page.getByText("1건 · 최저 1,700원", { exact: true })).toBeVisible();
+  await expect(page.getByText("직배송·우주점 모두 전체 중고 목록에 표시된 상품별 가격입니다. 개인·전문 판매자는 제외합니다.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
@@ -318,7 +318,7 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
   await page.getByRole("button", { name: "책 정보 수정 닫기", exact: true }).click();
   const volume = page.locator(".volume-card").filter({ has: page.locator(".volume-title h3").filter({ hasText: "1권 · 선택 샘플 1-1" }) });
   await expect(volume).toContainText(description);
-  await expect(volume.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
+  await expect(volume.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=9788891500011");
   await expect(page.locator('img[src="x"]')).toHaveCount(0);
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   await expect(volume.getByLabel("설명", { exact: true })).toHaveValue(description);
@@ -376,7 +376,7 @@ test("book enrichment matches a formatted ISBN and fills only missing purchase l
   await openBookEditor(page);
   await page.getByRole("button", { name: "저자/설명 알라딘에서 넣기", exact: true }).click();
   await expect(page.locator(".toast-message").last()).toHaveText("정보 보강 완료: 책 0건, 권 1건");
-  await expect(productLink).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=fixture-1-1");
+  await expect(productLink).toHaveAttribute("href", "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=9788891500011");
   await expect(productLink).toHaveAttribute("target", "_blank");
   await expect(existing.getByRole("link", { name: "상품 페이지 열기 ↗", exact: true })).toHaveAttribute("href", "https://example.com/keep");
   await expect(missing).toContainText("기존 권 저자");

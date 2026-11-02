@@ -2,7 +2,6 @@ import { withOwnership } from "@/features/aladin/ownership";
 import { requireUser } from "@/features/auth/authorization";
 import { getOwnedBookOptions, getManualBookCategories } from "@/features/books/queries";
 import { searchAladinBooks } from "@/features/aladin/service";
-import { isAladinConfigured } from "@/features/aladin/client";
 import { AladinSearchPanel } from "@/components/books/aladin-search-panel";
 import { FlashMessage } from "@/components/ui/flash-message";
 import { errorMessage } from "@/lib/errors";
@@ -31,7 +30,6 @@ export default async function AladinSearchPage({ searchParams }: { searchParams:
   return <div className="page">
     <AladinSearchPanel key={selectedBookId} query={query} result={result} searchOptions={searchOptions} options={options} selectedBookId={selectedBookId} categories={getManualBookCategories()}>
     <FlashMessage message={params.message} error={params.error ?? searchError}/>
-    {!isAladinConfigured() && <p className="flash flash-error" role="alert">알라딘 검색을 사용할 수 없습니다. 관리자에게 문의해 주세요.</p>}
     </AladinSearchPanel>
   </div>;
 }

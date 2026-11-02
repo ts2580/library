@@ -1,5 +1,6 @@
 "use client";
 
+import { aladinItemKey } from "@/features/aladin/item-key";
 import { apiFetch } from "@/lib/api-fetch";
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -51,7 +52,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
     const selected = new Map(entries.map(entry => [entry.key, entry]));
     const items = [...pages.current.entries()].sort(([a], [b]) => a - b).flatMap(([page, result]) =>
       result.items.flatMap(item => {
-        const key = item.isbn13 ?? item.isbn;
+        const key = aladinItemKey(item);
         const entry = key ? selected.get(key) : undefined;
         return entry?.page === page ? [{ ...entry, pubDate: item.pubDate, title: item.title }] : [];
       }));
@@ -83,7 +84,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
       pages.current.set(page, body);
       setResult(body as AladinSearchResult);
       if (manual && !visited) {
-        const keys = (body as AladinSearchResult).items.filter((item) => !item.owned).map((item) => item.isbn13 ?? item.isbn).filter((key): key is string => Boolean(key));
+        const keys = (body as AladinSearchResult).items.filter((item) => !item.owned).map((item) => aladinItemKey(item)).filter((key): key is string => Boolean(key));
         setSelection((previous) => {
           const next = [...previous, ...keys.filter((key) => !previous.some((entry) => entry.key === key)).map((key) => ({ page, key }))];
           return new Set(next.map((entry) => entry.page)).size <= 10 ? byPublication(next) : previous;
@@ -141,7 +142,7 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
   let nextVolume = target?.nextVolume ?? 1;
   const numbering = new Map<string, number | null>();
   for (const item of target ? selection : byPublication(selection)) numbering.set(item.key, item.sideStory ? null : nextVolume++);
-  const keys = result?.items.filter((item) => !item.owned).map((item) => item.isbn13 ?? item.isbn).filter((key): key is string => Boolean(key)) ?? [];
+  const keys = result?.items.filter((item) => !item.owned).map((item) => aladinItemKey(item)).filter((key): key is string => Boolean(key)) ?? [];
   const ready = manual && !direct && Boolean(result);
   const submitLabel = saving ? "등록 중" : manual && direct ? "책 추가" : manual && !result ? "추가 예정 확인"
     : ready && !result?.items.length && !target ? "책만 추가" : `${selection.length}권 추가`;
@@ -195,13 +196,13 @@ export function AladinSelection({ query, initial, initialOptions, selectedBookId
           <button className="button button-outline" type="button" disabled={loading || saving} onClick={() => toggle(keys, false)}>현재 페이지 모두 제외</button>
           <button className="button button-outline" type="button" disabled={saving} onClick={() => setSelection([])}>선택 초기화</button><span role="status">{selection.length}권 선택</span></div>
         <div className="search-results">{result.items.map((item, index) => {
-          const key = item.isbn13 ?? item.isbn;
+          const key = aladinItemKey(item);
           const selected = selection.find((entry) => entry.page === result.page && entry.key === key);
           return <article className="search-result-card" key={`${key ?? item.title}-${index}`}>
             <div className="search-result-cover"><CoverImage cover={item.cover} alt={item.title} className="h-full w-full object-cover"/></div>
             <div className="stack-sm"><label className="check"><input type="checkbox" aria-label={`선택 ${item.title}`} disabled={!key || item.owned || loading || saving}
               checked={Boolean(selected)} onChange={(event) => key && toggle([key], event.target.checked)}/><strong>{item.title}</strong></label>
-              <p className="muted small">{item.author ?? "저자 미상"} · {key ?? "ISBN 없음"}{item.pubDate && ` · 출간일 ${item.pubDate}`}</p>
+              <p className="muted small">{item.author ?? "저자 미상"} · {item.isbn13 ?? item.isbn ?? "ISBN은 등록 시 확인"}{item.pubDate && ` · 출간일 ${item.pubDate}`}</p>
               {item.owned ? <span className="chip">이미 등록됨</span> : selected && <span className="chip">{numbering.get(key!) == null ? "외전·특별판" : `${numbering.get(key!)}권으로 추가`}</span>}
               <label className="check"><input type="checkbox" aria-label={`외전 ${item.title}`} checked={Boolean(selected?.sideStory)} disabled={!selected || loading || saving}
                 onChange={(event) => setSelection((previous) => previous.map((entry) => entry.key === key ? { ...entry, sideStory: event.target.checked } : entry))}/> 외전·특별판</label>

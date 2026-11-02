@@ -1,8 +1,9 @@
 export interface AladinBookItem {
+  itemId?: string;
   owned?: boolean;
   title: string;
   author: string | null;
-  /** Plain text, decoded once from the Aladin API response. */
+  /** Plain text introduction summary decoded once from the public product page. */
   description: string | null;
   isbn: string | null;
   isbn13: string | null;
@@ -21,7 +22,7 @@ export interface AladinSearchResult {
 }
 
 export interface AladinBranchStock {
-  /** false means API branch presence only; no individual offer was verified. */
+  /** false means the offer could not be verified. */
   verified?: boolean;
   branch: string;
   branchName: string;

@@ -5,7 +5,7 @@ import path from "node:path";
 
 vi.mock("server-only", () => ({}));
 const search = vi.hoisted(() => vi.fn());
-vi.mock("@/features/aladin/service", () => ({ searchAladinBooks: search }));
+vi.mock("@/features/aladin/service", () => ({ searchAladinBooks: search, hydrateAladinItem: async (item: unknown) => item }));
 vi.mock("@/features/aladin/client", () => ({ isAladinConfigured: () => true }));
 const directory = mkdtempSync(path.join(tmpdir(), "bookshelf-metadata-"));
 process.env.BOOKSHELF_DB_PATH = path.join(directory, "bookshelf.sqlite");

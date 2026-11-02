@@ -85,10 +85,10 @@ for (const staleSearch of [false, true]) {
       const query = "빠른 복귀 & 100%_!";
       await quickAdd.getByLabel("알라딘 검색어", { exact: true }).fill(query);
       await quickAdd.getByRole("button", { name: "알라딘 검색", exact: true }).click();
-      await expect(searchStatus).toHaveText("검색 결과 40건 · 1페이지");
+      await expect(searchStatus).toHaveText("검색 결과 4건 · 1페이지");
       await quickAdd.getByRole("navigation", { name: "알라딘 한 권 검색 페이지", exact: true })
         .getByRole("button", { name: "다음 페이지", exact: true }).click();
-      await expect(searchStatus).toHaveText("검색 결과 40건 · 2페이지");
+      await expect(searchStatus).toHaveText("검색 결과 4건 · 2페이지");
       await quickAdd.getByLabel("알라딘 검색어", { exact: true }).fill("아직 검색하지 않은 입력");
       const item = quickAdd.locator(".quick-add-item").first();
       await item.getByRole("button", { name: "이 권 저장", exact: true }).click();
@@ -102,7 +102,7 @@ for (const staleSearch of [false, true]) {
       const restored = new URL(page.url()).searchParams;
       for (const [key, value] of Object.entries({ ...owned, q: query, aladinPage: "2" })) expect(restored.get(key), key).toBe(value);
       await expect(quickAdd.getByLabel("알라딘 검색어", { exact: true })).toHaveValue(query);
-      await expect(searchStatus).toHaveText("검색 결과 40건 · 2페이지");
+      await expect(searchStatus).toHaveText("검색 결과 4건 · 2페이지");
       await expect(quickAdd.getByRole("heading", { level: 3 })).toHaveText(["선택 샘플 2-1", "선택 샘플 2-2"]);
       await expect(item.getByRole("button", { name: "이 권 저장", exact: true })).toBeVisible();
       if (staleSearch) {

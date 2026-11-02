@@ -7,7 +7,6 @@ import { bookInputSchema } from "@/features/books/validation";
 import { searchAladinBooks } from "@/features/aladin/service";
 import { importAladinSelection } from "@/features/aladin/bulk-import";
 import { bulkSelectionSchema } from "@/features/aladin/selection";
-import { isAladinConfigured } from "@/features/aladin/client";
 
 const requestSchema = z.object({
   book: bookInputSchema,
@@ -28,7 +27,6 @@ export async function createManualBook(ownerId: number, raw: unknown, coverFile?
     if (input.targetBookId != null) throw new AppError("알라딘 외 등록은 새 책에만 사용할 수 있습니다.");
     return { bookId: await createBook(ownerId, book, coverFile), count: 0 };
   }
-  if (!isAladinConfigured()) throw new AppError("알라딘 검색을 설정하거나 책 수동 추가 탭을 이용해 주세요.");
   if (!input.selection.length) {
     const result = await searchAladinBooks({ query: input.book.name, page: 1 });
     if (input.targetBookId != null || result.items.length) throw new AppError("추가할 알라딘 항목을 하나 이상 선택해 주세요.");

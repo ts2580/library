@@ -1,8 +1,9 @@
+import { aladinItemKey } from "@/features/aladin/item-key";
 import "server-only";
 import { sqlite } from "@/db";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { persistCover, deleteCoverIfUnused } from "@/features/covers/service";
-import { searchAladinBooks } from "@/features/aladin/service";
+import { searchAladinBooks, hydrateAladinItem } from "@/features/aladin/service";
 import { bulkSelectionSchema } from "@/features/aladin/selection";
 import type { AladinBookItem } from "@/features/aladin/types";
 import { bookInputSchema } from "@/features/books/validation";
@@ -21,32 +22,37 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
   const seen = new Set<string>();
   const pages = [...new Set(input.selection.map((item) => item.page))].sort((a, b) => a - b);
   for (const page of pages) {
-    const result = await searchAladinBooks({ ...input.searchOptions, query: input.query, page });
+    const result = await searchAladinBooks({ ...input.searchOptions, query: input.query, page }, { fresh: true });
     if (result.page !== page || result.pageSize <= 0 || page > Math.min(50, Math.ceil(result.totalResults / result.pageSize))) {
       throw new AppError("선택한 검색 결과 페이지를 다시 확인해 주세요.", "STALE_SELECTION");
     }
     const keys = new Set(input.selection.filter((item) => item.page === page).map((item) => item.key));
-    const available = new Set(result.items.map((item) => item.isbn13 ?? item.isbn).filter(Boolean));
+    const available = new Set(result.items.map((item) => aladinItemKey(item)).filter(Boolean));
     if ([...keys].some((key) => !available.has(key))) {
       throw new AppError("선택한 알라딘 항목이 변경되었습니다. 다시 검색해 주세요.", "STALE_SELECTION");
     }
     // Gather every selected page before applying title/date ordering or explicit click order.
     for (const item of result.items) {
-      const key = item.isbn13 ?? item.isbn;
+      const key = aladinItemKey(item);
       if (key && keys.has(key) && !seen.has(key)) { seen.add(key); selected.push(item); }
     }
   }
   if (input.preserveSelectionOrder) {
     const rank = new Map<string, number>();
     input.selection.forEach((entry, index) => { if (!rank.has(entry.key)) rank.set(entry.key, index); });
-    selected.sort((a, b) => rank.get((a.isbn13 ?? a.isbn)!)! - rank.get((b.isbn13 ?? b.isbn)!)!);
+    selected.sort((a, b) => rank.get((aladinItemKey(a))!)! - rank.get((aladinItemKey(b))!)!);
   } else selected = orderByPublicationDate(selected);
+  // The shared gate already serializes HTTP. Queue one detail at a time so a
+  // large selection does not exhaust the gate's lock-wait deadline by itself.
+  for (let index = 0; index < selected.length; index++) {
+    selected[index] = await hydrateAladinItem(selected[index]!);
+  }
   function assertNoDuplicates() {
     const duplicate = sqlite.prepare(`SELECT 1 FROM book_volumes bv JOIN books b ON b.id = bv.book
-      WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ?) LIMIT 1`);
+      WHERE b.owner_id = ? AND (bv.isbn13 = ? OR bv.isbn = ? OR bv.link = ?) LIMIT 1`);
     for (const item of selected) {
-      for (const key of [item.isbn13, item.isbn].filter(Boolean)) {
-        if (duplicate.get(ownerId, key, key)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
+      for (const key of [item.isbn13, item.isbn, item.link].filter(Boolean)) {
+        if (duplicate.get(ownerId, key, key, item.link)) throw new AppError("선택한 ISBN의 권이 이미 등록되어 있습니다.");
       }
     }
   }
@@ -77,7 +83,7 @@ export async function importAladinSelection(ownerId: number, raw: unknown, manua
         description, link, pubdate, cover, originalUrl, cover_generated, ispurchased, noneedtobuy, createddate)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, CURRENT_TIMESTAMP)`);
       selected.forEach((item, index) => {
-        const key = item.isbn13 ?? item.isbn;
+        const key = aladinItemKey(item);
         const sideStory = input.selection.find((entry) => entry.key === key)?.sideStory ?? input.sideStory;
         const volume = sideStory ? null : next++;
         insert.run(bookId, volume, volume, item.title, item.author, item.isbn13, item.isbn,
