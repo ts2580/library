@@ -762,7 +762,7 @@ describe("Java-compatible manual book registration", () => {
   it("marks only the current owner's ISBNs and rejects duplicates at registration", async () => {
     volume(1); volume(2, 2);
     const result = { page: 1, pageSize: 20, totalResults: 2, items: [item("9780000000001"), item("9780000000002")] };
-    expect(withOwnership(1, result).items.map((entry) => entry.owned)).toEqual([true, false]);
+    expect((await withOwnership(1, result)).items.map((entry) => entry.owned)).toEqual([true, false]);
     vi.mocked(searchAladinBooks).mockResolvedValue(result);
     await expect(createManualBook(1, { book, direct: false, targetBookId: null, selection: [{ page: 1, key: "9780000000001" }] })).rejects.toThrow("이미 등록");
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM books").get()).toEqual({ n: 2 });
