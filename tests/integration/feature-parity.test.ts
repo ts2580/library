@@ -217,7 +217,7 @@ describe("Java feature parity regressions", () => {
   it("recognizes an existing ISBN10 even when the search result now also includes ISBN13", async () => {
     volume(); sqlite.exec("UPDATE book_volumes SET isbn='123456789X'");
     const item = { title: "같은 권", isbn13: "9780000000101", isbn: "123456789X", cover: null, author: null, description: null, priceSales: null, link: null, pubDate: null, categoryName: null };
-    expect(withOwnership(1, { page: 1, pageSize: 20, totalResults: 1, items: [item] }).items[0]?.owned).toBe(true);
+    expect((await withOwnership(1, { page: 1, pageSize: 20, totalResults: 1, items: [item] })).items[0]?.owned).toBe(true);
     api.mockResolvedValue({ totalResults: 1, item: [item] });
     await expect(importAladinSelection(1, { query: "검색", seriesName: "중복", targetBookId: null, sideStory: false, selection: [{ page: 1, key: item.isbn13 }] })).rejects.toThrow("이미 등록");
   });

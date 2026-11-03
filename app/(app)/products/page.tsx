@@ -22,7 +22,7 @@ export default async function ProductsPage({ searchParams }: {
   let aladin: AladinSearchResult | null = null;
   let error = "";
   if (params.q?.trim()) {
-    try { aladin = withOwnership(user.id, await searchAladinBooks({ query: params.q, page: Number(params.aladinPage) || 1 })); }
+    try { aladin = await withOwnership(user.id, await searchAladinBooks({ query: params.q, page: Number(params.aladinPage) || 1 })); }
     catch (cause) { error = errorMessage(cause); }
   }
   const result = searchOwnedVolumes(user.id, { query: params.ownedQ, page: Number(params.ownedPage), sort: params.ownedSort });
