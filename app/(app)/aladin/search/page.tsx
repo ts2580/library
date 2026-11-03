@@ -24,7 +24,7 @@ export default async function AladinSearchPage({ searchParams }: { searchParams:
   let result: AladinSearchResult | null = null;
   let searchError: string | null = parsedOptions.success ? null : "검색 조건을 확인해 주세요.";
   if (query && !searchError) {
-    try { result = withOwnership(user.id, await searchAladinBooks({ ...searchOptions, query, page })); }
+    try { result = await withOwnership(user.id, await searchAladinBooks({ ...searchOptions, query, page })); }
     catch (error) { searchError = errorMessage(error, "알라딘 검색 요청에 실패했습니다. 잠시 후 다시 시도해 주세요."); }
   }
   return <div className="page">

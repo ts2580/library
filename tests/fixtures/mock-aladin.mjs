@@ -32,7 +32,7 @@ globalThis.fetch=async function(input,init){
     pubDate:same?(index===30?'2026-09-29':'2026-09-30'):ordered?['2026-07-31','2026-05-29','2026-05-29','2026-03-20'][index-1]:new Date(Date.UTC(2025,0,1)-(page*20+index)*86400000).toISOString().slice(0,10)};
    products.set(value.itemId,value);return value;
   });
-  return html(searchPage(items,{page,pageSize:items.length,total:same?4:query.startsWith('페이지검증')?20:items.length*2}));
+  return html(searchPage(query.startsWith('소장선택검증')?items.map(value=>({...value,isbn13:'K123456789'})):items,{page,pageSize:items.length,total:same?4:query.startsWith('페이지검증')?20:items.length*2}));
  }
  if(url.pathname==='/shop/wproduct.aspx'){
   const id=url.searchParams.get('ItemId');return html(productPage(products.get(id)??item(id)));

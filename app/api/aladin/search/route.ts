@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     const user = await requireApiUser();
     const url = new URL(request.url);
     const result = await searchAladinBooks({ ...Object.fromEntries(url.searchParams), query: url.searchParams.get("query") ?? "", page: url.searchParams.get("page") ?? url.searchParams.get("start") ?? "1" });
-    return Response.json(withOwnership(user.id, result), { headers: { "cache-control": "no-store" } });
+    return Response.json(await withOwnership(user.id, result), { headers: { "cache-control": "no-store" } });
   } catch (error) { return jsonError(error); }
 }

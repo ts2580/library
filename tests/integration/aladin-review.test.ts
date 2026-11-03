@@ -139,7 +139,7 @@ it('recognizes an owned ISBN13 preview from a formatted legacy ISBN10', async()=
   sqlite.exec("INSERT INTO book_volumes(id,book,volume,name,isbn) VALUES(1,1,1,'기존 권','0-590-35342-X')");
   const {withOwnership}=await import('@/features/aladin/ownership');
   const result=await searchAladinBooks({query:'059035342X'},{fresh:true});
-  expect(withOwnership(1,{...result,items:result.items.map(item=>({...item,isbn:null}))}).items[0]?.owned).toBe(true);
+  expect((await withOwnership(1,{...result,items:result.items.map(item=>({...item,isbn:null}))})).items[0]?.owned).toBe(true);
 });
 it('keeps canonical duplicate checks scoped to the importing owner',async()=>{
   await useCapturedIsbn10();
