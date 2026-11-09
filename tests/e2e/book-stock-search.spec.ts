@@ -116,9 +116,9 @@ test("deleting a running search's book in another tab stops polling the real API
   await page.goto(`/books/${bookId}`);
   await page.getByRole("button", { name: "직접 추가", exact: true }).click();
   const add = page.getByRole("region", { name: "권 직접 추가", exact: true });
-  await add.getByLabel("권 제목", { exact: true }).fill("검색 중 삭제할 권");
+  await add.getByLabel("제목", { exact: true }).fill("검색 중 삭제할 권");
   await add.getByLabel("ISBN13", { exact: true }).fill("9780000000999");
-  await add.getByRole("button", { name: "권 추가", exact: true }).click();
+  await add.getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.locator(".volume-card")).toHaveCount(1);
   const other = await page.context().newPage();
   await other.goto(`/books/${bookId}`);

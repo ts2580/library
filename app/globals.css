@@ -355,6 +355,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (max-width: 1000px) {
   .aladin-page-header { grid-template-columns: minmax(0, 1fr); }
 }
+.books-search-modes { display: flex; gap: 8px; padding: 4px; border-radius: 16px; background: var(--surface-soft); }
+.books-search-modes a { flex: 1; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 12px; color: var(--muted); font-weight: 750; text-align: center; }
+.books-search-modes a[aria-current="page"] { border-color: var(--line); background: var(--surface); color: var(--accent-strong); box-shadow: 0 2px 6px rgba(29, 42, 59, .06); }
 .books-search-form { display: grid; grid-template-columns: minmax(110px, 180px) 110px minmax(0, 1fr) auto; gap: 12px; align-items: end; }
 .books-search-form .field { min-width: 0; }
 .books-search-form .button-row { flex-wrap: nowrap; }
