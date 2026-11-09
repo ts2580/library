@@ -86,10 +86,10 @@ test("manual registration and volume Server Actions persist actual records", asy
   await create.getByRole("button", { name: "책 추가", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await page.getByRole("button", { name: "직접 추가", exact: true }).click();
-  const add = page.locator("form").filter({ has: page.getByRole("button", { name: "권 추가", exact: true }) });
-  await add.getByLabel("권 제목", { exact: true }).fill("직접 추가 1권");
+  const add = page.locator("form").filter({ has: page.getByRole("button", { name: "추가", exact: true }) });
+  await add.getByLabel("제목", { exact: true }).fill("직접 추가 1권");
   await add.getByLabel("권차", { exact: true }).fill("1");
-  await add.getByRole("button", { name: "권 추가", exact: true }).click();
+  await add.getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "1권 · 직접 추가 1권", exact: true })).toBeVisible();
   await expect(page.locator(".volume-card .volume-meta")).not.toContainText("ISBN");
   await page.locator(".volume-card").getByRole("button", { name: "상세정보", exact: true }).click();
@@ -240,9 +240,9 @@ test("search page and manual preview both append to an existing series and exclu
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   const bookId = page.url().match(/books\/(\d+)/)![1];
   await page.getByRole("button", { name: "직접 추가", exact: true }).click();
-  await page.getByLabel("권 제목", { exact: true }).fill("기존 4권");
+  await page.getByLabel("제목", { exact: true }).fill("기존 4권");
   await page.getByLabel("권차", { exact: true }).fill("4");
-  await page.getByRole("button", { name: "권 추가", exact: true }).click();
+  await page.getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.getByRole("heading", { name: "4권 · 기존 4권", exact: true })).toBeVisible();
   await page.goto(`/aladin/search?query=${encodeURIComponent(name)}&bookId=${bookId}`);
   await expect(page.getByLabel("기존 책 검색", { exact: true })).toHaveValue(name);

@@ -49,7 +49,7 @@ export default async function BookDetailPage({ params, searchParams }: { params:
         <VolumeAddTools
           bookId={book.id}
           stockSearch={user.role === "ADMIN" ? { bookId: book.id, initial: getStockRefreshProgress(user.id) } : undefined}
-          manual={<VolumeForm action={addVolumeAction} bookId={book.id} nextVolume={nextVolume} submitLabel="권 추가" returnTo={returnTo}/>}
+          manual={<VolumeForm action={addVolumeAction} bookId={book.id} nextVolume={nextVolume} submitLabel="추가" returnTo={returnTo}/>}
         />
         {book.volumes.length ? <VolumeSelection key={book.volumes.map(volume => volume.id).join(",")} bookId={book.id} returnTo={returnTo} items={book.volumes.map((volume) => {
           const title = `${volume.seq != null ? `${volume.seq}권 · ` : "외전 · "}${volume.name ?? "제목 없음"}`;

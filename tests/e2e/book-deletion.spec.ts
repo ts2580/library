@@ -20,8 +20,8 @@ test("book and volume deletion exclude oversized files and invalid unsaved edits
   await page.goto(`/books/${bookId}`);
   await page.getByRole("button", { name: "직접 추가", exact: true }).click();
   const add = page.getByRole("region", { name: "권 직접 추가", exact: true });
-  await add.getByLabel("권 제목", { exact: true }).fill("삭제 검증 권");
-  await add.getByRole("button", { name: "권 추가", exact: true }).click();
+  await add.getByLabel("제목", { exact: true }).fill("삭제 검증 권");
+  await add.getByRole("button", { name: "추가", exact: true }).click();
   const volume = page.locator(".volume-card").filter({ hasText: "삭제 검증 권" });
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
   const modal = volume.getByRole("dialog");
