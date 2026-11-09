@@ -73,7 +73,7 @@ export function VolumeForm({
         <input className="input" id={`volume-type-${key}`} name="type" defaultValue={bookType ?? ""} maxLength={120} list={`volume-types-${key}`}/>
         <datalist id={`volume-types-${key}`}>{categories.map((type) => <option key={type} value={type}/>)}</datalist>
         <span className="muted small">이 권이 속한 책 전체의 카테고리입니다.</span></div>}
-      <div className="field"><label htmlFor={`volume-name-${key}`}>권 제목</label><input className="input" id={`volume-name-${key}`} name="name" defaultValue={volume?.name ?? ""} maxLength={500} required/></div>
+      <div className="field"><label htmlFor={`volume-name-${key}`}>{volume ? "권 제목" : "제목"}</label><input className="input" id={`volume-name-${key}`} name="name" defaultValue={volume?.name ?? ""} maxLength={500} required/></div>
       <div className="field"><label htmlFor={`volume-seq-${key}`}>권차</label><input className="input" id={`volume-seq-${key}`} name="seq" type="number" min={0} max={100000} defaultValue={volume?.seq ?? nextVolume} disabled={sideStory} required={!sideStory}/>
         <label className="check"><input type="checkbox" checked={sideStory} onChange={(event) => setSideStory(event.target.checked)}/> 외전·특별판</label></div>
       <div className="field"><label htmlFor={`volume-isbn-${key}`}>ISBN13</label><input className="input" id={`volume-isbn-${key}`} name="isbn13" defaultValue={volume?.isbn13 ?? ""} maxLength={32}/></div>

@@ -1,9 +1,9 @@
 # Existing ca2 Docker installation: reuse the migrated volume, never create an empty replacement.
-# Release image: trstyq/bookshelf:4.0.1. Keep web and worker on the same version.
+# Release image: trstyq/bookshelf:4.1.0. Keep web and worker on the same version.
 # BOOKSHELF_IMAGE can select another verified version.
 services:
   permissions:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.1.0}
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -12,7 +12,7 @@ services:
       - bookshelf-data:/data
       - legacy-data:/data/legacy
   web:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.1.0}
     init: true
     restart: unless-stopped
     command: npm run start
@@ -30,7 +30,7 @@ services:
       permissions:
         condition: service_completed_successfully
   worker:
-    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.0.1}
+    image: ${BOOKSHELF_IMAGE:-trstyq/bookshelf:4.1.0}
     init: true
     restart: unless-stopped
     command: npm run worker

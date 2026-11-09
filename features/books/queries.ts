@@ -154,13 +154,17 @@ export function getOwnedBookOptions(ownerId: number, query = "", selectedBookId?
   `).all(ownerId, like, like, like, selectedBookId ?? null) as BookOption[];
 }
 
-export function searchOwnedVolumes(ownerId: number, input: { query?: string; page?: number; sort?: string }) {
+export function searchOwnedVolumes(ownerId: number, input: { query?: string; page?: number; sort?: string; field?: "title" | "author" | "isbn"; type?: string }) {
   const query = input.query?.normalize("NFC").trim().slice(0, 200) ?? "";
   const like = `%${escapeLike(query)}%`;
+  const columns = input.field === "title" ? ["bv.name", "b.name"]
+    : input.field === "author" ? ["bv.author", "b.author"]
+    : input.field === "isbn" ? ["bv.isbn13", "bv.isbn"] : ["bv.name", "bv.isbn13", "bv.isbn", "b.name"];
+  const matches = columns.map(column => `normalize_nfc(${column}) LIKE ? ESCAPE '!'`).join(" OR ");
+  const type = normalized(input.type);
   const where = `FROM book_volumes bv JOIN books b ON b.id = bv.book
-    WHERE b.owner_id = ? AND (normalize_nfc(bv.name) LIKE ? ESCAPE '!' OR bv.isbn13 LIKE ? ESCAPE '!' OR bv.isbn LIKE ? ESCAPE '!'
-      OR normalize_nfc(b.name) LIKE ? ESCAPE '!')`;
-  const args = [ownerId, like, like, like, like];
+    WHERE b.owner_id = ?${query ? ` AND (${matches})` : ""}${type ? " AND b.type = ?" : ""}`;
+  const args: SqlParam[] = [ownerId, ...(query ? columns.map(() => like) : []), ...(type ? [type] : [])];
   const total = (sqlite.prepare(`SELECT COUNT(*) AS n ${where}`).get(...args) as { n: number }).n;
   const totalPages = Math.max(1, Math.ceil(total / 20));
   const page = Math.min(totalPages, Math.max(1, Math.floor(input.page || 1)));
@@ -168,10 +172,10 @@ export function searchOwnedVolumes(ownerId: number, input: { query?: string; pag
     : input.sort === "price" ? "CAST(REPLACE(COALESCE(bv.price, '0'), ',', '') AS INTEGER) DESC, bv.id DESC"
     : input.sort === "volume" ? "b.name COLLATE NOCASE, bv.volume IS NULL, bv.volume, bv.id"
     : input.sort === "recent" ? "bv.createddate DESC, bv.id DESC" : "bv.id DESC";
-  const items = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, b.name AS bookName, bv.name, bv.volume AS seq,
+  const items = sqlite.prepare(`SELECT bv.id, bv.book AS bookId, b.name AS bookName, bv.name, COALESCE(NULLIF(bv.author,''),b.author) AS author, bv.volume AS seq,
     COALESCE(NULLIF(bv.isbn13,''),bv.isbn) AS isbn13, bv.cover, bv.price, bv.ispurchased AS isPurchased, bv.noneedtobuy AS noNeedToBuy
     ${where} ORDER BY ${order} LIMIT 20 OFFSET ?`).all(...args, (page - 1) * 20) as Array<{
-      id: number; bookId: number; bookName: string | null; name: string | null; seq: number | null;
+      id: number; bookId: number; bookName: string | null; name: string | null; author: string | null; seq: number | null;
       isbn13: string | null; cover: string | null; price: string | null; isPurchased: number; noNeedToBuy: number;
     }>;
   return { items, total, totalPages, page, query };
