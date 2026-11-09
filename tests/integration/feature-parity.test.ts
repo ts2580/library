@@ -239,6 +239,30 @@ describe("Java feature parity regressions", () => {
     expect(searchOwnedVolumes(1, { sort: "recent" }).items.map((item) => item.id)).toEqual([1, 2]);
   });
 
+  it("separates volume title, author and ISBN searches without excluding ISBN-free volumes or leaking owners", () => {
+    volume(); volume(2, 1, 2); volume(3, 2, 1);
+    sqlite.exec("UPDATE books SET type='소설',author='시리즈 저자' WHERE id=1; UPDATE book_volumes SET name='독립 권 제목',author='권 저자' WHERE id IN (1,3); UPDATE book_volumes SET name='다른 제목',isbn='123456789X',isbn13='9780000000001' WHERE id=2");
+    expect(searchOwnedVolumes(1, { field: "title", query: "독립 권" }).items.map(item => item.id)).toEqual([1]);
+    expect(searchOwnedVolumes(1, { field: "author", query: "권 저자", type: "소설" }).items).toEqual([expect.objectContaining({ id: 1, isbn13: null, author: "권 저자" })]);
+    expect(searchOwnedVolumes(1, { field: "author", query: "시리즈 저자" }).total).toBe(2);
+    expect(searchOwnedVolumes(1, { field: "author", query: "독립 권" }).total).toBe(0);
+    expect(searchOwnedVolumes(1, { field: "title", query: "9780000000001" }).total).toBe(0);
+    for (const query of ["123456789X", "9780000000001"]) expect(searchOwnedVolumes(1, { field: "isbn", query }).items.map(item => item.id)).toEqual([2]);
+    expect(searchOwnedVolumes(1, { field: "title", query: "독립 권", type: "만화" }).total).toBe(0);
+    expect(searchOwnedVolumes(1, { field: "isbn", query: "" }).total).toBe(2);
+  });
+
+  it("paginates ISBN-free volume searches and treats wildcard characters literally", () => {
+    for (let id = 1; id <= 23; id++) volume(id, 1, id);
+    volume(24, 2, 1);
+    sqlite.exec("UPDATE book_volumes SET name='제목 100%_!',author='권 저자'");
+    const result = searchOwnedVolumes(1, { field: "title", query: "100%_!", page: 2 });
+    expect(result).toMatchObject({ total: 23, totalPages: 2, page: 2 });
+    expect(result.items).toHaveLength(3);
+    expect(result.items.every(item => item.bookId === 1 && item.isbn13 == null)).toBe(true);
+    expect(searchOwnedVolumes(1, { field: "author", query: "권 저자", page: 99 }).page).toBe(2);
+  });
+
   it("preserves multiple identically named books and volumes through repeated Excel restores", async () => {
     const workbook = new ExcelJS.Workbook();
     const books = workbook.addWorksheet("Books"); books.addRow(["source_id", "name"]); books.addRow(["A", "같은 책"]); books.addRow(["B", "같은 책"]);
