@@ -253,9 +253,9 @@ test("literal entity descriptions survive unrelated book and volume edits", asyn
   await expect(page.locator(".book-hero")).toContainText("수정 저자");
   await page.getByRole("button", { name: "직접 추가", exact: true }).click();
   const addForm = page.getByRole("region", { name: "권 직접 추가", exact: true }).locator("form");
-  await addForm.getByLabel("권 제목", { exact: true }).fill("원문 보존 권");
+  await addForm.getByLabel("제목", { exact: true }).fill("원문 보존 권");
   await addForm.getByLabel("설명", { exact: true }).fill(description);
-  await addForm.getByRole("button", { name: "권 추가", exact: true }).click();
+  await addForm.getByRole("button", { name: "추가", exact: true }).click();
   const volume = page.locator(".volume-card");
   await expect(volume).toContainText(description);
   await volume.getByRole("button", { name: "상세정보", exact: true }).click();
@@ -295,9 +295,9 @@ test("book edits, metadata enrichment, purchase state and bulk deletion persist"
     const addDetails = page.getByRole("region", { name: "권 직접 추가", exact: true });
     if (!(await addDetails.isVisible())) await page.getByRole("button", { name: "직접 추가", exact: true }).click();
     const form = addDetails.locator("form");
-    await form.getByLabel("권 제목", { exact: true }).fill(title);
+    await form.getByLabel("제목", { exact: true }).fill(title);
     await form.getByLabel("외전·특별판", { exact: true }).setChecked(special);
-    await form.getByRole("button", { name: "권 추가", exact: true }).click();
+    await form.getByRole("button", { name: "추가", exact: true }).click();
     await expect(page.getByRole("heading", { name: `${special ? "외전" : "1권"} · ${title}`, exact: true })).toBeVisible();
   }
   await page.route(`**/books/${bookId}`, async route => {
@@ -361,12 +361,12 @@ test("book enrichment matches a formatted ISBN and fills only missing purchase l
   for (const [title, link] of [["선택 샘플 1-1", ""], ["기존 링크 권", "https://example.com/keep"]] as const) {
     const section = page.getByRole("region", { name: "권 직접 추가", exact: true });
     if (!(await section.isVisible())) await page.getByRole("button", { name: "직접 추가", exact: true }).click();
-    await section.getByLabel("권 제목", { exact: true }).fill(title);
+    await section.getByLabel("제목", { exact: true }).fill(title);
     if (!link) await section.getByLabel("ISBN13", { exact: true }).fill(formattedIsbn);
     await section.getByLabel("저자", { exact: true }).fill("기존 권 저자");
     await section.getByLabel("설명", { exact: true }).fill("기존 권 &lt;설명&gt;");
     await section.getByLabel("상품 링크", { exact: true }).fill(link);
-    await section.getByRole("button", { name: "권 추가", exact: true }).click();
+    await section.getByRole("button", { name: "추가", exact: true }).click();
     await expect(page.locator(".volume-card").filter({ hasText: title })).toBeVisible();
   }
   const missing = page.locator(".volume-card").filter({ hasText: "선택 샘플 1-1" });
