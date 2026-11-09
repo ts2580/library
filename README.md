@@ -2,13 +2,14 @@
 
 도서·권 관리, 알라딘 검색·등록, 직배송·우주점 중고 재고 조회를 제공하는 책장입니다. Next.js·React·TypeScript·Drizzle·SQLite를 사용합니다.
 
-**정식 버전 4.0.1** · [변경 내용](docs/RELEASE_4.0.1.md) · [GitHub Release](https://github.com/ts2580/library/releases/tag/v4.0.1)
+**4.1.0 출시 준비** · [변경 내용](docs/RELEASE_4.1.0.md) · [현재 정식 버전 4.0.1](https://github.com/ts2580/library/releases/tag/v4.0.1)
 
-4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.0.1은 검색 결과의 소장 도서 선택 차단을 복구한 패치입니다. API 키는 필요하지 않습니다.
+4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.1.0은 책장의 일반 책 검색과 개별 권 상세 검색을 분리하고 직접 추가 폼 문구를 정리합니다. API 키는 필요하지 않습니다.
 
 ## 주요 기능
 
 - 계정별 도서·권 관리, 카테고리, 표지 업로드, 구매 여부 및 외전 관리
+- 책장 일반 검색과 개별 권 상세 검색, ISBN 없는 권의 제목·저자 검색
 - 알라딘 검색과 여러 페이지 선택 등록, 기존 책에 권 추가, 빈 저자·설명·구매 링크 보강
 - 소장 도서 선택 차단, 직접 체크 순서 또는 출간일·제목 숫자 순서에 따른 권차 부여
 - 워커 기반 직배송·우주점 중고 재고 갱신, 책별 추가 검색, 지점별 가격 비교
@@ -47,7 +48,7 @@ npm run worker
 docker compose up -d --build
 ```
 
-기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 기본 이미지는 `trstyq/bookshelf:4.0.1`이며 `latest`도 제공합니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
+기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 이 브랜치의 기본 이미지는 `trstyq/bookshelf:4.1.0`입니다. 4.1.0 Release와 이미지 발행을 확인한 뒤 업데이트하세요. 현재 정식 이미지는 `trstyq/bookshelf:4.0.1`입니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
 
 업데이트 전 DB·표지를 백업하고 기존 `.env`와 실제 볼륨 이름을 확인합니다. 기존 웹·워커를 종료한 뒤 같은 버전으로 함께 교체합니다.
 
@@ -84,7 +85,7 @@ ALADIN_MAX_BACKOFF_MS=30000
 
 ## 데이터와 검증
 
-로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.0.0의 DB 스키마는 7이며 4.0.1에서 추가 변경은 없습니다.
+로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.0.0의 DB 스키마는 7이며 4.1.0에서도 추가 변경은 없습니다.
 
 ```bash
 npm run verify:source
@@ -97,9 +98,9 @@ npm run db:verify
 단위·통합·Playwright 검사는 임시 DB·계정과 알라딘 HTML fixture를 사용합니다. Playwright는 `25648` 웹과 별도 워커를 시작합니다. `db:verify`는 설정된 실제 DB를 대상으로 bootstrap과 무결성 검사를 수행합니다.
 
 ```bash
-docker build -t bookshelf:4.0.1-local .
-npm run test:docker -- bookshelf:4.0.1-local
-CLEANUP_DOCKER_IMAGE=bookshelf:4.0.1-local npm run test:cleanup:docker
+docker build -t bookshelf:4.1.0-local .
+npm run test:docker -- bookshelf:4.1.0-local
+CLEANUP_DOCKER_IMAGE=bookshelf:4.1.0-local npm run test:cleanup:docker
 ```
 
 Docker 검사는 격리된 컨테이너·볼륨을 사용합니다. 관리자 원본 정리 API, 데이터·백업 보존과 인증된 표지 접근도 검증합니다.

@@ -1,6 +1,6 @@
 {
   "name": "bookshelf",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "private": true,
   "allowScripts": {
     "better-sqlite3": true,
