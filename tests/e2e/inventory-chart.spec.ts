@@ -13,16 +13,17 @@ function inventoryFixture() {
   const username = `chart-${randomUUID()}`;
   const owner = Number(db.prepare("INSERT INTO member(username,password_hash,role) SELECT ?,password_hash,'ADMIN' FROM member WHERE id=1")
     .run(username).lastInsertRowid);
-  const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('그래프 검증 재고',?)").run(owner).lastInsertRowid);
+  let bookCount = 0;
   return {
     username,
     add(branch: string, name: string, price: string) {
+      const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES(?,?)").run(`그래프 검증 재고 ${++bookCount}`, owner).lastInsertRowid);
       db.prepare("INSERT INTO branchbook(book,branch,branchname,name,price) VALUES(?,?,?,'그래프 검증 재고',?)")
         .run(book, branch, name, price);
     },
     close() {
-      db.prepare("DELETE FROM branchbook WHERE book=?").run(book);
-      db.prepare("DELETE FROM books WHERE id=?").run(book);
+      db.prepare("DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id=?)").run(owner);
+      db.prepare("DELETE FROM books WHERE owner_id=?").run(owner);
       db.prepare("DELETE FROM member WHERE id=?").run(owner);
       db.close();
     }

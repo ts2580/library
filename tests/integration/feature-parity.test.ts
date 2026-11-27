@@ -293,7 +293,7 @@ describe("Java feature parity regressions", () => {
   });
   it("deletes only selected owned volumes and rejects a mixed-owner batch atomically", () => {
     volume(1); volume(2, 1, 2); volume(3, 2, 1);
-    sqlite.exec("INSERT INTO branchbook(id,book,book_volume_id,volume,branch) VALUES(1,1,1,1,'SEOUL'),(2,1,2,2,'SEOUL'),(3,2,3,1,'SEOUL')");
+    sqlite.exec("INSERT INTO branchbook(id,book,book_volume_id,volume,branch) VALUES(1,1,1,1,'SEOUL'),(3,2,3,1,'SEOUL')");
     expect(() => deleteVolumes(1, 1, [1, 3])).toThrow();
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM book_volumes").get()).toEqual({ n: 3 });
     expect(deleteVolumes(1, 1, [1, 2])).toBe(2);
@@ -496,7 +496,7 @@ describe("Java feature parity regressions", () => {
   });
   it("renumbers a unique NULL legacy stock without conflating a zero volume", async () => {
     volume(1, 1, null); volume(2, 1, 0);
-    sqlite.exec("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,NULL,'SEOUL'),(2,1,0,'SEOUL')");
+    sqlite.exec("INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,NULL,'SEOUL'),(2,1,0,'BUSAN')");
     await updateVolume(1, 1, 1, payload);
     expect(sqlite.prepare("SELECT volume,book_volume_id FROM branchbook ORDER BY id").all()).toEqual([
       { volume: 2, book_volume_id: 1 }, { volume: 0, book_volume_id: null }

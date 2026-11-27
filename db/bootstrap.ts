@@ -2,11 +2,11 @@ import "server-only";
 import type BetterSqlite3 from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import { resetQueuedInventory } from "@/db/inventory";
+import { rebuildSummaryStatements, resetQueuedInventory } from "@/db/inventory";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 11;
+const BOOTSTRAP_VERSION = 12;
 
 type Database = BetterSqlite3.Database;
 
@@ -443,6 +443,24 @@ export function bootstrapDatabase(sqlite: Database): void {
       ensureColumn(sqlite, "aladin_browser_connection", "ready INTEGER NOT NULL DEFAULT 0");
       sqlite.exec("UPDATE aladin_browser_connection SET ready=1 WHERE session_id IS NOT NULL");
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (11, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(12)) {
+      sqlite.exec(`
+        DELETE FROM branchbook WHERE id IN (
+          SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY book, COALESCE(NULLIF(TRIM(branch), ''), '')
+              ORDER BY COALESCE(systemmodstamp, '' ) DESC, id DESC
+            ) AS row_number
+            FROM branchbook WHERE book IS NOT NULL
+          ) WHERE row_number > 1
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_branchbook_book_branch
+          ON branchbook(book, COALESCE(NULLIF(TRIM(branch), ''), ''));
+      `);
+      rebuildSummaryStatements(sqlite);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (12, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
   });
