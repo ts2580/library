@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   poweredByHeader: false,
   experimental: {
+    agentUpgrade: "security",
     // Hydration must work when a reverse proxy cannot forward the HMR socket.
     reactDebugChannel: false,
     serverActions: {
