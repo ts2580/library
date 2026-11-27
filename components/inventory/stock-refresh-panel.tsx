@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch } from "@/lib/api-fetch";
-import { ErrorReporter } from "@/components/ui/error-dialog";
+import { StockErrorNotice } from "./stock-error-notice";
 import { showToast } from "@/components/ui/toast";
 import { clearReportedError, reportClientError } from "@/lib/client-errors";
 
@@ -17,15 +17,19 @@ async function responseBody<T>(response: Response): Promise<T> {
   return body;
 }
 
+type StockAction = "POST" | "PATCH" | "DELETE" | "RETRY" | "pause" | "resume";
+
 export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }) {
   const router = useRouter();
   const [progress, setProgress] = useState(initial);
-  const [busy, setBusy] = useState<"POST" | "PATCH" | "DELETE" | "RETRY" | null>(null);
+  const [busy, setBusy] = useState<StockAction | null>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
   const [stalled, setStalled] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const active = progress.status === "QUEUED" || progress.status === "RUNNING";
+  const paused = progress.status === "PAUSED";
+  const reserved = active || paused;
   const previousProgress = useRef(progress);
   const initialKey = JSON.stringify(initial);
   const previousInitial = useRef(initialKey);
@@ -36,7 +40,8 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
     const wasActive = previous.status === "QUEUED" || previous.status === "RUNNING";
     const completionChanged = progress.completionId && progress.completionId !== previous.completionId;
     if (progress.status === "COMPLETED" && (wasActive || completionChanged) && progress.message) showToast(progress.message);
-    if ((wasActive && !active) || completionChanged) router.refresh();
+    const started = active && progress.runId && progress.runId !== previous.runId;
+    if (started || (wasActive && !active) || completionChanged) router.refresh();
     previousProgress.current = progress;
   }, [active, progress, router]);
 
@@ -59,7 +64,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
   useEffect(() => {
     const changed = previousInitial.current !== initialKey;
     previousInitial.current = initialKey;
-    if ((!active && !checking && (!changed || initialKey === JSON.stringify(progress))) || unavailable) return;
+    if ((!reserved && !checking && (!changed || initialKey === JSON.stringify(progress))) || unavailable) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     let request: AbortController | undefined;
@@ -84,7 +89,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
         }
         const body = await responseBody<StockRefreshProgress>(response);
         if (controller.signal.aborted || currentRequest.signal.aborted || requestRevision !== revision.current) return;
-        stopped = body.status !== "QUEUED" && body.status !== "RUNNING";
+        stopped = body.status !== "QUEUED" && body.status !== "RUNNING" && body.status !== "PAUSED";
         setProgress(body);
         setChecking(false);
         setError("");
@@ -112,11 +117,11 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       window.removeEventListener("focus", wake);
       document.removeEventListener("visibilitychange", wake);
     };
-  }, [active, checking, initialKey, unavailable]);
+  }, [reserved, checking, initialKey, unavailable]);
 
-  async function mutate(action: "POST" | "PATCH" | "DELETE" | "RETRY"): Promise<void> {
+  async function mutate(action: StockAction): Promise<void> {
     if (busy) return;
-    const method = action === "RETRY" ? "POST" : action;
+    const method = action === "RETRY" ? "POST" : action === "pause" || action === "resume" ? "PATCH" : action;
     const url = action === "RETRY" ? "/api/stock-refresh/retry" : "/api/stock-refresh";
     revision.current++;
     setBusy(action);
@@ -131,7 +136,7 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       const response = await apiFetch(url, {
         method, signal: controller.signal,
         ...(action === "RETRY" ? { headers: { "content-type": "application/json" }, body: "{}" } : {}),
-        ...(method === "PATCH" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: progress.runId }) } : {})
+        ...(method === "PATCH" ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: progress.runId, action: action === "PATCH" ? "cancel" : action }) } : {})
       }, { reportError: false });
       status = response.status;
       const body = await response.json() as { progress?: StockRefreshProgress; code?: string; message?: string };
@@ -167,15 +172,16 @@ export function StockRefreshPanel({ initial }: { initial: StockRefreshProgress }
       {progress.status !== "COMPLETED" && <p className="muted" aria-live="polite">{progress.message}</p>}
       {error && <p className="flash flash-error" role="alert">{error}</p>}
       {stalled && <p className="flash flash-error" role="alert">{stalled}</p>}
-      <ErrorReporter message={progress.status === "FAILED" || (progress.status === "COMPLETED" && progress.fail > 0) ? progress.message : null} code={progress.status === "FAILED" ? "STOCK_REFRESH_FAILED" : "STOCK_REFRESH_PARTIAL_FAILURE"} source="stock-worker" eventId={progress.runId ?? progress.completionId ?? progress.updatedAt ?? undefined}/>
+      <StockErrorNotice progress={progress}/>
       {(busy || active || checking) && !unavailable && <ProgressIndicator label={progress.status === "QUEUED" ? "워커 처리 대기 중" : "재고 갱신 중"}/>}
       <div className="progress-track" aria-label={`진행률 ${progress.percent}%`}><div style={{ width: `${progress.percent}%` }}/></div>
       <div className="progress-stats"><span>{progress.processed}/{progress.total}</span><span>성공 {progress.success}</span><span>재고없음 {progress.empty}</span><span>실패 {progress.fail}</span></div>
       <div className="button-row stock-refresh-actions">
-        <button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={Boolean(busy) || active || checking || unavailable}>전체 삭제</button>
-        {active && progress.runId !== undefined && <button className="button button-danger-outline" type="button" onClick={() => void mutate("PATCH")} disabled={Boolean(busy) || unavailable}>{busy === "PATCH" ? "취소 중…" : "갱신 취소"}</button>}
-        {(progress.pendingFailures ?? 0) > 0 && <button className="button button-secondary" type="button" onClick={() => void mutate("RETRY")} disabled={Boolean(busy) || active || checking || unavailable}>실패 건 재시도 ({progress.pendingFailures})</button>}
-        <button className="button" type="button" onClick={() => void mutate("POST")} disabled={Boolean(busy) || active || checking || unavailable}>{unavailable ? "상태 확인 불가" : active ? "진행 중" : "갱신 시작"}</button>
+        <button className="button button-danger-outline" type="button" onClick={clearInventory} disabled={Boolean(busy) || reserved || checking || unavailable}>전체 삭제</button>
+        {reserved && progress.runId && <button className="button button-secondary" type="button" onClick={() => void mutate(paused ? "resume" : "pause")} disabled={Boolean(busy) || unavailable}>{paused ? "재개" : "일시중지"}</button>}
+        {reserved && progress.runId !== undefined && <button className="button button-danger-outline" type="button" onClick={() => void mutate("PATCH")} disabled={Boolean(busy) || unavailable}>{busy === "PATCH" ? "취소 중…" : "갱신 취소"}</button>}
+        {(progress.pendingFailures ?? 0) > 0 && <button className="button button-secondary" type="button" onClick={() => void mutate("RETRY")} disabled={Boolean(busy) || reserved || checking || unavailable}>실패 건 재시도 ({progress.pendingFailures})</button>}
+        <button className="button" type="button" onClick={() => void mutate("POST")} disabled={Boolean(busy) || reserved || checking || unavailable}>{unavailable ? "상태 확인 불가" : paused ? "일시중지됨" : active ? "진행 중" : "갱신 시작"}</button>
         <Link className="button button-secondary" href="/inventory/logs">갱신 로그</Link>
       </div>
     </section>

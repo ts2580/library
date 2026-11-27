@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 async function withLogs(page: Page, name: string, run: (db: Database.Database, owner: number, volumes: number[]) => Promise<void>) {
@@ -50,8 +51,21 @@ test("worker failures show reasons and individual and selected refresh clear onl
     await expect(runs.first()).toContainText("작업시간");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("stock-refresh-runs.png"), fullPage: true });
-    await page.getByRole("link", {name:"미해결 실패",exact:true}).click();
-    await expect(page.getByRole("heading", { name: "미해결 실패 3권" })).toBeVisible();
+    await runs.first().click();
+    await expect(page.getByRole("heading", { name: "재고 갱신 작업 상세" })).toBeVisible();
+    for (const format of ["json", "csv"]) {
+      const pending = page.waitForEvent("download");
+      await page.getByRole("link", { name: format.toUpperCase() + " 다운로드" }).click();
+      const download = await pending;
+      expect(download.suggestedFilename()).toMatch(new RegExp("\\." + format + "$"));
+      const content = await readFile((await download.path())!, "utf8");
+      if (format === "json") {
+        const exported = JSON.parse(content);
+        expect(exported.errors).toHaveLength(3);
+        expect(exported.run).toMatchObject({ fail: 3, total: 4 });
+      } else expect(content.match(/ISBN_MISSING/g)).toHaveLength(3);
+    }
+    await expect(page.getByText("미해결 실패 3권", { exact: true })).toBeVisible();
     const entries = page.getByTestId("stock-log-entry");
     await expect(entries).toHaveCount(3);
     await expect(entries.first()).toContainText("ISBN이 없어 재고를 조회할 수 없습니다.");
@@ -62,16 +76,17 @@ test("worker failures show reasons and individual and selected refresh clear onl
     await page.screenshot({ path: testInfo.outputPath("stock-refresh-logs.png"), fullPage: true });
     db.prepare("UPDATE book_volumes SET isbn13='9780000000193' WHERE id=?").run(volumes[0]);
     await entries.filter({ has: page.getByRole("heading", { name: "로그 검증 1권", exact: false }) }).getByRole("button", { name: "개별 갱신" }).click();
-    await expect(page.getByRole("heading", { name: "미해결 실패 2권" })).toBeVisible();
-    await expect(entries).toHaveCount(2);
-    await expect(page.getByRole("button", { name: "실패 건 재시도 (2)" })).toBeEnabled();
+    await expect(page.getByText("미해결 실패 2권", { exact: true })).toBeVisible();
+    await expect(entries).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "에러 일괄 재시도 (2)" })).toBeEnabled();
     expect(db.prepare("SELECT * FROM branchbook WHERE book_volume_id=?").all(volumes[3])).toEqual(untouched);
     for (const id of volumes.slice(1, 3)) db.prepare("UPDATE book_volumes SET isbn13='9780000000193' WHERE id=?").run(id);
     await page.getByLabel("이 페이지 전체 선택", { exact: true }).check();
-    await page.getByRole("button", { name: "선택 갱신 (2)", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "미해결 실패 0권" })).toBeVisible();
-    await expect(page.locator(".empty")).toContainText("미해결 갱신 실패가 없습니다.");
-    await expect(entries).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "선택 갱신 (2)", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "에러 일괄 재시도 (2)", exact: true }).click();
+    await expect(page.getByText("미해결 실패 0권", { exact: true })).toBeVisible();
+    await expect(entries).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "에러 일괄 재시도 (0)" })).toBeDisabled();
     await expect(page.locator("#top-progress-bar")).toBeHidden();
     await page.getByRole("link", { name: "작업 기록", exact: true }).click();
     await expect(entries).toHaveCount(0);
@@ -108,10 +123,19 @@ test("inventory failure retry uses the worker and rejects foreign and malformed 
   });
 });
 
+function seedRunError(db: Database.Database, owner: number, runId: string, volumeId: number) {
+  db.prepare("INSERT INTO stock_refresh_run(owner_id, run_id, status, total) VALUES(?,?,'COMPLETED',1)").run(owner,runId);
+  db.prepare(`INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,isbn13,status,code,message)
+    SELECT ?,book,id,?,isbn13,'FAILED','ALADIN_TIMEOUT','응답 시간 초과' FROM book_volumes WHERE id=?`).run(owner,runId,volumeId);
+  db.prepare(`INSERT INTO stock_refresh_error(run_id,book_id,volume_id,book_name,volume_name,volume,isbn13,code,message,created_at)
+    SELECT ?,b.id,v.id,b.name,v.name,v.volume,v.isbn13,'ALADIN_TIMEOUT','응답 시간 초과',CURRENT_TIMESTAMP
+    FROM book_volumes v JOIN books b ON b.id=v.book WHERE v.id=?`).run(runId,volumeId);
+}
+
 test("log retry errors open a popup and release request progress", async ({ page }, testInfo) => {
   await withLogs(page, `stock-log-errors-${testInfo.project.name}`, async (db, owner, volumes) => {
-    db.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,status,code,message) SELECT ?,book,id,'prior','FAILED','ISBN_MISSING','ISBN 미등록' FROM book_volumes WHERE id=?").run(owner, volumes[0]);
-    await page.goto("/inventory/logs?status=failed");
+    seedRunError(db, owner, "prior", volumes[0]!);
+    await page.goto("/inventory/logs?runId=prior");
     await page.route("**/api/stock-refresh/retry", route => route.fulfill({ status: 503, json: { code: "WORKER_UNAVAILABLE", message: "갱신 요청 테스트 오류" } }));
     for (let attempt = 0; attempt < 2; attempt++) {
       await page.getByRole("button", { name: "개별 갱신" }).click();
@@ -125,8 +149,14 @@ test("log retry errors open a popup and release request progress", async ({ page
 
 test("unresolved failures link directly to ISBN stock search without resolving themselves",async({page},testInfo)=>{
   await withLogs(page,`stock-direct-${testInfo.project.name}`,async(db,owner,volumes)=>{
-    db.prepare("INSERT INTO stock_refresh_log(owner_id,book_id,volume_id,run_id,isbn13,status,code,message) SELECT ?,book,id,'direct-search',isbn13,'FAILED','ALADIN_TIMEOUT','응답 시간 초과' FROM book_volumes WHERE id=?").run(owner,volumes[3]);
-    await page.goto("/inventory/logs?status=failed");
+    db.prepare("UPDATE book_volumes SET isbn13=NULL WHERE id=?").run(volumes[3]);
+    seedRunError(db, owner, "direct-search", volumes[3]!);
+    db.prepare("UPDATE book_volumes SET isbn13='9780000000193' WHERE id=?").run(volumes[3]);
+    await page.goto("/inventory/logs?runId=direct-search");
+    await expect(page.getByTestId("stock-log-entry")).toContainText("ISBN 미등록");
+    const exported = await (await page.request.get("/api/stock-refresh/logs?runId=direct-search&format=json")).json();
+    expect(exported.errors[0].isbn13).toBeNull();
+    expect(exported.errors[0]).not.toHaveProperty("currentIsbn");
     await page.getByRole("link",{name:"재고 직접 검색",exact:true}).click();
     await expect(page).toHaveURL(/\/aladin\/used\?isbn=9780000000193/);
     await expect(page.locator(".branch-card")).toHaveCount(2);

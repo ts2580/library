@@ -15,7 +15,7 @@ export interface StockRefreshProgress {
   percent: number;
   message: string;
   updatedAt: string | null;
-  status: "IDLE" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  status: "PAUSED" | "IDLE" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
 }
 
 export interface StockRefreshLogEntry {
@@ -31,12 +31,21 @@ export interface StockRefreshLogEntry {
   message: string;
   createdAt: string;
   retryable: boolean;
+  resolution?: "PENDING" | "RESOLVED" | "INELIGIBLE";
+  bookExists?: boolean;
+  currentIsbn?: string | null;
 }
 
 export interface StockRefreshRun {
   id: number;
   runId: string;
-  status: StockRefreshProgress["status"];
+  status: StockRefreshProgress["status"] | "ARCHIVED";
+  mode: StockRefreshProgress["mode"] | null;
+  processed: number | null;
+  success: number | null;
+  empty: number | null;
+  fail: number | null;
+  message: string | null;
   total: number;
   startedAt: string | null;
   finishedAt: string | null;
