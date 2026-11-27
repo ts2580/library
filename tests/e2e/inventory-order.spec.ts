@@ -22,9 +22,11 @@ test("store and direct-delivery inventory keep book-name and numeric-volume orde
     const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES(?,?)").run(name, owner).lastInsertRowid);
     addStock(book, name, 1);
   }
-  const series = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('가 시리즈',?)").run(owner).lastInsertRowid);
-  for (const number of [10, 1, 2]) addStock(series, `가 시리즈 ${number}권`, number);
-  const expected = ["가 시리즈 1권", "가 시리즈 2권", "가 시리즈 10권", ...Array.from({ length: 29 }, (_, index) => `정렬 책 ${String(index + 1).padStart(2, "0")}`)];
+  for (const number of [10, 1, 2]) {
+    const series = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('가 시리즈',?)").run(owner).lastInsertRowid);
+    addStock(series, `가 시리즈 ${number}권`, number);
+  }
+  const expected = ["가 시리즈 10권", "가 시리즈 1권", "가 시리즈 2권", ...Array.from({ length: 29 }, (_, index) => `정렬 책 ${String(index + 1).padStart(2, "0")}`)];
   try {
     await page.goto("/login");
     await page.getByLabel("아이디", { exact: true }).fill(username);

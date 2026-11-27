@@ -11,8 +11,9 @@ async function withLogs(page: Page, name: string, run: (db: Database.Database, o
   db.pragma("foreign_keys=ON");
   const owner = Number(db.prepare("INSERT INTO member(username,password_hash,role) SELECT ?,password_hash,'ADMIN' FROM member WHERE id=1").run(name).lastInsertRowid);
   const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('실패 로그 검증 책',?)").run(owner).lastInsertRowid);
+  const untouchedBook = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('선택 외 재고 책',?)").run(owner).lastInsertRowid);
   const volumes = [1, 2, 3, 4].map(number => Number(db.prepare("INSERT INTO book_volumes(book,volume,name,isbn13) VALUES(?,?,?,?)")
-    .run(book, number, `로그 검증 ${number}권`, number === 4 ? "9780000000193" : null).lastInsertRowid));
+    .run(number === 4 ? untouchedBook : book, number, `로그 검증 ${number}권`, number === 4 ? "9780000000193" : null).lastInsertRowid));
   try {
     await page.goto("/login");
     await page.getByLabel("아이디", { exact: true }).fill(name);

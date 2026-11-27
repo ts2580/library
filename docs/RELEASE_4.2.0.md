@@ -1,6 +1,6 @@
 # Bookshelf 4.2.0
 
-지점 재고 갱신을 일시중지·재개하고, 실패를 작업 기록별로 관리하는 기능 릴리스 후보입니다. 현재 main 승격 및 배포 준비 단계이며, GitHub Release·npm·Docker 이미지 발행과 운영 서비스 교체는 아직 진행하지 않았습니다.
+지점 재고 갱신을 일시중지·재개하고, 실패를 작업 기록별로 관리하는 기능 정식 릴리스입니다.
 
 ## 변경 내용
 
@@ -16,16 +16,16 @@
 
 ## 기존 설치 업데이트
 
-DB 스키마가 7에서 12로 순차 갱신됩니다. 웹 또는 워커가 시작될 때 자동 백업 후 migration 8–12을 적용합니다. 기존 `.env`, DB, 표지, 백업, Docker 볼륨을 보존하고 **웹과 워커를 모두 4.2.0으로 함께 교체**합니다. DB 스키마를 낮추는 downgrade는 제공하지 않으므로, 업데이트 전 DB와 표지를 같은 시점으로 백업하세요.
+DB 스키마가 7에서 12로 순차 갱신됩니다. 웹 또는 워커가 시작될 때 자동 백업 후 migration 8–12를 적용합니다. 기존 `.env`, DB, 표지, 백업, Docker 볼륨을 보존하고 **웹과 워커를 모두 4.2.0으로 함께 교체**합니다. DB 스키마를 낮추는 downgrade는 제공하지 않으므로, 업데이트 전 DB와 표지를 같은 시점으로 백업하세요.
 
-정식 Release와 이미지 발행을 확인한 뒤 Docker에서 실행합니다.
+정식 이미지로 Docker에서 실행합니다.
 
 ```sh
 BOOKSHELF_IMAGE=trstyq/bookshelf:4.2.0 docker compose -f docker-compose.release.yml pull
 BOOKSHELF_IMAGE=trstyq/bookshelf:4.2.0 docker compose -f docker-compose.release.yml up -d
 ```
 
-npm 설치는 [npm 사용 안내](NPM.md)를 따릅니다. 현재 브랜치의 4.2.0 예시는 발행 전 후보 버전을 가리킵니다.
+npm 설치는 [npm 사용 안내](NPM.md)를 따릅니다. 4.2.0은 npm에 `latest` 태그로 발행됩니다.
 
 ### 선택: 서버 브라우저 로그인
 
@@ -43,4 +43,4 @@ VNC는 호스트의 `127.0.0.1:7900`에만 연결합니다. 접속할 때 SSH �
 
 ## 검증과 발행 상태
 
-아래 검증은 release 브랜치의 최종 커밋을 대상으로 완료한 뒤 `docs/WORKLOG_4.2.0.md`에 결과와 커밋 SHA를 기록합니다. main PR 병합, `v4.2.0` 태그·GitHub Release, npm `latest`, Docker `4.2.0`·`latest`, 운영 컨테이너 교체는 각각 별도 단계입니다.
+최종 검증과 발행 결과는 `docs/WORKLOG_4.2.0.md`에 기록합니다. 운영 컨테이너 교체는 별도 작업입니다.

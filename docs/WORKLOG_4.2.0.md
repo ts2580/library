@@ -2,7 +2,7 @@
 
 ## 범위
 
-PR #72가 2026-11-27 KST에 canary에 병합되었습니다. 이 release 브랜치는 해당 canary 변경과 현재 main의 4.1.0 정식 버전을 합쳐 4.2.0 배포 후보를 준비합니다.
+PR #72와 #74가 canary에 병합된 뒤, PR #73이 2026-11-27 KST에 main에 병합되어 4.2.0이 정식 버전이 되었습니다.
 
 ## #74 반영 전 검증
 
@@ -17,6 +17,13 @@ PR #72가 2026-11-27 KST에 canary에 병합되었습니다. 이 release 브랜�
 | Docker 이전 데이터 정리 검증 | 통과: 관리자 인증, DB·표지 보존, 인증 표지 접근 |
 | Compose·버전 정합성 | 통과: release Compose 렌더링, package/lock 버전 4.2.0 일치 |
 
+## main 정식 릴리스 검증
+
+- main 병합 커밋 `43c3c41`에서 `npm run verify:source` 통과, 36개 파일 / 432개 테스트
+- `npm run build` 통과, Next.js 16.4.6
+- Playwright 전체 264개 중 257개 통과, 6개 fixture 기대값 충돌 수정, 1개 건너뜀. 실패 6개에 해당하는 E2E를 PC·모바일에서 재실행해 모두 통과
+- `npm whoami` 확인 결과 `trstyq`로 인증됨
+
 ## 참고 사항
 
 - 첫 전체 E2E의 실패는 ISBN 단건 조회 집계 문구 기대값과 지점명 텍스트 검색의 모호성, 완료 상태 전파 테스트의 즉시 단정/정확한 polling 횟수 기대였습니다. 테스트를 화면 결과와 비동기 완료 조건에 맞게 보정한 뒤 실패 8개를 재실행했습니다.
@@ -26,8 +33,5 @@ PR #72가 2026-11-27 KST에 canary에 병합되었습니다. 이 release 브랜�
 
 ## 발행 상태
 
-- main 대상 PR: [#73](https://github.com/ts2580/library/pull/73), Draft / 보안 업데이트 반영
-- Git 태그·GitHub Release: 미발행
-- npm 패키지 / `latest`: 미발행
-- Docker Hub `4.2.0` / `latest`: 미발행
-- 운영 서비스 교체: 미수행
+- main PR: [#73](https://github.com/ts2580/library/pull/73), merged
+- 4.2.0 tag, GitHub Release, npm package, Docker image, operating deployment: pending

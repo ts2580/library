@@ -2,9 +2,9 @@
 
 도서·권 관리, 알라딘 검색·등록, 직배송·우주점 중고 재고 조회를 제공하는 책장입니다. Next.js·React·TypeScript·Drizzle·SQLite를 사용합니다.
 
-**4.2.0 출시 준비** · [변경 내용](docs/RELEASE_4.2.0.md) · [현재 정식 버전 4.1.0](https://github.com/ts2580/library/releases/tag/v4.1.0)
+**정식 버전 4.2.0** · [변경 내용](docs/RELEASE_4.2.0.md) · [GitHub Release](https://github.com/ts2580/library/releases/tag/v4.2.0)
 
-4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.2.0은 재고 갱신 일시중지·작업별 실패 관리와 서버 브라우저 인증을 추가합니다. API 키는 필요하지 않습니다.
+4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.2.0은 재고 갱신 일시중지·작업별 실패 관리, 서버 브라우저 인증, 같은 책·지점 재고 중복 방지을 추가합니다. API 키는 필요하지 않습니다.
 
 ## 주요 기능
 
@@ -52,7 +52,7 @@ npm run worker
 docker compose up -d --build
 ```
 
-기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 이 브랜치의 기본 이미지는 `trstyq/bookshelf:4.2.0`입니다. 4.2.0 Release와 이미지 발행을 확인한 뒤 업데이트하세요. 현재 정식 이미지는 `trstyq/bookshelf:4.1.0`입니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
+기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 정식 이미지는 `trstyq/bookshelf:4.2.0`입니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
 
 업데이트 전 DB·표지를 백업하고 기존 `.env`와 실제 볼륨 이름을 확인합니다. 기존 웹·워커를 종료한 뒤 같은 버전으로 함께 교체합니다.
 
@@ -89,7 +89,7 @@ ALADIN_MAX_BACKOFF_MS=30000
 
 ## 데이터와 검증
 
-로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.2.0은 DB 스키마 12을 사용하며 앱 시작 시 백업을 만든 뒤 기존 스키마를 순차 갱신합니다.
+로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.2.0은 DB 스키마 12를 사용하며 앱 시작 시 백업을 만든 뒤 기존 스키마를 순차 갱신합니다.
 
 ```bash
 npm run verify:source
