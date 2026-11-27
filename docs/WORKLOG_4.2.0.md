@@ -26,7 +26,7 @@ PR #72가 2026-11-27 KST에 canary에 병합되었습니다. 이 release 브랜�
 
 ## 발행 상태
 
-- main 대상 PR: 준비 중
+- main 대상 PR: [#73](https://github.com/ts2580/library/pull/73), Draft / 보안 업그레이드 후 Ready 전환 예정
 - Git 태그·GitHub Release: 미발행
 - npm 패키지 / `latest`: 미발행
 - Docker Hub `4.2.0` / `latest`: 미발행
