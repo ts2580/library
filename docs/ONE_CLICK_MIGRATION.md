@@ -4,6 +4,8 @@
 
 3.5.1은 Next.js만 포함합니다. 해당 정식 태그·이미지 발행을 확인한 뒤 전환합니다. Java·Gradle·Java가 Next를 실행하는 이전용 코드는 [v3.0.0-ca2 태그](https://github.com/ts2580/library/tree/v3.0.0-ca2)에 보존돼 있습니다.
 
+4.2.0에서 4.3.0-rc.1로 올리는 경우에는 [Firefox 전용 브라우저 전환 안내](RELEASE_4.3.0-rc.1.md)를 확인합니다. 두 버전 모두 DB 스키마 12를 사용합니다.
+
 ## 아직 Java에서 이전하지 않은 경우
 
 먼저 `trstyq/bookshelf:3.0.0-ca2-migration`으로 기존 Java 데이터를 실행합니다. [ca2 Docker 이전 안내](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/DOCKER_MIGRATION_CA2.md)와 [이전용 Compose](https://github.com/ts2580/library/releases/download/v3.0.0-ca2/docker-compose.migration.3.0.0-ca2.yml)를 사용합니다. 이 버전의 자동 이전은 관리자 한 명만 있는 DB를 지원합니다.
