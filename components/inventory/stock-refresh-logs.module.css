@@ -10,3 +10,6 @@
 .timing dt { color: var(--muted); font-size: .85rem; margin-bottom: 6px; }
 .timing dd { margin: 0; }
 @media (max-width: 640px) { .timing { grid-template-columns: 1fr; gap: 12px; } }
+
+.runLink { color: inherit; text-decoration: none; }
+.runLink:hover, .runLink:focus-visible { border-color: currentColor; }

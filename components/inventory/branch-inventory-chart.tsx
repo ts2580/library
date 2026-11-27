@@ -18,7 +18,7 @@ export function BranchInventoryChart({ branches }: { branches: BranchInventoryIt
             {branches.map(branch => (
               <li key={branch.branch}>
                 <Link className={styles.row} href={`/inventory/branches/${encodeURIComponent(branch.branch)}`}>
-                  <span className={styles.name}>{branch.branchName}</span>
+                  <span className={styles.name}>{branch.branchName}<small className={styles.count}>재고 {branch.stockCount}건 · 가격 확인 {branch.pricedCount}건</small></span>
                   <span className={styles.track} aria-hidden="true">
                     <span className={styles.bar} data-testid="branch-inventory-bar" style={{ width: `${maximum > 0 ? branch.totalAmount / maximum * 100 : 0}%` }}/>
                   </span>

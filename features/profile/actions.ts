@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from "@/features/auth/password";
 import { createSession, CredentialsChangedError } from "@/features/auth/session";
 import { passwordChangeSchema, profileSchema } from "@/features/profile/validation";
 import { errorCode, errorMessage } from "@/lib/errors";
+import { connectStockBrowser, disconnectStockBrowser } from "@/features/aladin/browser-session";
 import { addCategory, removeCategory } from "@/features/books/categories";
 
 function v(formData: FormData, key: string): string {
@@ -77,4 +78,16 @@ export async function changePasswordAction(formData: FormData): Promise<never> {
     throw error;
   }
   redirect(`/profile?message=${encodeURIComponent("비밀번호를 변경하고 다른 로그인 세션을 종료했습니다.")}`);
+}
+
+export async function changeAladinBrowserAction(formData: FormData): Promise<never> {
+  const user = await requireUser();
+  const operation = v(formData, "operation");
+  if (operation !== "connect" && operation !== "disconnect") fail("알 수 없는 연결 요청입니다.");
+  try {
+    if (operation === "connect") await connectStockBrowser(user.id, user.username);
+    else await disconnectStockBrowser(user.id, user.username);
+  } catch (error) { fail(errorMessage(error, "브라우저 연결을 변경하지 못했습니다."), errorCode(error)); }
+  revalidatePath("/profile");
+  redirect("/profile");
 }

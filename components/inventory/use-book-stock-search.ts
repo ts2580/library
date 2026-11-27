@@ -17,6 +17,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const active = progress?.status === "QUEUED" || progress?.status === "RUNNING";
+  const paused = progress?.status === "PAUSED";
   const forThisBook = progress?.mode === "APPEND_BOOK" && progress.scopeBookId === options?.bookId;
   const affectsBook = progress?.mode === "REPLACE_ALL" || forThisBook;
   useTopProgress(busy || Boolean(active && affectsBook));
@@ -43,7 +44,8 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
       const newCompletion = terminal && progress.runId && progress.runId !== before.progress?.runId;
       const ownerCompleted = progress.completionId && progress.completionId !== before.progress?.completionId;
       if (forThisBook && progress.status === "COMPLETED" && (ended || newCompletion) && progress.message) showToast(progress.message);
-      if (ownerCompleted || (!active && affectsBook && (ended || newCompletion))) router.refresh();
+      const started = active && progress.runId && progress.runId !== before.progress?.runId;
+      if (started || ownerCompleted || (!active && affectsBook && (ended || newCompletion))) router.refresh();
     }
     previous.current = { bookId, progress };
   }, [bookId, progress, active, affectsBook, forThisBook, router]);
@@ -113,7 +115,7 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
   }, [bookId, initialKey, unavailable]);
 
   async function start() {
-    if (!bookId || busy || active || unavailable) return;
+    if (!bookId || busy || active || paused || unavailable) return;
     startInFlight.current = true; revision.current++;
     setBusy(true); setError("");
     const controller = new AbortController();
@@ -126,6 +128,6 @@ export function useBookStockSearch(options?: BookStockSearchOptions) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "재고 검색을 시작하지 못했습니다."); }
     finally { clearTimeout(timeout); startInFlight.current = false; setBusy(false); pollNow.current(); }
   }
-  return { start, disabled: busy || active || unavailable, error,
-    message: busy ? "이 책의 재고 검색을 요청하고 있습니다." : forThisBook && progress?.status !== "COMPLETED" ? progress?.message : active ? "다른 재고 작업이 진행 중입니다. 완료 후 검색할 수 있습니다." : "" };
+  return { start, disabled: busy || active || paused || unavailable, error,
+    message: busy ? "이 책의 재고 검색을 요청하고 있습니다." : forThisBook && progress?.status !== "COMPLETED" ? progress?.message : paused ? "지점 재고 화면에서 재고 검색을 재개할 수 있습니다." : active ? "다른 재고 작업이 진행 중입니다. 완료 후 검색할 수 있습니다." : "" };
 }

@@ -57,14 +57,14 @@ export function getStockRefreshProgress(ownerId: number): StockRefreshProgress {
   const status = row.status as StockRefreshProgress["status"];
   const requestedBy = row.requestedBy == null ? null : Number(row.requestedBy);
   if (requestedBy != null && requestedBy !== ownerId) {
-    if (status === "QUEUED" || status === "RUNNING") {
+    if (status === "QUEUED" || status === "RUNNING" || status === "PAUSED") {
       return {
         completionId,
         pendingFailures,
         mode: "REPLACE_ALL", scopeBookId: null,
-        running: true, completed: false, failed: false, total: 0, processed: 0, success: 0,
+        running: status !== "PAUSED", completed: false, failed: false, total: 0, processed: 0, success: 0,
         empty: 0, fail: 0, percent: 0,
-        message: "다른 계정의 재고 갱신 작업이 진행 중입니다.",
+        message: status === "PAUSED" ? "다른 계정의 재고 검색이 일시중지되었습니다." : "다른 계정의 재고 갱신 작업이 진행 중입니다.",
         updatedAt: row.updatedAt ? String(row.updatedAt) : null, status
       };
     }

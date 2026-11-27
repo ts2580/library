@@ -9,9 +9,9 @@ export const ALADIN_MAX_CONCURRENT_REQUESTS = 10;
 
 /** Each slot holds an OS-backed SQLite lock throughout a request. Crashes release
  * slots without a lease expiry that could overlap a still-running request. */
-async function acquireSlot(filename: string): Promise<BetterSqlite3.Database> {
+async function acquireSlot(filename: string, slots: number): Promise<BetterSqlite3.Database> {
   for (;;) {
-    for (let index = 0; index < ALADIN_MAX_CONCURRENT_REQUESTS; index++) {
+    for (let index = 0; index < slots; index++) {
       const slot = new BetterSqlite3(`${filename}.slot-${index}`, { timeout: 0 });
       try { slot.exec("BEGIN IMMEDIATE"); return slot; }
       catch (error) { slot.close(); if (!busy(error)) throw error; }
@@ -20,11 +20,11 @@ async function acquireSlot(filename: string): Promise<BetterSqlite3.Database> {
   }
 }
 
-/** Web and worker share start spacing, server cooldown and ten in-flight slots.
+/** Callers sharing a gate share start spacing, server cooldown and in-flight slots.
  * The state lock is short-lived; network response time does not block other slots.
  * Never remove the sidecar or its slot files while either process is running. */
 export async function withRequestGate<T>(filename: string, interval: number,
-  request: (cooldown: (milliseconds: number) => Promise<void>) => Promise<T>): Promise<T> {
+  request: (cooldown: (milliseconds: number) => Promise<void>) => Promise<T>, slots = ALADIN_MAX_CONCURRENT_REQUESTS): Promise<T> {
   mkdirSync(path.dirname(filename), { recursive: true });
   const db = new BetterSqlite3(filename, { timeout: 0 });
   let slot: BetterSqlite3.Database | undefined;
@@ -75,7 +75,7 @@ export async function withRequestGate<T>(filename: string, interval: number,
       }
       db.exec("INSERT OR IGNORE INTO request_state (id,next_at) VALUES (1,0)");
     });
-    slot = await acquireSlot(filename);
+    slot = await acquireSlot(filename, slots);
     for (;;) {
       const wait = await locked(() => {
         const state = db.prepare("SELECT next_at,cooldown_until FROM request_state WHERE id=1").get() as {next_at:number;cooldown_until:number};

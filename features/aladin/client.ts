@@ -1,5 +1,7 @@
 import "server-only";
+import { readStockBrowser, stockBrowser } from "@/features/aladin/browser-session";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { withRequestGate } from "@/features/aladin/request-gate";
@@ -25,13 +27,21 @@ export function aladinPageUrl(raw: string): URL {
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const maxBytes = 4 * 1024 * 1024;
 
-export async function aladinHtml(rawUrl: string): Promise<string> {
+// A stock lookup spans search, product detail, offer pages and transport retries.
+export const inventoryRequestCheck = new AsyncLocalStorage<() => void>();
+
+export type AladinRequestGroup = "interactive" | "inventory";
+
+export async function aladinHtml(rawUrl: string, group: AladinRequestGroup = "interactive"): Promise<string> {
   const url = aladinPageUrl(rawUrl);
+  const inventory = group === "inventory";
+  const gate = path.join(env.dataDir, inventory ? "aladin-inventory.sqlite" : "aladin-requests.sqlite");
   let backoff = env.ALADIN_INITIAL_BACKOFF_MS;
   for (let attempt = 1; ; attempt++) {
     try {
-      return await withRequestGate(path.join(env.dataDir, "aladin-requests.sqlite"), env.ALADIN_PAGE_INTERVAL_MS, async cooldown => {
-        const response = await fetch(url, {
+      return await withRequestGate(gate, env.ALADIN_PAGE_INTERVAL_MS, async cooldown => {
+        if (inventory) inventoryRequestCheck.getStore()?.();
+        const response = stockBrowser.getStore() ? await readStockBrowser(url, inventory ? inventoryRequestCheck.getStore() : undefined) : await fetch(url, {
           cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15_000),
           headers: { "user-agent": "Bookshelf/4.0", accept: "text/html,application/xhtml+xml" }
         });
@@ -65,7 +75,7 @@ export async function aladinHtml(rawUrl: string): Promise<string> {
           }
         } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
         return Buffer.concat(chunks).toString("utf8");
-      });
+      }, inventory ? 8 : 2);
     } catch (error) {
       if (error instanceof Error && error.message === "ALADIN_COOLDOWN") throw new AladinRateLimitError();
       const retryable = error instanceof AladinRateLimitError || error instanceof TypeError
