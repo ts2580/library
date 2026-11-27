@@ -135,6 +135,7 @@ export const branchBooks = sqliteTable(
   },
   (table) => [
     uniqueIndex("ux_branchbook_uuid").on(table.uuid),
+    uniqueIndex("ux_branchbook_book_branch").on(table.bookId, sql`COALESCE(NULLIF(TRIM(${table.branch}), ''), '')`),
     index("idx_branchbook_book").on(table.bookId),
     index("idx_branchbook_branch").on(table.branch),
     index("idx_branchbook_book_volume").on(table.bookId, table.volume),

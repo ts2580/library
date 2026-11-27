@@ -326,6 +326,10 @@ export async function importExcelBackup(ownerId: number, file: File): Promise<Im
         if ((previous.isbn13 || previous.isbn) !== (isbn13 || isbn10)) {
           sqlite.prepare("DELETE FROM branchbook WHERE book_volume_id=?").run(existing.id);
         } else {
+          sqlite.prepare(`DELETE FROM branchbook WHERE book=? AND book_volume_id<>?
+            AND COALESCE(NULLIF(TRIM(branch), ''), '') IN (
+              SELECT COALESCE(NULLIF(TRIM(branch), ''), '') FROM branchbook WHERE book_volume_id=?
+            )`).run(bookId, existing.id, existing.id);
           sqlite.prepare("UPDATE branchbook SET book=?,volume=? WHERE book_volume_id=?").run(bookId, volume, existing.id);
         }
         sqlite.prepare(`

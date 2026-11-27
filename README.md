@@ -89,7 +89,7 @@ ALADIN_MAX_BACKOFF_MS=30000
 
 ## 데이터와 검증
 
-로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.2.0은 DB 스키마 11을 사용하며 앱 시작 시 백업을 만든 뒤 기존 스키마를 순차 갱신합니다.
+로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.2.0은 DB 스키마 12을 사용하며 앱 시작 시 백업을 만든 뒤 기존 스키마를 순차 갱신합니다.
 
 ```bash
 npm run verify:source
