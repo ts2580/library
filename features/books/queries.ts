@@ -16,6 +16,15 @@ function normalized(value: string | null | undefined): string | null {
   return v ? v : null;
 }
 
+export function getOwnedBookCategories(ownerId: number): string[] {
+  return sqlite.prepare(`
+    SELECT DISTINCT TRIM(type) AS type
+    FROM books
+    WHERE owner_id = ? AND type IS NOT NULL AND TRIM(type) <> ''
+    ORDER BY type COLLATE NOCASE
+  `).all(ownerId).map((row) => (row as { type: string }).type);
+}
+
 export function getBookList(ownerId: number, filters: BookListFilters): BookListResult {
   const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
   const where = ["b.owner_id = ?"];
@@ -60,16 +69,9 @@ export function getBookList(ownerId: number, filters: BookListFilters): BookList
     LIMIT ? OFFSET ?
   `).all(...args, PAGE_SIZE, offset) as BookListItem[];
 
-  const categories = sqlite.prepare(`
-    SELECT DISTINCT TRIM(type) AS type
-    FROM books
-    WHERE owner_id = ? AND type IS NOT NULL AND TRIM(type) <> ''
-    ORDER BY type COLLATE NOCASE
-  `).all(ownerId).map((row) => (row as { type: string }).type);
-
   return {
     items: rows.map((row) => ({ ...row, volumeCount: Number(row.volumeCount) })),
-    categories,
+    categories: getOwnedBookCategories(ownerId),
     page: current,
     pageSize: PAGE_SIZE,
     totalCount,

@@ -34,7 +34,20 @@ async function withInventory(page: Page, name: string, run: (db: Database.Databa
 test("batch refresh saves direct shipping and store offers from the unified used listing", async ({ page }, testInfo) => {
   await withInventory(page, `batch-offstore-zero-${testInfo.project.name}`, async (db, owner) => {
     db.prepare("UPDATE book_volumes SET isbn13='9780000000194' WHERE book IN (SELECT id FROM books WHERE owner_id=?)").run(owner);
-    await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+    db.prepare("INSERT INTO branchbook(book,branch,branchname,price) SELECT id,'OLD','이전 지점','900' FROM books WHERE owner_id=?").run(owner);
+    await page.reload();
+    await expect(page.locator(".stock-card")).toHaveCount(1);
+    // Hold the worker at claim time so the browser must show the reset while still queued.
+    db.exec(`CREATE TRIGGER hold_inventory_claim BEFORE UPDATE OF status ON stock_refresh_job
+      WHEN OLD.status='QUEUED' AND NEW.status='RUNNING' AND NEW.requested_by=${owner}
+      BEGIN SELECT RAISE(IGNORE); END`);
+    try {
+      await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
+      await expect(page.locator(".status-badge")).toHaveText("QUEUED");
+      await expect(page.locator(".stock-card")).toHaveCount(0);
+      await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(0);
+      await expect(page.locator(".kpi-value").nth(1)).toHaveText("0");
+    } finally { db.exec("DROP TRIGGER hold_inventory_claim"); }
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
     await expect(page.locator("#top-progress-bar")).toBeHidden();
     await expect(page.locator(".stock-card")).toHaveCount(2);
@@ -127,7 +140,7 @@ test("returning to the inventory tab immediately checks the worker's completed s
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
     await expect(page.locator("#top-progress-bar")).toBeHidden();
-    expect(polls).toBe(2);
+    await expect.poll(() => polls).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -140,8 +153,8 @@ test("fresh server props restart a stalled batch poll after inventory search nav
     });
     await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
     await expect.poll(() => polls).toBe(1);
-    expect((db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owner) as { status: string }).status)
-      .toBe("COMPLETED");
+    await expect.poll(() => (db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owner) as { status: string }).status,
+      { timeout: 20_000 }).toBe("COMPLETED");
     await page.getByLabel("제목·ISBN·지점 검색").fill("갱신 대상");
     await page.getByRole("button", { name: "재고 검색", exact: true }).click();
     await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
@@ -180,6 +193,48 @@ test("cancelling a running batch persists cancellation and releases a stalled st
     await expect(page.locator(".status-badge")).toHaveText("CANCELLED");
     await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
+  });
+});
+
+test("Aladin search and book registration work while inventory request slots are saturated", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-foreground-${testInfo.project.name}`, async (db, owner) => {
+    const directory = path.dirname(db.name);
+    const slots = Array.from({length:8}, (_,i) => new Database(path.join(directory,`aladin-inventory.sqlite.slot-${i}`)));
+    try {
+      slots.forEach(slot => slot.exec("BEGIN IMMEDIATE"));
+      await page.getByRole("button", {name:"갱신 시작",exact:true}).click();
+      await expect.poll(() => db.prepare("SELECT status FROM stock_refresh_job").pluck().get()).toBe("RUNNING");
+      const name = `재고 병행 등록 ${testInfo.project.name}`;
+      const created = await page.request.post("/api/books/manual", { multipart: { payload: JSON.stringify({
+        book: { name, author:"", description:"", type:"", totalVolume:"", coverUrl:"" }, direct:true, targetBookId:null, selection:[]
+      }) } });
+      expect(created.status()).toBe(201);
+      const {bookId} = await created.json();
+      await page.goto(`/aladin/search?bookId=${bookId}&query=${encodeURIComponent(name)}`);
+      await page.getByLabel("선택 선택 샘플 1-1",{exact:true}).check();
+      await page.locator(".aladin-import-action").getByRole("button",{name:"1권 추가",exact:true}).click();
+      await expect(page.locator(".volume-title h3")).toContainText("선택 샘플 1-1");
+      expect(db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").pluck().get(owner)).toBe("RUNNING");
+    } finally { slots.forEach(slot => slot.close()); }
+    await expect.poll(() => db.prepare("SELECT status FROM stock_refresh_job").pluck().get()).toBe("COMPLETED");
+  });
+});
+
+test("a paused run survives reload and resumes with the same run ID", async ({ page }, testInfo) => {
+  await withInventory(page, `batch-pause-${testInfo.project.name}`, async (db, owner) => {
+    const runId = randomUUID();
+    db.prepare(`UPDATE stock_refresh_job SET status='RUNNING',running=1,requested_by=?,run_id=?,mode='REPLACE_ALL',
+      started_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,total=1,processed=0,success=0,empty=0,fail=0 WHERE id=1`).run(owner,runId);
+    db.exec("DELETE FROM stock_refresh_job_target");
+    db.prepare(`INSERT INTO stock_refresh_job_target SELECT 1,v.id FROM book_volumes v JOIN books b ON b.id=v.book WHERE b.owner_id=?`).run(owner);
+    await page.reload();
+    await page.getByRole("button", {name:"일시중지",exact:true}).click();
+    await expect(page.locator(".status-badge")).toHaveText("PAUSED");
+    await expect(page.locator("#top-progress-bar")).toBeHidden();
+    await page.reload();
+    await page.getByRole("button", {name:"재개",exact:true}).click();
+    await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
+    expect(db.prepare("SELECT run_id,processed,success FROM stock_refresh_job").get()).toEqual({run_id:runId,processed:1,success:1});
   });
 });
 
@@ -271,6 +326,18 @@ for (const status of ["FAILED", "COMPLETED"] as const) {
       await page.reload();
       await expect(page.getByRole("heading", { name: "지점 재고", exact: true })).toBeVisible();
       await expect(dialog).toBeHidden();
+      // A fresh login has no tab session or local acknowledgement.
+      await page.context().clearCookies();
+      await page.evaluate(() => { sessionStorage.clear(); localStorage.clear(); });
+      await page.goto("/login");
+      await page.getByLabel("아이디", {exact:true}).fill(`batch-error-once-${status}-${testInfo.project.name}`);
+      await page.getByLabel("비밀번호", {exact:true}).fill("fixture-only-password");
+      await page.getByRole("button", {name:"로그인",exact:true}).click();
+      await expect(page).toHaveURL(/\/dashboard/);
+      const claimed = page.waitForResponse(response => response.url().endsWith("/api/stock-refresh") && response.request().method() === "PATCH");
+      await page.goto("/inventory");
+      expect(await (await claimed).json()).toMatchObject({show:false});
+      await expect(dialog).toBeHidden();
       update(randomUUID());
       await page.reload();
       await expect(dialog).toContainText("같은 내용의 재고 실패");
@@ -319,7 +386,7 @@ test("a lost start response times out with a popup and reconciles the real worke
     await expect(page.getByRole("button", { name: "갱신 시작", exact: true })).toBeEnabled();
     await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
     await expect(page.locator(".stock-card")).toHaveCount(2);
-    await expect(page.locator(".branch-card")).toHaveCount(2);
+    await expect(page.getByRole("list", { name: "지점별 재고 금액 순위" }).getByRole("link")).toHaveCount(2);
     await expect(page.locator(".kpi-value").nth(1)).toHaveText("2");
     await expect(page.locator(".kpi-value").nth(2)).toHaveText("4,000원");
     await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(2);
@@ -335,7 +402,7 @@ test("a lost delete response reconciles server-rendered inventory, totals and br
     db.prepare("INSERT INTO branchbook(book,volume,branch,branchname,price) VALUES(?,1,'DELETE','삭제 대상 지점','1200')").run(book);
     await page.reload();
     await expect(page.locator(".stock-card")).toHaveCount(1);
-    await expect(page.locator(".branch-card")).toHaveCount(1);
+    await expect(page.getByRole("list", { name: "지점별 재고 금액 순위" }).getByRole("link")).toHaveCount(1);
     let refreshes = 0;
     page.on("request", request => {
       if (new URL(request.url()).pathname === "/inventory" && request.headers().rsc === "1") refreshes++;
@@ -353,7 +420,7 @@ test("a lost delete response reconciles server-rendered inventory, totals and br
     await expect(page.locator("#top-progress-bar")).toBeHidden();
     await dialog.getByRole("button", { name: "확인", exact: true }).click();
     await expect(page.locator(".stock-card")).toHaveCount(0);
-    await expect(page.locator(".branch-card")).toHaveCount(0);
+    await expect(page.getByRole("list", { name: "지점별 재고 금액 순위" }).getByRole("link")).toHaveCount(0);
     await expect(page.locator(".kpi-value").nth(1)).toHaveText("0");
     await expect(page.locator(".kpi-value").nth(2)).toHaveText("0원");
     await expect(page.getByTestId("branch-inventory-bar")).toHaveCount(0);

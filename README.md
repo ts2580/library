@@ -2,18 +2,22 @@
 
 도서·권 관리, 알라딘 검색·등록, 직배송·우주점 중고 재고 조회를 제공하는 책장입니다. Next.js·React·TypeScript·Drizzle·SQLite를 사용합니다.
 
-**4.1.0 출시 준비** · [변경 내용](docs/RELEASE_4.1.0.md) · [현재 정식 버전 4.0.1](https://github.com/ts2580/library/releases/tag/v4.0.1)
+**4.2.0 출시 준비** · [변경 내용](docs/RELEASE_4.2.0.md) · [현재 정식 버전 4.1.0](https://github.com/ts2580/library/releases/tag/v4.1.0)
 
-4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.1.0은 책장의 일반 책 검색과 개별 권 상세 검색을 분리하고 직접 추가 폼 문구를 정리합니다. API 키는 필요하지 않습니다.
+4.0.0부터 종료된 알라딘 OpenAPI 대신 공개 페이지를 사용합니다. 4.2.0은 재고 갱신 일시중지·작업별 실패 관리와 서버 브라우저 인증을 추가합니다. API 키는 필요하지 않습니다.
 
 ## 주요 기능
+
+npm 설치·실행은 [@trstyq/bookshelf 사용 방법](docs/NPM.md)을 참고하세요.
 
 - 계정별 도서·권 관리, 카테고리, 표지 업로드, 구매 여부 및 외전 관리
 - 책장 일반 검색과 개별 권 상세 검색, ISBN 없는 권의 제목·저자 검색
 - 알라딘 검색과 여러 페이지 선택 등록, 기존 책에 권 추가, 빈 저자·설명·구매 링크 보강
 - 소장 도서 선택 차단, 직접 체크 순서 또는 출간일·제목 숫자 순서에 따른 권차 부여
-- 워커 기반 직배송·우주점 중고 재고 갱신, 책별 추가 검색, 지점별 가격 비교
-- 재고 작업 이력·실패 원인·재시도·취소, 조회 실패 시 기존 재고 보존
+- 워커 기반 직배송·우주점 중고 재고 갱신, 일시중지·재개, 지점별 가격 비교
+- 작업 기록별 실패 상세·일괄 재시도·CSV/JSON 다운로드
+- 재고 갱신 요청 즉시 대상 재고 초기화, 검색/도서 추가 요청 quota 분리
+- 전용 서버 브라우저를 통한 로그인 필요한 알라딘 상품 조회
 - Excel 및 표지 ZIP 백업·복원, 기존 Java 데이터 이전, PC·모바일 화면
 
 ## 로컬 실행
@@ -48,7 +52,7 @@ npm run worker
 docker compose up -d --build
 ```
 
-기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 이 브랜치의 기본 이미지는 `trstyq/bookshelf:4.1.0`입니다. 4.1.0 Release와 이미지 발행을 확인한 뒤 업데이트하세요. 현재 정식 이미지는 `trstyq/bookshelf:4.0.1`입니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
+기존 `Bookshelf-next`·`Bookshelf` 볼륨을 사용하는 설치는 [발행용 Compose](docker-compose.release.yml)를 사용합니다. 이 브랜치의 기본 이미지는 `trstyq/bookshelf:4.2.0`입니다. 4.2.0 Release와 이미지 발행을 확인한 뒤 업데이트하세요. 현재 정식 이미지는 `trstyq/bookshelf:4.1.0`입니다. 다른 버전을 선택하려면 `.env`의 `BOOKSHELF_IMAGE`를 지정합니다.
 
 업데이트 전 DB·표지를 백업하고 기존 `.env`와 실제 볼륨 이름을 확인합니다. 기존 웹·워커를 종료한 뒤 같은 버전으로 함께 교체합니다.
 
@@ -75,17 +79,17 @@ ALADIN_INITIAL_BACKOFF_MS=2000
 ALADIN_MAX_BACKOFF_MS=30000
 ```
 
-재고 갱신은 최대 10권 병렬이며 웹·워커 합산 HTTP 요청도 최대 10건입니다. 요청 시작 간격은 기본 1초이고 429 대기를 공유합니다. DB당 워커는 하나만 실행하고, 웹·워커가 같은 호스트의 로컬 데이터 경로를 공유해야 합니다. 실행 중 `.worker-lock.sqlite`, `aladin-requests.sqlite`, `.slot-0`~`.slot-9` 파일을 삭제하지 않습니다.
+재고 갱신은 최대 10권 병렬입니다. 웹·워커 HTTP 동시 요청 한도 10건 중 8건은 재고 검색에, 2건은 알라딘 검색·책 추가에 배정합니다. DB당 워커는 하나만 실행하고 웹·워커가 같은 호스트의 로컬 데이터 경로를 공유해야 합니다. 실행 중 SQLite 게이트 파일을 삭제하지 않습니다.
 
 전체 중고 목록에서 **알라딘 직배송·이 광활한 우주점**의 온라인 판매 상품만 수집합니다. 개인·전문 판매자, 방문 구매 전용 재고·매장 실물 부수는 포함하지 않습니다. 구조 변경·접근 거절·타임아웃·부분 조회 실패 시 기존 재고를 유지하고, 정상적인 0건 확인 시 전체·선택 갱신의 해당 권 재고만 비웁니다. 책 상세의 추가 검색은 기존 재고·가격을 유지하며 새 상품만 더합니다.
 
-**재고 → 갱신 로그 → 작업 기록**에서 권수·시작/종료시간(KST)·작업시간을 확인하고, **미해결 실패**에서 실패 원인·직접 검색·재시도를 사용할 수 있습니다. 직접 검색은 저장 재고를 바꾸지 않으며 갱신 성공 시 실패가 해제됩니다.
+갱신 요청을 받으면 전체·책별·선택 대상의 기존 재고를 즉시 지웁니다. 성공한 조회는 새 결과를 저장하며 실패는 조회 작업의 기록에 연결됩니다. **지점 재고**에서 작업을 일시중지·재개하고, **재고 → 갱신 로그 → 작업 기록**의 상세에서 오류를 확인해 일괄 재시도하거나 CSV·JSON으로 내려받을 수 있습니다. 오류 안내는 로그인할 때 한 번만 표시됩니다.
 
-검색 결과는 5분, 상품 상세는 24시간 동안 프로세스별로 캐시하고 재고 목록은 매번 새로 읽습니다. 4.0.1에서 ISBN이 없는 검색 결과는 소장 여부를 확인하기 위해 필요한 상품 상세를 조회하므로 첫 검색 시간이 늘 수 있습니다. 지원 옵션과 외부 페이지의 한계는 [4.0.0 변경 내용](docs/RELEASE_4.0.0.md)을 참고하세요.
+재고 상품번호와 ISBN 대응은 확인 뒤 DB에 저장하며, 재고 목록은 검색마다 새로 읽습니다. 로그인 요구 상품은 프로필의 전용 브라우저 연결로 서버 Chromium에 로그인한 뒤 재시도할 수 있습니다. 지원 옵션과 외부 페이지의 한계는 [4.0.0 변경 내용](docs/RELEASE_4.0.0.md)을 참고하세요.
 
 ## 데이터와 검증
 
-로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.0.0의 DB 스키마는 7이며 4.1.0에서도 추가 변경은 없습니다.
+로컬 데이터 루트는 `data/`, Docker 내부는 `/data`입니다. DB·표지·업로드·백업·`active-migration.json`을 함께 유지합니다. 이전 기록이 있으면 같은 루트의 `migrations/handover-*`를 사용합니다. 4.2.0은 DB 스키마 12을 사용하며 앱 시작 시 백업을 만든 뒤 기존 스키마를 순차 갱신합니다.
 
 ```bash
 npm run verify:source
@@ -98,9 +102,9 @@ npm run db:verify
 단위·통합·Playwright 검사는 임시 DB·계정과 알라딘 HTML fixture를 사용합니다. Playwright는 `25648` 웹과 별도 워커를 시작합니다. `db:verify`는 설정된 실제 DB를 대상으로 bootstrap과 무결성 검사를 수행합니다.
 
 ```bash
-docker build -t bookshelf:4.1.0-local .
-npm run test:docker -- bookshelf:4.1.0-local
-CLEANUP_DOCKER_IMAGE=bookshelf:4.1.0-local npm run test:cleanup:docker
+docker build -t bookshelf:4.2.0-local .
+npm run test:docker -- bookshelf:4.2.0-local
+CLEANUP_DOCKER_IMAGE=bookshelf:4.2.0-local npm run test:cleanup:docker
 ```
 
 Docker 검사는 격리된 컨테이너·볼륨을 사용합니다. 관리자 원본 정리 API, 데이터·백업 보존과 인증된 표지 접근도 검증합니다.
@@ -108,3 +112,7 @@ Docker 검사는 격리된 컨테이너·볼륨을 사용합니다. 관리자 �
 [아키텍처](docs/ARCHITECTURE.md) · [기존 기능 대조](docs/FEATURE_PARITY_AUDIT.md) · [4.0.0 전환 기록](docs/WORKLOG_4.0.0.md)
 
 애플리케이션은 `app/`·`components/`·`features/`·`db/`·`lib/`·`worker/`, 검증 도구는 `scripts/`·`tests/`에 있습니다. Server Component는 queries를 직접 호출하며 Route Handler는 브라우저 HTTP 요청과 파일 전송을 처리합니다. 기존 BCrypt·레거시 SHA-256 로그인 및 Excel·표지 ZIP 호환은 유지합니다.
+
+### 서버 재고 조회용 알라딘 로그인
+
+알라딘 로그인 요구 상품은 전용 Chromium에서 조회할 수 있습니다. `.env`에 `ALADIN_BROWSER_OWNER`와 `ALADIN_BROWSER_VNC_PASSWORD`를 설정하고 `docker-compose.aladin.yml`을 함께 실행합니다. SSH 터널을 연 뒤 프로필의 **전용 브라우저 연결**에서 로그인·인증을 완료하세요.

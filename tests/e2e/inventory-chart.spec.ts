@@ -13,16 +13,17 @@ function inventoryFixture() {
   const username = `chart-${randomUUID()}`;
   const owner = Number(db.prepare("INSERT INTO member(username,password_hash,role) SELECT ?,password_hash,'ADMIN' FROM member WHERE id=1")
     .run(username).lastInsertRowid);
-  const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('그래프 검증 재고',?)").run(owner).lastInsertRowid);
+  let bookCount = 0;
   return {
     username,
     add(branch: string, name: string, price: string) {
+      const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES(?,?)").run(`그래프 검증 재고 ${++bookCount}`, owner).lastInsertRowid);
       db.prepare("INSERT INTO branchbook(book,branch,branchname,name,price) VALUES(?,?,?,'그래프 검증 재고',?)")
         .run(book, branch, name, price);
     },
     close() {
-      db.prepare("DELETE FROM branchbook WHERE book=?").run(book);
-      db.prepare("DELETE FROM books WHERE id=?").run(book);
+      db.prepare("DELETE FROM branchbook WHERE book IN (SELECT id FROM books WHERE owner_id=?)").run(owner);
+      db.prepare("DELETE FROM books WHERE owner_id=?").run(owner);
       db.prepare("DELETE FROM member WHERE id=?").run(owner);
       db.close();
     }
@@ -54,7 +55,7 @@ test("branch amount chart compares the owner's full inventory and links to branc
     await expect(chart).toBeVisible();
     const links = chart.getByRole("link");
     await expect(links).toHaveText([
-      "서울점1,500,000원", `${longName}750,000원`, "인천점450,000원", "가격 미확인점가격 미확인", "영원점0원"
+      "서울점재고 25건 · 가격 확인 25건1,500,000원", `${longName}재고 1건 · 가격 확인 1건750,000원`, "인천점재고 1건 · 가격 확인 1건450,000원", "가격 미확인점재고 1건 · 가격 확인 0건가격 미확인", "영원점재고 1건 · 가격 확인 1건0원"
     ]);
     await expect(chart).not.toContainText("다른 계정 지점");
     const widths = testInfo.project.name === "desktop" ? [1440, 768] : [412, 320];
@@ -100,8 +101,8 @@ test("branch amount chart handles empty, unpriced and zero-price inventory", asy
     fixture.add("ZERO", "영원점", "0");
     fixture.add("UNKNOWN_PRICE", "가격 미확인점", "가격 문의");
     await page.reload();
-    await expect(chart.getByRole("link", { name: "영원점 0원", exact: true })).toBeVisible();
-    await expect(chart.getByRole("link", { name: "가격 미확인점 가격 미확인", exact: true })).toBeVisible();
+    await expect(chart.getByRole("link", { name: /영원점.*0원/ })).toBeVisible();
+    await expect(chart.getByRole("link", { name: /가격 미확인점.*가격 미확인/ })).toBeVisible();
     const bars = chart.getByTestId("branch-inventory-bar");
     await expect(bars).toHaveCount(2);
     expect(await bars.evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width))).toEqual([0, 0]);

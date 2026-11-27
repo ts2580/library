@@ -12,13 +12,12 @@ async function login(page: Page, username: string) {
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
-test("book stock search appends through the worker without replacing old or unrelated inventory", async ({ page }, testInfo) => {
+test("book stock search replaces eligible inventory through the worker and leaves other volumes alone", async ({ page }, testInfo) => {
   const directory = process.env.BOOKSHELF_E2E_DATA;
   if (!directory || path.dirname(directory) !== tmpdir() || !path.basename(directory).startsWith("bookshelf-e2e-")) throw new Error("Expected isolated E2E data");
   const db = new Database(path.join(directory, "bookshelf.sqlite"), { readonly: true });
   try {
     const before = db.prepare("SELECT * FROM branchbook ORDER BY id").all() as { id: number; book: number }[];
-    const existingIds = new Set(before.map(row => row.id));
     await login(page, "fixture-book-stock");
     await page.goto("/books/4");
     const toolbar = page.locator(".volume-add-actions");
@@ -42,9 +41,9 @@ test("book stock search appends through the worker without replacing old or unre
       await expect(page.locator(".toast").filter({ hasText: "책 재고 검색 완료" })).toBeVisible({ timeout: 20_000 });
       await expect(page.locator(".page").getByText("책 재고 검색 완료", { exact: false })).toHaveCount(0);
       await expect(toolbar.getByRole("button", { name: "재고 검색", exact: true })).toBeEnabled();
-      await expect(page.locator(".volume-card").first().locator(".volume-meta")).toContainText("재고 3건");
+      await expect(page.locator(".volume-card").first().locator(".volume-meta")).toContainText("재고 2건");
       const after = db.prepare("SELECT * FROM branchbook ORDER BY id").all() as { id: number; book: number }[];
-      expect(after.filter(row => existingIds.has(row.id))).toEqual(before);
+      expect(after.filter(row => row.book === 4 && row.id <= 31)).toEqual([]);
       expect(after.filter(row => row.book !== 4)).toEqual(before.filter(row => row.book !== 4));
       expect(db.prepare("SELECT book,book_volume_id FROM branchbook WHERE id>31 AND book=4 ORDER BY id").all()).toEqual([
         { book: 4, book_volume_id: 6 }, { book: 4, book_volume_id: 6 }

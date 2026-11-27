@@ -2,10 +2,11 @@ import "server-only";
 import type BetterSqlite3 from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { rebuildSummaryStatements, resetQueuedInventory } from "@/db/inventory";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-const BOOTSTRAP_VERSION = 7;
+const BOOTSTRAP_VERSION = 12;
 
 type Database = BetterSqlite3.Database;
 
@@ -375,6 +376,91 @@ export function bootstrapDatabase(sqlite: Database): void {
         SELECT requested_by,run_id,status,total,started_at,finished_at FROM stock_refresh_job
         WHERE requested_by IS NOT NULL AND run_id IS NOT NULL AND status<>'IDLE';`);
       sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (7, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(8)) {
+      ensureColumn(sqlite, "stock_refresh_job", "notified_run_id TEXT");
+      for (const definition of ["processed INTEGER", "success INTEGER", "empty INTEGER", "fail INTEGER", "message TEXT", "mode TEXT"]) {
+        ensureColumn(sqlite, "stock_refresh_run", definition);
+      }
+      sqlite.exec(`
+        UPDATE stock_refresh_job SET run_id=lower(hex(randomblob(16)))
+          WHERE status IN ('QUEUED','RUNNING') AND run_id IS NULL AND requested_by IS NOT NULL;
+        INSERT OR IGNORE INTO stock_refresh_job_target(job_id,volume_id)
+          SELECT 1,v.id FROM stock_refresh_job j JOIN books b ON b.owner_id=j.requested_by JOIN book_volumes v ON v.book=b.id
+          WHERE j.status='QUEUED' AND j.mode IN ('REPLACE_ALL','APPEND_BOOK') AND (j.mode='REPLACE_ALL' OR b.id=j.scope_book_id)
+          AND COALESCE(v.ispurchased,0)=0 AND COALESCE(v.noneedtobuy,0)=0;
+        UPDATE stock_refresh_run AS r SET (processed,success,empty,fail,message,mode)=
+          (SELECT processed,success,empty,fail,message,mode FROM stock_refresh_job WHERE run_id=r.run_id)
+          WHERE EXISTS (SELECT 1 FROM stock_refresh_job WHERE run_id=r.run_id AND requested_by=r.owner_id);
+        INSERT OR IGNORE INTO stock_refresh_run(owner_id,run_id,status,total,created_at)
+          SELECT owner_id,run_id,'ARCHIVED',COUNT(*),MIN(created_at) FROM stock_refresh_log
+          WHERE status='FAILED' GROUP BY owner_id,run_id;
+        CREATE TABLE stock_refresh_error (
+          id INTEGER PRIMARY KEY, run_id TEXT NOT NULL REFERENCES stock_refresh_run(run_id) ON DELETE CASCADE,
+          book_id INTEGER NOT NULL, volume_id INTEGER NOT NULL, book_name TEXT NOT NULL, volume_name TEXT NOT NULL,
+          volume INTEGER, isbn13 TEXT, code TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL,
+          resolved_at TEXT, UNIQUE(run_id,volume_id)
+        );
+        CREATE INDEX idx_stock_refresh_error_open_volume ON stock_refresh_error(volume_id) WHERE resolved_at IS NULL;
+        INSERT INTO stock_refresh_error(run_id,book_id,volume_id,book_name,volume_name,volume,isbn13,code,message,created_at)
+          SELECT l.run_id,b.id,v.id,COALESCE(b.name,'제목 없음'),COALESCE(v.name,b.name,'제목 없음'),
+            v.volume,l.isbn13,l.code,l.message,l.created_at FROM stock_refresh_log l
+          JOIN books b ON b.id=l.book_id AND b.owner_id=l.owner_id
+          JOIN book_volumes v ON v.id=l.volume_id AND v.book=b.id
+          JOIN stock_refresh_run r ON r.run_id=l.run_id AND r.owner_id=l.owner_id WHERE l.status='FAILED';
+        UPDATE stock_refresh_error AS e SET resolved_at=(
+          SELECT MIN(next.created_at) FROM stock_refresh_log original JOIN stock_refresh_log next
+            ON next.owner_id=original.owner_id AND next.volume_id=original.volume_id AND next.id>original.id
+          WHERE original.run_id=e.run_id AND original.volume_id=e.volume_id AND next.status IN ('SUCCESS','EMPTY')
+        );
+      `);
+      const queued = sqlite.prepare(`SELECT requested_by ownerId, mode, scope_book_id bookId
+        FROM stock_refresh_job WHERE id=1 AND status='QUEUED' AND requested_by IS NOT NULL`).get() as
+        { ownerId: number; mode: string; bookId: number | null } | undefined;
+      if (queued?.mode === "REPLACE_ALL") resetQueuedInventory(sqlite, queued.ownerId, null, false);
+      if (queued?.mode === "APPEND_BOOK" && queued.bookId != null) resetQueuedInventory(sqlite, queued.ownerId, queued.bookId, false);
+      if (queued?.mode === "REFRESH_SELECTED") resetQueuedInventory(sqlite, queued.ownerId, null, true);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (8, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(9)) {
+      sqlite.exec(`CREATE TABLE IF NOT EXISTS aladin_browser_connection (
+        owner_id INTEGER PRIMARY KEY REFERENCES member(id) ON DELETE CASCADE,
+        generation TEXT NOT NULL, session_id TEXT, created_at INTEGER NOT NULL
+      )`);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (9, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(10)) {
+      sqlite.exec(`CREATE TABLE IF NOT EXISTS aladin_inventory_product (
+        isbn TEXT PRIMARY KEY NOT NULL, item_id TEXT NOT NULL, verified_at INTEGER NOT NULL
+      )`);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (10, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(11)) {
+      ensureColumn(sqlite, "aladin_browser_connection", "ready INTEGER NOT NULL DEFAULT 0");
+      sqlite.exec("UPDATE aladin_browser_connection SET ready=1 WHERE session_id IS NOT NULL");
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (11, ?, ?)")
+        .run(new Date().toISOString(), backup);
+    }
+    if (!isApplied(12)) {
+      sqlite.exec(`
+        DELETE FROM branchbook WHERE id IN (
+          SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY book, COALESCE(NULLIF(TRIM(branch), ''), '')
+              ORDER BY COALESCE(systemmodstamp, '' ) DESC, id DESC
+            ) AS row_number
+            FROM branchbook WHERE book IS NOT NULL
+          ) WHERE row_number > 1
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_branchbook_book_branch
+          ON branchbook(book, COALESCE(NULLIF(TRIM(branch), ''), ''));
+      `);
+      rebuildSummaryStatements(sqlite);
+      sqlite.prepare("INSERT INTO bookshelf_migrations(version, applied_at, backup_path) VALUES (12, ?, ?)")
         .run(new Date().toISOString(), backup);
     }
   });

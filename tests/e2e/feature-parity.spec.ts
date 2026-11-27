@@ -94,12 +94,12 @@ test("used inventory preserves source selection and shows individual store and d
   await login(page); await page.goto("/aladin/used?isbn13=123456789X&type=dropshipping");
   await expect(page.locator(".branch-card")).toHaveCount(1);
   await expect(page.locator(".branch-card")).toContainText("알라딘 직배송");
-  await expect(page.getByText("1건 · 최저 2,300원", { exact: true })).toBeVisible();
+  await expect(page.getByText("1개 지점 · 판매 상품 1건 · 최저 2,300원", { exact: true })).toBeVisible();
   await page.getByLabel("재고 종류", { exact: true }).selectOption("offstore");
   await page.getByRole("button", { name: "조회", exact: true }).click();
   await expect(page.locator(".branch-card")).toHaveCount(1);
   await expect(page.locator(".branch-card")).toContainText("갱신 서울점");
-  await expect(page.getByText("1건 · 최저 1,700원", { exact: true })).toBeVisible();
+  await expect(page.getByText("1개 지점 · 판매 상품 1건 · 최저 1,700원", { exact: true })).toBeVisible();
   await expect(page.getByText("직배송·우주점 모두 전체 중고 목록에 표시된 상품별 가격입니다. 개인·전문 판매자는 제외합니다.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

@@ -336,11 +336,13 @@ test("real stock worker refreshes inventory, progress, and visible results witho
   await expect(page.getByRole("status").filter({ hasText: /워커 처리 대기 중|재고 갱신 중/ })).toBeVisible();
   await expect(page.getByText("재고 일괄 조회 완료:", { exact: false })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".stock-card")).toHaveCount(2);
-  await expect(page.getByText("갱신 서울점", { exact: true }).first()).toBeVisible();
+  const seoulStock = page.locator(".stock-card").filter({ hasText: "갱신 서울점" });
+  await expect(seoulStock).toHaveCount(1);
+  await expect(seoulStock).toBeVisible();
   await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");
   const chart = page.getByRole("region", { name: "지점별 재고 금액 비교", exact: true });
-  await expect(chart.getByRole("link", { name: "갱신 서울점 1,700원", exact: true })).toBeVisible();
-  await expect(chart.getByRole("link", { name: "알라딘 직배송 2,300원", exact: true })).toBeVisible();
+  await expect(chart.getByRole("link", { name: /갱신 서울점.*1,700원/, exact: true })).toBeVisible();
+  await expect(chart.getByRole("link", { name: /알라딘 직배송.*2,300원/, exact: true })).toBeVisible();
   const progress = await (await page.request.get("/api/stock-refresh")).json();
   expect(progress).toMatchObject({ status: "COMPLETED", processed: 1, total: 1, success: 1, empty: 0, fail: 0, percent: 100 });
   await page.screenshot({ path: testInfo.outputPath("stock-completed.png"), fullPage: true });

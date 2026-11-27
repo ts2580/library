@@ -19,6 +19,8 @@ const envSchema = z.object({
   BOOKSHELF_COOKIE_SECURE: z.enum(["auto", "true", "false"]).default("auto"),
   BOOKSHELF_AUTO_BACKUP: z.string().default("true").transform((value) => value !== "false"),
   BOOKSHELF_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  ALADIN_BROWSER_URL: z.string().url().optional(),
+  ALADIN_BROWSER_OWNER: z.string().min(1).optional(),
   ALADIN_PAGE_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
   ALADIN_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   ALADIN_INITIAL_BACKOFF_MS: z.coerce.number().int().min(50).max(60_000).default(2_000),

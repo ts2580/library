@@ -1,25 +1,13 @@
 import { createHash } from "node:crypto";
 import type { AladinBranchStock } from "@/features/aladin/types";
 
-function canonicalLink(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    url.hash = "";
-    url.searchParams.sort();
-    return url.toString();
-  } catch {
-    return value.trim() || null;
-  }
+export function normalizedBranch(value: string | null | undefined): string {
+  return value?.trim() ?? "";
 }
 
-/** Prices, volume numbers and display names must not define offer identity. */
-export function stockIdentity<T extends Pick<AladinBranchStock, "branch" | "grade" | "bookLink" | "purchaseLink">>(volumeId: number, stock: T): string {
-  const purchase = canonicalLink(stock.purchaseLink);
-  const listing = canonicalLink(stock.bookLink);
-  const offer = purchase && purchase !== listing ? purchase : null;
-  const identity = [volumeId, stock.branch.trim(), offer ? "offer" : "summary", offer ?? stock.grade?.trim() ?? ""];
-  return createHash("sha256").update(JSON.stringify(identity)).digest("hex");
+/** Inventory identity is one book per branch, regardless of volume or offer URL. */
+export function stockIdentity<T extends Pick<AladinBranchStock, "branch">>(bookId: number, stock: T): string {
+  return createHash("sha256").update(JSON.stringify([bookId, normalizedBranch(stock.branch)])).digest("hex");
 }
 
 function price(value: string | null): number | null {
@@ -29,11 +17,11 @@ function price(value: string | null): number | null {
   return Number.isSafeInteger(amount) ? amount : null;
 }
 
-/** For indistinguishable summaries, select the cheapest known price, never the last row. */
-export function uniqueStocks(volumeId: number, stocks: AladinBranchStock[]): AladinBranchStock[] {
+/** Keep one offer per branch, choosing the lowest known price. */
+export function uniqueStocks(bookId: number, stocks: AladinBranchStock[]): AladinBranchStock[] {
   const selected = new Map<string, AladinBranchStock>();
   for (const stock of stocks) {
-    const key = stockIdentity(volumeId, stock);
+    const key = stockIdentity(bookId, stock);
     const previous = selected.get(key);
     const amount = price(stock.price);
     if (!previous || (amount != null && (price(previous.price) == null || amount < price(previous.price)!))) {

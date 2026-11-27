@@ -24,8 +24,17 @@ sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name,isbn13) VALUES(3,3,
 sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name,isbn13,ispurchased,noneedtobuy) VALUES(4,3,2,'구매한 권','9780000000098',1,0),(5,3,3,'구매 불필요 권','9780000000097',0,1)").run();
 sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(4,'책별 재고 대상',4),(5,'책별 재고 제외',4)").run();
 sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name,isbn13,ispurchased) VALUES(6,4,1,'책별 재고 대상 1','9780000000111',0),(7,4,2,'책별 재고 구매한 권','9780000000112',1),(8,5,1,'다른 책 권','9780000000113',0)").run();
-for (let id = 1; id <= 28; id++) sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(?,1,1,1,'SEOUL','서울점','테스트 100%_!','1,000')").run(id);
-sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(29,4,6,1,'OLD','기존점','책별 기존 재고','900'),(30,5,8,1,'OTHER','다른점','다른 책 기존 재고','800'),(31,4,7,2,'OLD','기존점','구매한 권 기존 재고','700')").run();
+for (let id = 1; id <= 28; id++) {
+  const bookId = id === 1 ? 1 : 100 + id;
+  const volumeId = id === 1 ? 1 : 100 + id;
+  if (id > 1) {
+    sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(?,?,1)").run(bookId, `테스트 재고 ${id}`);
+    sqlite.prepare("INSERT INTO book_volumes(id,book,volume,name) VALUES(?,?,1,?)").run(volumeId, bookId, `테스트 권 ${id}`);
+  }
+  sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(?,?,?,1,'SEOUL','서울점','테스트 100%_!','1,000')")
+    .run(id, bookId, volumeId);
+}
+sqlite.prepare("INSERT INTO branchbook(id,book,book_volume_id,volume,branch,branchname,name,price) VALUES(29,4,6,1,'OLD','기존점','책별 기존 재고','900'),(30,5,8,1,'OTHER','다른점','다른 책 기존 재고','800'),(31,4,7,2,'OLD_PURCHASED','구매 권 지점','구매한 권 기존 재고','700')").run();
 sqlite.prepare("INSERT INTO member(id,username,password_hash,role) VALUES(5,'fixture-pagination',?,'ADMIN')").run(passwordHash);
 sqlite.transaction(() => {
   for (let index = 1; index <= 130; index++) {
