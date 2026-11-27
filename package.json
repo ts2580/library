@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "next dev -p 25647",
     "dev:all": "node scripts/dev-all.mjs",
+    "dev:aladin": "node scripts/dev-all.mjs --aladin",
     "build": "next build",
     "package:npm": "node scripts/package-npm.mjs",
     "test:npm": "node scripts/verify-npm.mjs",

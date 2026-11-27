@@ -6,6 +6,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { sqlite } from "@/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 const loginUrl = "https://www.aladin.co.kr/login/wlogin.aspx";
 const origin = new URL(loginUrl).origin;
@@ -15,30 +16,51 @@ type Connection = { sessionId: string | null; generation: string; ready: number 
 export const stockBrowser = new AsyncLocalStorage<{ ownerId: number; generation: string }>();
 
 export function canConnectBrowser(username: string) {
-  return Boolean(env.ALADIN_BROWSER_URL && username === env.ALADIN_BROWSER_OWNER);
+  return username === env.ALADIN_BROWSER_OWNER;
 }
 
 function connection(ownerId: number) {
-  if (!env.ALADIN_BROWSER_URL || !env.ALADIN_BROWSER_OWNER) return;
+  if (!env.ALADIN_BROWSER_OWNER) return;
   return sqlite.prepare(`SELECT c.session_id sessionId, c.generation, c.ready FROM aladin_browser_connection c
     JOIN member m ON m.id=c.owner_id WHERE c.owner_id=? AND m.username=?`).get(ownerId, env.ALADIN_BROWSER_OWNER) as Connection | undefined;
 }
 
-export function hasStockBrowser(ownerId: number) { return Boolean(connection(ownerId)?.ready); }
+async function hasOpenWindow(current?: Connection) {
+  if (!current?.ready || !current.sessionId) return false;
+  try {
+    const handles = await driver("GET", "/session/" + encodeURIComponent(current.sessionId) + "/window/handles");
+    if (!Array.isArray(handles)) throw new AppError("브라우저 창 목록을 확인할 수 없습니다.", "ALADIN_BROWSER_ERROR", 502);
+    return handles.length > 0;
+  } catch (error) {
+    if (error instanceof AppError && error.code === "ALADIN_BROWSER_CLOSED") return false;
+    throw error;
+  }
+}
+
+export async function getStockBrowserStatus(ownerId: number) {
+  if (!connection(ownerId)?.ready) return "disconnected";
+  try {
+    const open = await withBrowserSlot(() => hasOpenWindow(connection(ownerId)));
+    return open ? "connected" : "disconnected";
+  } catch (error) {
+    if (error instanceof AppError) return "unavailable";
+    throw error;
+  }
+}
 
 async function driver(method: string, endpoint: string, body?: object) {
   let response: Response;
   try {
     response = await fetch(new URL(endpoint, env.ALADIN_BROWSER_URL), {
       method, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(25_000),
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined
+      headers: { "content-type": "application/json; charset=utf-8" }, body: body ? JSON.stringify(body) : undefined
     });
   } catch {
     throw new AppError("서버의 알라딘 전용 브라우저에 연결할 수 없습니다.", "ALADIN_BROWSER_OFFLINE", 503);
   }
   const result = await response.json().catch(() => null);
   if (result?.value?.error === "invalid session id" || result?.value?.error === "no such window") {
-    throw new AppError("알라딘 브라우저가 종료되었습니다. 프로필에서 연결을 해제한 뒤 다시 연결해 주세요.", "ALADIN_BROWSER_CLOSED", 409);
+    throw new AppError("알라딘 브라우저가 종료되었습니다. 프로필에서 전용 브라우저를 다시 연결해 주세요.", "ALADIN_BROWSER_CLOSED", 409);
   }
   if (!response.ok || !result || result.value?.error) {
     throw new AppError("알라딘 브라우저 요청에 실패했습니다. 서버의 연결 상태를 확인해 주세요.", "ALADIN_BROWSER_ERROR", 502);
@@ -49,6 +71,19 @@ async function driver(method: string, endpoint: string, body?: object) {
 async function closeSession(sessionId: string) {
   try { await driver("DELETE", "/session/" + encodeURIComponent(sessionId)); }
   catch (error) { if (!(error instanceof AppError && error.code === "ALADIN_BROWSER_CLOSED")) throw error; }
+}
+
+async function fitLoginWindow(endpoint: string) {
+  try {
+    const size = await driver("POST", endpoint + "/execute/sync", {
+      script: "return { width: screen.availWidth, height: screen.availHeight }", args: []
+    });
+    if (size?.width > 0 && size?.height > 0) {
+      await driver("POST", endpoint + "/window/rect", { x: 0, y: 0, width: size.width, height: size.height });
+    }
+  } catch (error) {
+    logger.warn("Aladin browser window resize failed", { error: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 // Web and worker share one configured browser. Hold its OS-backed slot across
@@ -79,19 +114,21 @@ export async function connectStockBrowser(ownerId: number, username: string) {
   if (!canConnectBrowser(username)) throw new AppError("이 계정에는 전용 브라우저가 설정되지 않았습니다.", "FORBIDDEN", 403);
   return withBrowserSlot(async () => {
     const previous = connection(ownerId);
-    if (previous?.ready) return;
+    if (await hasOpenWindow(previous)) return;
     if (previous) await removeConnection(ownerId, previous);
     const generation = randomUUID();
     sqlite.prepare(`INSERT INTO aladin_browser_connection(owner_id,generation,created_at,ready)
       VALUES(?,?,unixepoch(),0)`).run(ownerId, generation);
-    const created = await driver("POST", "/session", { capabilities: { alwaysMatch: { browserName: "chrome",
+    const created = await driver("POST", "/session", { capabilities: { alwaysMatch: { browserName: "firefox", "moz:firefoxOptions": {},
       "se:name": `Bookshelf Aladin ${generation}`, timeouts: { pageLoad: 15_000, script: 20_000 } } } });
     if (typeof created?.sessionId !== "string" || !created.sessionId) throw new AppError("브라우저를 열지 못했습니다.");
     const sessionId: string = created.sessionId;
     try {
       if (!sqlite.prepare("UPDATE aladin_browser_connection SET session_id=? WHERE owner_id=? AND generation=?")
         .run(sessionId, ownerId, generation).changes) throw new AppError("연결 요청이 취소되었습니다.");
-      await driver("POST", "/session/" + encodeURIComponent(sessionId) + "/url", { url: loginUrl });
+      const endpoint = "/session/" + encodeURIComponent(sessionId);
+      await fitLoginWindow(endpoint);
+      await driver("POST", endpoint + "/url", { url: loginUrl });
       if (!sqlite.prepare("UPDATE aladin_browser_connection SET ready=1 WHERE owner_id=? AND generation=?")
         .run(ownerId, generation).changes) throw new AppError("연결 요청이 취소되었습니다.");
     } catch (error) {

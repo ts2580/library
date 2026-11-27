@@ -31,6 +31,20 @@ npm run dev:all
 
 `http://localhost:25647`에서 접속합니다. 웹·워커가 함께 실행되며 코드 변경을 감지합니다. `Ctrl+C`로 함께 종료하고, 포트는 `PORT=25649 npm run dev:all`처럼 바꿉니다. 개별 실행은 `npm run dev`와 `npm run worker:dev`입니다.
 
+Linux LXC에서 알라딘 로그인용 브라우저까지 실행하려면 `.env`에 `ALADIN_BROWSER_OWNER`(책장 사용자명)와 `ALADIN_BROWSER_VNC_PASSWORD`를 설정합니다. Ubuntu 24.04에서는 아래 패키지를 처음 한 번 설치합니다.
+
+```bash
+sudo apt install openjdk-21-jre-headless curl xauth tigervnc-standalone-server tigervnc-tools novnc websockify libgtk-3-0t64 libdbus-glib-1-2
+```
+
+프로젝트 폴더에서 일반 사용자로 실행하세요.
+
+```bash
+npm run dev:aladin
+```
+
+첫 실행은 Selenium과 Firefox·geckodriver를 사용자 캐시에 준비하므로 인터넷 연결이 필요합니다. WebDriver는 `127.0.0.1:4444`, noVNC는 기본 `127.0.0.1:7900`에서 실행됩니다. noVNC의 프록시 설정은 [서버 재고 조회용 알라딘 로그인](#서버-재고-조회용-알라딘-로그인)을 따릅니다. 준비 완료 후 프로필에서 **전용 브라우저 연결**을 누르세요. `Ctrl+C`는 웹·워커와 전용 브라우저를 함께 종료합니다.
+
 신규 설치는 `.env`에 `REGISTRATION=true`를 설정하고 `/signup`에서 첫 관리자 계정을 만든 뒤 `false`로 되돌립니다. 기존 설치는 원래 계정과 설정을 사용합니다. 예전 `next/` 디렉터리에서 실행하던 설치는 [데이터 이동 절차](docs/ONE_CLICK_MIGRATION.md#이전-완료한-로컬-실행)를 먼저 따릅니다.
 
 프로덕션 실행은 빌드 후 웹·워커를 각각 시작합니다.
@@ -85,7 +99,7 @@ ALADIN_MAX_BACKOFF_MS=30000
 
 갱신 요청을 받으면 전체·책별·선택 대상의 기존 재고를 즉시 지웁니다. 성공한 조회는 새 결과를 저장하며 실패는 조회 작업의 기록에 연결됩니다. **지점 재고**에서 작업을 일시중지·재개하고, **재고 → 갱신 로그 → 작업 기록**의 상세에서 오류를 확인해 일괄 재시도하거나 CSV·JSON으로 내려받을 수 있습니다. 오류 안내는 로그인할 때 한 번만 표시됩니다.
 
-재고 상품번호와 ISBN 대응은 확인 뒤 DB에 저장하며, 재고 목록은 검색마다 새로 읽습니다. 로그인 요구 상품은 프로필의 전용 브라우저 연결로 서버 Chromium에 로그인한 뒤 재시도할 수 있습니다. 지원 옵션과 외부 페이지의 한계는 [4.0.0 변경 내용](docs/RELEASE_4.0.0.md)을 참고하세요.
+재고 상품번호와 ISBN 대응은 확인 뒤 DB에 저장하며, 재고 목록은 검색마다 새로 읽습니다. 로그인 요구 상품은 프로필의 전용 브라우저 연결로 서버 Firefox에 로그인한 뒤 재시도할 수 있습니다. 지원 옵션과 외부 페이지의 한계는 [4.0.0 변경 내용](docs/RELEASE_4.0.0.md)을 참고하세요.
 
 ## 데이터와 검증
 
@@ -115,4 +129,8 @@ Docker 검사는 격리된 컨테이너·볼륨을 사용합니다. 관리자 �
 
 ### 서버 재고 조회용 알라딘 로그인
 
-알라딘 로그인 요구 상품은 전용 Chromium에서 조회할 수 있습니다. `.env`에 `ALADIN_BROWSER_OWNER`와 `ALADIN_BROWSER_VNC_PASSWORD`를 설정하고 `docker-compose.aladin.yml`을 함께 실행합니다. SSH 터널을 연 뒤 프로필의 **전용 브라우저 연결**에서 로그인·인증을 완료하세요.
+웹과 워커는 기본적으로 같은 Compose 네트워크의 `http://aladin-browser:4444`에 연결합니다. Selenium을 다른 서비스 이름이나 별도 서버로 운영할 때만 `ALADIN_BROWSER_URL`을 지정하세요.
+
+알라딘 로그인 요구 상품은 전용 Firefox에서 조회할 수 있습니다. `.env`에 `ALADIN_BROWSER_OWNER`와 `ALADIN_BROWSER_VNC_PASSWORD`를 설정하고 `docker-compose.aladin.yml`을 함께 실행합니다. 기본 접속 주소는 `127.0.0.1:7900`입니다. SSH 터널로 접속할 때는 로컬 포트와 서버 포트를 모두 `ALADIN_BROWSER_VNC_PORT` 값에 맞추세요.
+
+인증된 리버스 프록시의 `/aladin-browser/`에서 noVNC를 제공한다면 같은 `.env`에 `ALADIN_BROWSER_PUBLIC_URL=books.example.com`처럼 도메인만 입력하세요. 프록시가 다른 VM에 있으면 `ALADIN_BROWSER_BIND_IP`에 Docker 호스트의 사설 IP를, `ALADIN_BROWSER_VNC_PORT`에 원하는 포트를 지정하고 프록시의 전달 대상을 해당 IP와 포트로 맞추세요. 프로필의 **서버 브라우저 열기** 버튼은 공개 도메인의 HTTPS 주소와 WebSocket 경로를 사용합니다.
