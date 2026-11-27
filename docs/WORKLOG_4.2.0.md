@@ -38,5 +38,7 @@ PR #72와 #74가 canary에 병합된 뒤, PR #73이 2026-11-27 KST에 main에 �
 ## 발행 상태
 
 - main PR: [#73](https://github.com/ts2580/library/pull/73), merged
-- 4.2.0 tag, GitHub Release, npm package, Docker image: pending
+- - Git tag `v4.2.0` 및 [GitHub Release](https://github.com/ts2580/library/releases/tag/v4.2.0) 발행 완료. npm tarball도 Release asset으로 첨부
+- Docker Hub `trstyq/bookshelf:4.2.0` 및 `latest` 발행 완료. OCI digest `sha256:35358d6f1a49a85b5f7681f88a9e23587e59c5b140580661c2109a8dc8832d58`
+- npm `@trstyq/bookshelf@4.2.0` 발행 시 npm이 일회용 암호를 요구해 중단됨. tarball SHA-256 `51aba5dec0d5fbf4b2499cf0f69a6b398d5a82b1f6f0b377d65f1bd3e9988b3c`
 - 운영 서비스 교체: 별도 단계
