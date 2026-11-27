@@ -56,8 +56,8 @@ function volume(id: number, book = 1, number: number | null = 1) {
     .run(id, book, 900 + id, number, `978000000${String(id).padStart(4, "0")}`, `권 ${id}`);
 }
 function stock(id: number, book = 1, volumeId: number | null = null, number = 1) {
-  sqlite.prepare("INSERT INTO branchbook(id, book, book_volume_id, volume, branch, branchname, name, price) VALUES (?, ?, ?, ?, 'SEOUL', ?, ?, '1,000')")
-    .run(id, book, volumeId, number, id % 2 ? "서울점" : "서울", "재고 100%_! 가나");
+  sqlite.prepare("INSERT INTO branchbook(id, book, book_volume_id, volume, branch, branchname, name, price) VALUES (?, ?, ?, ?, ?, ?, ?, '1,000')")
+    .run(id, book, volumeId, number, `SEOUL-${id}`, id % 2 ? "서울점" : "서울", "재고 100%_! 가나");
 }
 function item(key: string) {
   return { title: `권 ${key}`, isbn13: key, isbn: null, author: null, description: null, cover: null, priceSales: null, link: null, pubDate: null, categoryName: null };
@@ -103,7 +103,7 @@ describe("legacy SQLite adoption", () => {
     const legacy = new BetterSqlite3(":memory:");
     try {
       legacy.exec(legacySchema);
-      legacy.exec("INSERT INTO member(id,username,password_hash) VALUES (1,'fixture-admin','test'); INSERT INTO books(id,name,owner_id) VALUES(1,'series',1); INSERT INTO book_volumes(id,book,seq,volume) VALUES(1,1,99,2),(2,1,1,3),(3,1,2,3); INSERT INTO branchbook(id,book,volume) VALUES(1,1,2),(2,1,2.5),(3,1,3);");
+      legacy.exec("INSERT INTO member(id,username,password_hash) VALUES (1,'fixture-admin','test'); INSERT INTO books(id,name,owner_id) VALUES(1,'series',1); INSERT INTO book_volumes(id,book,seq,volume) VALUES(1,1,99,2),(2,1,1,3),(3,1,2,3); INSERT INTO branchbook(id,book,volume,branch) VALUES(1,1,2,'A'),(2,1,2.5,'B'),(3,1,3,'C');");
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT id,book_volume_id FROM branchbook ORDER BY id").all()).toEqual([
         { id: 1, book_volume_id: 1 }, { id: 2, book_volume_id: null }, { id: 3, book_volume_id: null }
@@ -112,7 +112,7 @@ describe("legacy SQLite adoption", () => {
       legacy.prepare("UPDATE member SET role='USER' WHERE id=1").run();
       bootstrapDatabase(legacy);
       expect(legacy.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
-      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 11 });
+      expect(legacy.prepare("SELECT COUNT(*) AS count FROM bookshelf_migrations").get()).toEqual({ count: 12 });
     } finally { legacy.close(); }
   });
   it("fails atomically when an ownerless database has no explicitly selected owner", () => {
@@ -143,7 +143,7 @@ describe("legacy SQLite adoption", () => {
       expect(prior.prepare("SELECT role FROM member WHERE id=1").get()).toEqual({ role: "USER" });
       expect(prior.prepare("SELECT mode,scope_book_id FROM stock_refresh_job").get()).toEqual({ mode: "REPLACE_ALL", scope_book_id: null });
       expect(prior.prepare("SELECT run_id FROM stock_refresh_job").get()).toEqual({ run_id: null });
-      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }]);
+      expect(prior.prepare("SELECT version FROM bookshelf_migrations ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }]);
       expect(prior.prepare("SELECT * FROM stock_refresh_completion").all()).toEqual([]);
     } finally { prior.close(); }
   });
@@ -151,7 +151,7 @@ describe("legacy SQLite adoption", () => {
     const prior = new BetterSqlite3(":memory:");
     try {
       bootstrapDatabase(prior);
-      prior.exec(`DROP TABLE stock_refresh_error; DELETE FROM bookshelf_migrations WHERE version>=8;
+      prior.exec(`DROP TABLE stock_refresh_error; DROP INDEX ux_branchbook_book_branch; DELETE FROM bookshelf_migrations WHERE version>=8;
         INSERT INTO member(id,username,password_hash) VALUES(1,'owner','fixture'),(2,'other','fixture');
         INSERT INTO books(id,owner_id) VALUES(1,1),(2,2);
         INSERT INTO book_volumes(id,book,volume,ispurchased) VALUES(1,1,1,0),(2,1,2,1),(3,2,1,0);
@@ -162,6 +162,15 @@ describe("legacy SQLite adoption", () => {
       expect(prior.prepare("SELECT volume_id FROM stock_refresh_job_target").all()).toEqual([{ volume_id: 1 }]);
       expect(prior.prepare("SELECT branch,total_amount FROM branch_inventory_summary").all()).toEqual([{ branch: "B", total_amount: 500 }]);
     } finally { prior.close(); }
+  });
+  it("deduplicates existing inventory by parent book and normalized branch during v12 migration", () => {
+    sqlite.exec(`DROP INDEX ux_branchbook_book_branch; DELETE FROM bookshelf_migrations WHERE version=12;
+      INSERT INTO branchbook(id,book,branch,branchname,price,systemmodstamp)
+        VALUES(100,1,' SEOUL ','서울','1200','2026-01-01'),(101,1,'SEOUL','서울','900','2026-02-01'),(102,1,'BUSAN','부산','800','2026-02-01');`);
+    bootstrapDatabase(sqlite);
+    expect(sqlite.prepare("SELECT id FROM branchbook WHERE book=1 ORDER BY id").all()).toEqual([{ id: 101 }, { id: 102 }]);
+    expect(sqlite.prepare("SELECT branch,stock_count FROM branch_inventory_summary ORDER BY branch").all()).toContainEqual({ branch: "SEOUL", stock_count: 1 });
+    expect(() => sqlite.prepare("INSERT INTO branchbook(book,branch) VALUES(1,' SEOUL')").run()).toThrow();
   });
   it("seeds a v3 terminal run into owner completion history exactly once", () => {
     const prior = new BetterSqlite3(":memory:");
@@ -228,15 +237,13 @@ describe("owned queries and changes", () => {
     sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(3,?,1)").run("가게 시리즈".normalize("NFD"));
     for (const [id, book, number] of [[1, 1, 10], [2, 3, 2], [3, 1, 2], [4, 3, 1], [5, 1, 1], [6, 1, null]] as const) volume(id, book, number);
     volume(7, 2); stock(99, 2, 7);
-    let stockId = 1;
-    for (const code of ["SEOUL", "ALADIN_DROPSHIPPING"]) {
-      for (let id = 1; id <= 6; id++) {
-        const target = sqlite.prepare("SELECT book,volume FROM book_volumes WHERE id=?").get(id) as {book:number;volume:number|null};
-        stock(stockId, target.book, id, target.volume ?? 0);
-        sqlite.prepare("UPDATE branchbook SET branch=?,grade=? WHERE id=?").run(code, target.book === 1 ? "A" : "Z", stockId++);
-      }
+    for (let id = 1; id <= 6; id++) {
+      const target = sqlite.prepare("SELECT book,volume FROM book_volumes WHERE id=?").get(id) as {book:number;volume:number|null};
+      stock(id, target.book, id, target.volume ?? 0);
+      sqlite.prepare("UPDATE branchbook SET branch=?,grade=? WHERE id=?")
+        .run(id === 1 ? "SEOUL" : id === 2 ? "ALADIN_DROPSHIPPING" : `OTHER-${id}`, target.book === 1 ? "A" : "Z", id);
     }
-    const expected = [4, 2, 5, 3, 1, 6].flatMap(id => Array(branch ? 1 : 2).fill(`권 ${id}`));
+    const expected = [4, 2, 5, 3, 1, 6].filter(id => !branch || id === (branch === "SEOUL" ? 1 : 2)).map(id => `권 ${id}`);
     expect(searchInventory(1, { branch }).items.map(row => row.volumeName)).toEqual(expected);
     if (branch) expect(getBranchStocks(1, branch).map(row => row.volumeName)).toEqual(expected);
   });
@@ -246,6 +253,7 @@ describe("owned queries and changes", () => {
       sqlite.prepare("INSERT INTO books(id,name,owner_id) VALUES(?,?,1)").run(id, `정렬 책 ${String(index).padStart(2, "0")}`);
       volume(id, id);
       stock(id, id, id);
+      sqlite.prepare("UPDATE branchbook SET branch='SEOUL' WHERE id=?").run(id);
     }
     const first = searchInventory(1, { branch: "SEOUL", page: 1 });
     const second = searchInventory(1, { branch: "SEOUL", page: 2 });
@@ -511,7 +519,7 @@ describe("stock job lifecycle", () => {
     expect(getStockRefreshProgress(1)).toMatchObject({status:"COMPLETED",total:25,processed:25,success:9,empty:8,fail:8,percent:100});
     expect(refreshLogs.getStockRefreshLogs(1).total).toBe(8);
     expect(refreshLogs.getStockRefreshLogs(1,{status:"all"}).runs).toMatchObject([{total:25,status:"COMPLETED"}]);
-    expect(sqlite.prepare("SELECT COUNT(*) n FROM branchbook").get()).toEqual({n:9});
+    expect(sqlite.prepare("SELECT COUNT(*) n FROM branchbook").get()).toEqual({n:1});
   });
   it("keeps run totals and frozen elapsed time across subsequent jobs and book deletion", async () => {
     volume(1); volume(2);
@@ -610,7 +618,7 @@ describe("stock job lifecycle", () => {
     expect(lookupUsedStocks).toHaveBeenCalledTimes(3);
     expect(getStockRefreshProgress(1)).toMatchObject({ status: replacement ? "QUEUED" : "CANCELLED", completionId: runId });
     expect(sqlite.prepare("SELECT book_volume_id FROM branchbook ORDER BY book_volume_id").all()).toEqual(replacement ? [{ book_volume_id: 4 }] : [{ book_volume_id: 1 }, { book_volume_id: 4 }]);
-    expect(sqlite.prepare("SELECT stock_count,total_amount FROM branch_inventory_summary").get()).toEqual(replacement ? { stock_count: 1, total_amount: 1000 } : { stock_count: 2, total_amount: 3000 });
+    expect(sqlite.prepare("SELECT SUM(stock_count) stock_count,SUM(total_amount) total_amount FROM branch_inventory_summary").get()).toEqual(replacement ? { stock_count: 1, total_amount: 1000 } : { stock_count: 2, total_amount: 3000 });
     expect(sqlite.prepare("SELECT lock_token FROM stock_refresh_job").get()).toEqual({ lock_token: null });
   });
   it("retains each owner's completed run after another owner reuses the singleton", async () => {
@@ -674,7 +682,7 @@ describe("stock job lifecycle", () => {
     ] }).mockRejectedValueOnce(new AladinRateLimitError());
     await jobs.processNextStockRefreshJob();
     expect(sqlite.prepare("SELECT status,processed,success,fail FROM stock_refresh_job").get()).toEqual({ status: "FAILED", processed: 2, success: 1, fail: 1 });
-    expect(sqlite.prepare("SELECT stock_count,total_amount FROM branch_inventory_summary").get()).toEqual({ stock_count: 2, total_amount: 3000 });
+    expect(sqlite.prepare("SELECT stock_count,total_amount FROM branch_inventory_summary").get()).toEqual({ stock_count: 1, total_amount: 1000 });
   });
   it("marks an interrupted job failed and restores summary data", () => {
     volume(1); stock(1, 1, 1); sqlite.prepare("UPDATE stock_refresh_job SET status='RUNNING',running=1").run();
@@ -708,13 +716,13 @@ describe("book-scoped stock refresh", () => {
       expect(jobs.requestStockRefresh(1).started).toBe(false);
       await jobs.processNextStockRefreshJob();
       expect(sqlite.prepare("SELECT * FROM branchbook WHERE id<=4 ORDER BY id").all()).toEqual(unrelated);
-      expect(sqlite.prepare("SELECT price FROM branchbook WHERE book_volume_id=1 ORDER BY purchaseurl").all())
-        .toEqual([{ price: "9,000" }, { price: "2,000" }]);
+      expect(sqlite.prepare("SELECT price FROM branchbook WHERE book=1").all())
+        .toEqual([{ price: "2,000" }]);
       expect(sqlite.prepare("SELECT status,mode,scope_book_id,total,processed FROM stock_refresh_job").get())
         .toEqual({ status: "COMPLETED", mode: "APPEND_BOOK", scope_book_id: 1, total: 1, processed: 1 });
     }
     expect(vi.mocked(lookupUsedStocks).mock.calls.map(([isbn]) => isbn)).toEqual(["9780000000001", "9780000000001"]);
-    expect(sqlite.prepare("SELECT stock_count FROM branch_inventory_summary").get()).toEqual({ stock_count: 4 });
+    expect(sqlite.prepare("SELECT SUM(stock_count) stock_count FROM branch_inventory_summary").get()).toEqual({ stock_count: 3 });
   });
   it.each(["empty", "failed", "partial", "network"])("applies the verified snapshot when lookup is %s", async mode => {
     volume(1); volume(2, 2); stock(1, 1, 1); stock(2, 2, 2);
@@ -911,13 +919,13 @@ describe("canary audit inventory regressions", () => {
     await updateVolume(1, 1, 1, edit);
     expect(sqlite.prepare("SELECT book_volume_id,volume FROM branchbook").get()).toEqual({ book_volume_id: 1, volume: 2 });
   });
-  it("retains different offers of the same grade and the real lowest price", async () => {
+  it("keeps one lowest-price offer when a branch has multiple purchase links", async () => {
     volume(1); jobs.requestStockRefresh(1);
     vi.mocked(lookupUsedStocks).mockResolvedValue({ successful: true, raw: {}, stocks: [offer,
       { ...offer, price: "9,000", purchaseLink: "https://www.aladin.co.kr/offer/b" }] });
     await jobs.processNextStockRefreshJob();
     expect(sqlite.prepare("SELECT COUNT(*) AS count, MIN(CAST(REPLACE(price, ',', '') AS INTEGER)) AS minimum FROM branchbook").get())
-      .toEqual({ count: 2, minimum: 4000 });
+      .toEqual({ count: 1, minimum: 4000 });
   });
   it("chooses the minimum price for indistinguishable summaries in either order", async () => {
     volume(1);
@@ -962,7 +970,7 @@ describe('full refresh inventory reset',()=>{
     });
     jobs.requestStockRefresh(1);await jobs.processNextStockRefreshJob();
     expect(sqlite.prepare('SELECT book_volume_id AS id,branch FROM branchbook ORDER BY book_volume_id').all()).toEqual([
-      {id:1,branch:'NEW'},{id:5,branch:'SEOUL'}
+      {id:1,branch:'NEW'},{id:5,branch:'SEOUL-5'}
     ]);
     expect(getStockRefreshProgress(1)).toMatchObject({success:1,empty:1,fail:2,status:'COMPLETED'});
     expect(refreshLogs.getStockRefreshLogs(1).items.map(item => item.volumeId)).toEqual([4,3]);

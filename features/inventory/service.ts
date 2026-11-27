@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 import { AladinRateLimitError, inventoryRequestCheck } from "@/features/aladin/client";
 import { lookupUsedStocks } from "@/features/aladin/service";
 import { isbn13Schema } from "@/features/aladin/validation";
-import { stockIdentity, uniqueStocks } from "@/features/inventory/stock-identity";
+import { normalizedBranch, stockIdentity, uniqueStocks } from "@/features/inventory/stock-identity";
 import { getFailedStockVolumeIds, recordStockRefreshResult, recordStockRefreshRun } from "@/features/inventory/refresh-log";
 import type { AladinBranchStock } from "@/features/aladin/types";
 
@@ -222,9 +222,11 @@ function saveStocks(lockToken: string, ownerId: number, target: RefreshTarget, s
       INSERT INTO branchbook(booklink, purchaseurl, branch, uuid, volume, name, price, branchname, grade, book, book_volume_id, systemmodstamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
-    const offers = uniqueStocks(target.id, stocks);
+    const offers = uniqueStocks(target.bookId, stocks);
     for (const stock of offers) {
-      insert.run(stock.bookLink, stock.purchaseLink, stock.branch, stockIdentity(target.id, stock), target.seq ?? 0,
+      sqlite.prepare("DELETE FROM branchbook WHERE book=? AND COALESCE(NULLIF(TRIM(branch), ''), '')=?")
+        .run(target.bookId, normalizedBranch(stock.branch));
+      insert.run(stock.bookLink, stock.purchaseLink, stock.branch, stockIdentity(target.bookId, stock), target.seq ?? 0,
         target.name ?? stock.title ?? "", stock.price, stock.branchName, stock.grade, target.bookId, target.id);
     }
     recordStockRefreshResult(lockToken, ownerId, target, stocks.length
