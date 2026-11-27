@@ -1,0 +1,20 @@
+x-aladin-settings: &aladin-settings
+  ALADIN_BROWSER_URL: http://aladin-browser:4444
+  ALADIN_BROWSER_OWNER: ${ALADIN_BROWSER_OWNER:?Set ALADIN_BROWSER_OWNER}
+
+services:
+  web:
+    environment: *aladin-settings
+  worker:
+    environment: *aladin-settings
+  aladin-browser:
+    image: selenium/standalone-chromium:4.54.0-20261124
+    restart: unless-stopped
+    shm_size: 2gb
+    ports:
+      - "127.0.0.1:7900:7900"
+    environment:
+      SE_VNC_PASSWORD: ${ALADIN_BROWSER_VNC_PASSWORD:?Set ALADIN_BROWSER_VNC_PASSWORD}
+      SE_NODE_MAX_SESSIONS: "1"
+      SE_NODE_SESSION_TIMEOUT: "86400"
+      SE_SESSION_REQUEST_TIMEOUT: "15"

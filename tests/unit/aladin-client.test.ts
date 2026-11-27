@@ -33,6 +33,19 @@ describe('public HTML transport',()=>{
   await expect(aladinHtml(url)).rejects.toMatchObject({code:'ALADIN_RATE_LIMIT'});
   expect(fetch).toHaveBeenCalledTimes(1);
  });
+ it('keeps interactive search and import available while inventory slots are occupied',async()=>{
+  const releases:Array<()=>void>=[];
+  vi.mocked(fetch).mockImplementation(async raw=>{
+   if (String(raw).includes("inventory")) await new Promise<void>(resolve=>releases.push(resolve));
+   return new Response('ok',{headers:{'content-type':'text/html'}});
+  });
+  const work=Array.from({length:8},()=>aladinHtml(url+"&inventory=1","inventory"));
+  try {
+   await vi.waitFor(()=>expect(releases).toHaveLength(8));
+   await expect(aladinHtml(url)).resolves.toBe("ok");
+   expect(releases).toHaveLength(8);
+  } finally { releases.forEach(release=>release()); await Promise.all(work); }
+ });
  it('retries transient network errors and sends no credentials or redirects',async()=>{
   state.env.ALADIN_MAX_ATTEMPTS=2;
   vi.mocked(fetch).mockRejectedValueOnce(new TypeError('network')).mockResolvedValueOnce(new Response('<html>ok</html>',{headers:{'content-type':'text/html'}}));

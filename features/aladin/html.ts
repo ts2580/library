@@ -5,12 +5,17 @@ import type { AladinBookItem, AladinBranchStock, AladinSearchResult } from "@/fe
 
 const compact = (value: string) => value.replace(/\s+/g, " ").trim();
 const integer = (value: string) => Number(value.replaceAll(",", ""));
-export function changed(message = "알라딘 페이지 구조를 확인하지 못했습니다. 기존 정보는 유지됩니다."): never {
+export function changed(message = "알라딘 페이지 구조를 확인하지 못했습니다."): never {
   throw new AppError(message, "ALADIN_FORMAT_CHANGED", 502);
 }
 function page(html: string) {
   const $ = load(html);
+  // Restricted products return HTTP 200 with only a scripted login prompt.
   $("script,style,noscript").remove();
+  if (html.includes("19세 이상만 이용할 수 있는 상품") && html.includes("/login/wlogin.aspx")
+      && html.includes("isAdult=1") && !$("body").text().trim()) {
+    throw new AppError("알라딘에서 성인 인증된 계정의 로그인을 요구해 상품 정보를 확인할 수 없습니다.", "ALADIN_ADULT_LOGIN_REQUIRED", 422);
+  }
   return $;
 }
 function safeLink(raw: string | undefined): string | null {

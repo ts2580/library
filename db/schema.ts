@@ -171,10 +171,11 @@ export const stockRefreshJobs = sqliteTable("stock_refresh_job", {
   percent: integer("percent").notNull().default(0),
   message: text("message"),
   updatedAt: text("updated_at"),
-  status: text("status", { enum: ["IDLE", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] }).notNull().default("IDLE"),
+  status: text("status", { enum: ["IDLE", "QUEUED", "RUNNING", "PAUSED", "COMPLETED", "FAILED", "CANCELLED"] }).notNull().default("IDLE"),
   requestedBy: integer("requested_by").references(() => members.id, { onDelete: "set null" }),
   mode: text("mode", { enum: ["REPLACE_ALL", "APPEND_BOOK", "REFRESH_SELECTED"] }).notNull().default("REPLACE_ALL"),
   scopeBookId: integer("scope_book_id").references(() => books.id, { onDelete: "set null" }),
+  notifiedRunId: text("notified_run_id"),
   runId: text("run_id"),
   lockToken: text("lock_token"),
   startedAt: text("started_at"),
@@ -202,16 +203,52 @@ export const stockRefreshCompletions = sqliteTable("stock_refresh_completion", {
   runId: text("run_id").notNull()
 });
 
+export const aladinInventoryProducts = sqliteTable("aladin_inventory_product", {
+  isbn: text("isbn").primaryKey(),
+  itemId: text("item_id").notNull(),
+  verifiedAt: integer("verified_at").notNull()
+});
+
+export const aladinBrowserConnections = sqliteTable("aladin_browser_connection", {
+  ownerId: integer("owner_id").primaryKey().references(() => members.id, { onDelete: "cascade" }),
+  generation: text("generation").notNull(),
+  sessionId: text("session_id"),
+  ready: integer("ready").notNull().default(0),
+  createdAt: integer("created_at").notNull()
+});
+
 export const stockRefreshRuns = sqliteTable("stock_refresh_run", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   ownerId: integer("owner_id").notNull().references(() => members.id, { onDelete: "cascade" }),
   runId: text("run_id").notNull().unique(),
   status: text("status").notNull(),
   total: integer("total").notNull(),
+  processed: integer("processed"),
+  success: integer("success"),
+  empty: integer("empty"),
+  fail: integer("fail"),
+  message: text("message"),
+  mode: text("mode"),
   startedAt: text("started_at"),
   finishedAt: text("finished_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
 }, table => [index("idx_stock_refresh_run_owner_id").on(table.ownerId, table.id)]);
+
+export const stockRefreshErrors = sqliteTable("stock_refresh_error", {
+  id: integer("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => stockRefreshRuns.runId, { onDelete: "cascade" }),
+  bookId: integer("book_id").notNull(),
+  volumeId: integer("volume_id").notNull(),
+  bookName: text("book_name").notNull(),
+  volumeName: text("volume_name").notNull(),
+  volume: integer("volume"),
+  isbn13: text("isbn13"),
+  code: text("code").notNull(),
+  message: text("message").notNull(),
+  createdAt: text("created_at").notNull(),
+  resolvedAt: text("resolved_at")
+}, table => [uniqueIndex("ux_stock_refresh_error_run_volume").on(table.runId, table.volumeId),
+  index("idx_stock_refresh_error_open_volume").on(table.volumeId).where(sql`${table.resolvedAt} IS NULL`)]);
 
 export const stockRefreshLogs = sqliteTable("stock_refresh_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),

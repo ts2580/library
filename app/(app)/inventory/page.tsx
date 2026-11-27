@@ -21,7 +21,6 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       <StockRefreshPanel initial={progress}/>
       <BranchInventoryChart branches={branches}/>
       <InventoryResults result={result}/>
-      <section className="stack-md"><div className="section-heading"><div><p className="eyebrow">Branches</p><h2>지점별 집계</h2></div></div>{branches.length ? <div className="inventory-grid">{branches.map((branch) => <Link className="branch-card" key={branch.branch} href={`/inventory/branches/${encodeURIComponent(branch.branch)}`}><div className="section-heading"><h3>{branch.branchName}</h3><span className="chip">{branch.stockCount}건</span></div><dl><div><dt>가격 확인</dt><dd>{branch.pricedCount}건</dd></div><div><dt>합계</dt><dd>{formatWon(branch.totalAmount)}</dd></div></dl></Link>)}</div> : <div className="empty">저장된 지점 재고가 없습니다. 워커를 실행한 뒤 갱신을 시작하세요.</div>}</section>
     </div>
   );
 }

@@ -13,7 +13,7 @@ export function VolumeAddTools({ bookId, manual, stockSearch }: { bookId: number
       <button type="button" className="button button-outline button-small" aria-expanded={manualOpen} aria-controls={`${id}-manual`}
         onClick={() => setManualOpen(open => !open)}>직접 추가</button>
       <Link className="button button-secondary button-small" href={`/aladin/search?bookId=${bookId}`}>알라딘에서 추가</Link>
-      {stockSearch && <button type="button" className="button button-outline button-small" title="현재 책의 구매 필요 권만 검색해 기존 재고에 추가합니다." disabled={stock.disabled} onClick={() => void stock.start()}>재고 검색</button>}
+      {stockSearch && <button type="button" className="button button-outline button-small" title="현재 책의 구매 필요 권을 검색해 최신 재고로 갱신합니다." disabled={stock.disabled} onClick={() => void stock.start()}>재고 검색</button>}
     </div>
     {stockSearch && stock.error && <p className="flash flash-error" role="alert">{stock.error}</p>}
     {stockSearch && stock.message && <p className="muted small" role="status">{stock.message}</p>}

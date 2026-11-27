@@ -1,6 +1,6 @@
 import { requireApiAdmin } from "@/features/auth/authorization";
 import { getStockRefreshProgress } from "@/features/inventory/queries";
-import { cancelStockRefresh, deleteOwnerInventory, requestStockRefresh } from "@/features/inventory/service";
+import { cancelStockRefresh, changeStockPause, claimStockErrorNotification, deleteOwnerInventory, requestStockRefresh } from "@/features/inventory/service";
 import { assertSameOrigin, jsonError } from "@/lib/http";
 import { z } from "zod";
 
@@ -36,8 +36,10 @@ export async function PATCH(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireApiAdmin();
-    const { runId } = z.object({ runId: z.string().uuid().nullable() }).parse(await request.json().catch(() => null));
-    cancelStockRefresh(user.id, runId);
+    const { runId, action } = z.object({ runId: z.string().min(1).max(200).nullable(), action: z.enum(["cancel", "pause", "resume", "notify"]).default("cancel") }).parse(await request.json().catch(() => null));
+    if (action === "notify") return Response.json({ show: claimStockErrorNotification(user.id, runId) });
+    if (action === "cancel") cancelStockRefresh(user.id, runId);
+    else changeStockPause(user.id, runId, action);
     return Response.json({ success: true, progress: getStockRefreshProgress(user.id) });
   } catch (error) { return jsonError(error); }
 }
