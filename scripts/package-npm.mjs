@@ -71,7 +71,7 @@ const manifest = {
   bin: { bookshelf: "bin/bookshelf.mjs" },
   files: ["bin/", "dist/", ".next/", "public/", "next.config.mjs", "bookshelf.env.example", "release.json"],
   scripts: { start: "node bin/bookshelf.mjs", worker: "node bin/bookshelf.mjs worker" },
-  publishConfig: { access: "public", registry: "https://registry.npmjs.org/", tag: "latest" },
+  publishConfig: { access: "public", registry: "https://registry.npmjs.org/", tag: pkg.version.includes("-") ? "rc" : "latest" },
   repository: { type: "git", url: "git+https://github.com/ts2580/library.git" },
   homepage: "https://github.com/ts2580/library#readme",
   bugs: { url: "https://github.com/ts2580/library/issues" },

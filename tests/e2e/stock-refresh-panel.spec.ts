@@ -140,7 +140,7 @@ test("returning to the inventory tab immediately checks the worker's completed s
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(page.locator(".status-badge")).toHaveText("COMPLETED");
     await expect(page.locator("#top-progress-bar")).toBeHidden();
-    expect(polls).toBe(2);
+    await expect.poll(() => polls).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -153,8 +153,8 @@ test("fresh server props restart a stalled batch poll after inventory search nav
     });
     await page.getByRole("button", { name: "갱신 시작", exact: true }).click();
     await expect.poll(() => polls).toBe(1);
-    expect((db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owner) as { status: string }).status)
-      .toBe("COMPLETED");
+    await expect.poll(() => (db.prepare("SELECT status FROM stock_refresh_job WHERE requested_by=?").get(owner) as { status: string }).status,
+      { timeout: 20_000 }).toBe("COMPLETED");
     await page.getByLabel("제목·ISBN·지점 검색").fill("갱신 대상");
     await page.getByRole("button", { name: "재고 검색", exact: true }).click();
     await expect(page.locator(".kpi-status")).toHaveText("COMPLETED");

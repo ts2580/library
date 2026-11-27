@@ -11,7 +11,6 @@ test("branch stock purchase buttons use product links and retain listing links w
   db.pragma("foreign_keys=ON");
   const username = `branch-purchase-${randomUUID()}`;
   const owner = Number(db.prepare("INSERT INTO member(username,password_hash,role) SELECT ?,password_hash,'ADMIN' FROM member WHERE id=1").run(username).lastInsertRowid);
-  const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('지점 구매 버튼 검증',?)").run(owner).lastInsertRowid);
   const listing = "https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=fixture&OffCode=SEOUL";
   const product = "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=offer-a";
   const cases = [
@@ -22,6 +21,7 @@ test("branch stock purchase buttons use product links and retain listing links w
     { name: "구매 주소 없음", purchase: null, listing: null, expected: null }
   ];
   for (const [index, entry] of cases.entries()) {
+    const book = Number(db.prepare("INSERT INTO books(name,owner_id) VALUES('지점 구매 버튼 검증',?)").run(owner).lastInsertRowid);
     const volume = Number(db.prepare("INSERT INTO book_volumes(book,volume,name,isbn13) VALUES(?,?,?,'9780000000193')").run(book, index + 1, entry.name).lastInsertRowid);
     db.prepare("INSERT INTO branchbook(book,book_volume_id,volume,name,branch,branchname,price,booklink,purchaseurl) VALUES(?,?,?,?,'SEOUL','서울점','1700',?,?)")
       .run(book, volume, index + 1, entry.name, entry.listing, entry.purchase);

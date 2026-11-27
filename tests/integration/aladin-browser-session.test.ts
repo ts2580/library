@@ -16,7 +16,7 @@ process.env.ALADIN_BROWSER_OWNER = "fixture";
 process.env.ALADIN_PAGE_INTERVAL_MS = "0";
 const { sqlite } = await import("@/db");
 const { lookupUsedStocks } = await import("@/features/aladin/service");
-const { connectStockBrowser, disconnectStockBrowser, hasStockBrowser, withStockBrowser, readStockBrowser } = await import("@/features/aladin/browser-session");
+const { connectStockBrowser, disconnectStockBrowser, getStockBrowserStatus, withStockBrowser, readStockBrowser } = await import("@/features/aladin/browser-session");
 
 afterAll(() => { vi.unstubAllGlobals(); sqlite.close(); rmSync(directory, { recursive: true, force: true }); });
 
@@ -25,9 +25,19 @@ it("uses an isolated browser only for the connected owner's restricted stock loo
   const product = { itemId: "412480", isbn13: "9788989571146", title: "테스트", author: "저자", pubDate: "2000-01-01" };
   const login = "<script>if(confirm('19세 이상만 이용할 수 있는 상품')) location.href='/login/wlogin.aspx?isAdult=1';</script>";
   const privatePages: string[] = [];
+  let loginWindowRect;
   vi.stubGlobal("fetch", async (input: URL, options: RequestInit) => {
     if (input.hostname !== "browser.test") return new Response(login, { headers: { "content-type": "text/html" } });
-    if (input.pathname === "/session") return Response.json({ value: { sessionId: "fixture-session" } });
+    if (input.pathname === "/session") {
+      expect(new Headers(options.headers).get("content-type")).toBe("application/json; charset=utf-8");
+      expect(JSON.parse(String(options.body)).capabilities.alwaysMatch).toMatchObject({ browserName: "firefox", "moz:firefoxOptions": {} });
+      return Response.json({ value: { sessionId: "fixture-session" } });
+    }
+    if (input.pathname.endsWith("/window/handles")) return Response.json({ value: ["open"] });
+    if (input.pathname.endsWith("/execute/sync")) return Response.json({ value: { width: 1440, height: 900 } });
+    if (input.pathname.endsWith("/window/rect")) {
+      loginWindowRect = JSON.parse(String(options.body));
+    }
     if (!input.pathname.endsWith("/execute/async")) return Response.json({ value: null });
     const url = new URL(JSON.parse(String(options.body)).args[0]);
     privatePages.push(url.pathname);
@@ -38,7 +48,8 @@ it("uses an isolated browser only for the connected owner's restricted stock loo
   const lookup = (owner: number) => lookupUsedStocks(product.isbn13, undefined, "inventory", undefined, owner);
   await expect(connectStockBrowser(2, "other")).rejects.toMatchObject({ code: "FORBIDDEN" });
   await connectStockBrowser(1, "fixture");
-  expect(hasStockBrowser(1)).toBe(true);
+  expect(loginWindowRect).toEqual({ x: 0, y: 0, width: 1440, height: 900 });
+  expect(await getStockBrowserStatus(1)).toBe("connected");
   expect(await lookup(1)).toMatchObject({ successful: true });
   expect(privatePages).toEqual(["/search/wsearchresult.aspx", "/shop/wproduct.aspx", "/shop/UsedShop/wuseditemall.aspx"]);
   expect(sqlite.prepare("SELECT isbn FROM aladin_inventory_product").all()).toEqual([]);
@@ -46,6 +57,33 @@ it("uses an isolated browser only for the connected owner's restricted stock loo
   await disconnectStockBrowser(1, "fixture");
   expect(await lookup(1)).toMatchObject({ successful: false, errorCode: "ALADIN_ADULT_LOGIN_REQUIRED" });
   expect(privatePages).toHaveLength(3);
+});
+
+it("replaces a stale ready session but preserves a live session and one that cannot be reached", async () => {
+  sqlite.prepare("INSERT OR IGNORE INTO member(id,username,password_hash) VALUES(1,'fixture','unused')").run();
+  sqlite.prepare("INSERT INTO aladin_browser_connection(owner_id,generation,session_id,ready,created_at) VALUES(1,'original','expired',1,unixepoch())").run();
+  let offline = true;
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", async (input: URL, options: RequestInit) => {
+    if (offline) throw new TypeError("offline");
+    if (options.method !== "GET") writes.push(String(options.method) + " " + input.pathname);
+    if (input.pathname.startsWith("/session/expired")) {
+      return Response.json({ value: { error: "invalid session id" } }, { status: 404 });
+    }
+    if (input.pathname === "/session") return Response.json({ value: { sessionId: "new" } });
+    if (input.pathname.endsWith("/window/handles")) return Response.json({ value: ["login"] });
+    return Response.json({ value: null });
+  });
+  expect(await getStockBrowserStatus(1)).toBe("unavailable");
+  await expect(connectStockBrowser(1, "fixture")).rejects.toMatchObject({ code: "ALADIN_BROWSER_OFFLINE" });
+  expect(sqlite.prepare("SELECT session_id FROM aladin_browser_connection WHERE owner_id=1").get()).toEqual({ session_id: "expired" });
+  offline = false;
+  expect(await getStockBrowserStatus(1)).toBe("disconnected");
+  await connectStockBrowser(1, "fixture");
+  expect(await getStockBrowserStatus(1)).toBe("connected");
+  await connectStockBrowser(1, "fixture");
+  expect(writes).toEqual(["DELETE /session/expired", "POST /session", "POST /session/new/execute/sync", "POST /session/new/url"]);
+  await disconnectStockBrowser(1, "fixture");
 });
 
 it("recovers a browser after process death during login navigation and shares its command slot across processes", async () => {
@@ -64,6 +102,7 @@ it("recovers a browser after process death during login navigation and shares it
       const browser = require("./features/aladin/browser-session.ts");
       global.fetch = async url => {
         if (url.pathname === "/session") return Response.json({ value: { sessionId: "orphan" } });
+        if (url.pathname.endsWith("/execute/sync")) return Response.json({ value: null });
         process.send(url.pathname);
         await new Promise(resolve => process.once("message", resolve));
         return Response.json({ value: { status: 200, type: "text/html", html: "ok" } });
@@ -80,13 +119,13 @@ it("recovers a browser after process death during login navigation and shares it
     expect((await opening.entered)[0]).toBe("/session/orphan/url");
     expect(sqlite.prepare("SELECT session_id,ready FROM aladin_browser_connection WHERE owner_id=1").get())
       .toEqual({ session_id: "orphan", ready: 0 });
-    expect(hasStockBrowser(1)).toBe(false);
+    expect(await getStockBrowserStatus(1)).toBe("disconnected");
   } finally {
     opening.child.kill("SIGKILL");
     await opening.exited;
   }
   await connectStockBrowser(1, "fixture");
-  expect(commands).toEqual(["DELETE /session/orphan", "POST /session", "POST /session/replacement/url"]);
+  expect(commands).toEqual(["DELETE /session/orphan", "POST /session", "POST /session/replacement/execute/sync", "POST /session/replacement/url"]);
   commands.length = 0;
   const reading = startChild("read");
   try {

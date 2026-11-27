@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const cwd = fileURLToPath(new URL("../", import.meta.url));
 const windows = process.platform === "win32";
+const withAladin = process.argv.includes("--aladin");
 const children = [];
 let stopping = false;
 
@@ -29,7 +30,7 @@ function stop(code) {
   if (stopping) return;
   stopping = true;
   process.exitCode = code;
-  console.log("[dev] 웹과 워커를 종료합니다.");
+  console.log("[dev] 개발 프로세스를 종료합니다.");
   for (const { child } of children) signalTree(child, "SIGTERM");
   const poll = setInterval(() => {
     if (children.every(({ child }) => !groupAlive(child))) {
@@ -46,11 +47,8 @@ function stop(code) {
 process.on("SIGINT", () => stop(130));
 process.on("SIGTERM", () => stop(143));
 
-for (const [name, args] of [
-  ["웹", ["node_modules/next/dist/bin/next", "dev", "--port", process.env.PORT || "25647"]],
-  ["워커", ["--conditions=react-server", "--import", "tsx", "--watch", "worker/worker.ts"]]
-]) {
-  const child = spawn(process.execPath, args, { cwd, stdio: "inherit", detached: !windows });
+function start(name, command, args, options = {}) {
+  const child = spawn(command, args, { cwd, stdio: "inherit", detached: !windows, ...options });
   children.push({ child, name });
   child.on("error", error => {
     console.error(`[dev] ${name} 실행 실패: ${error.message}`);
@@ -62,5 +60,33 @@ for (const [name, args] of [
       stop(code ?? 1);
     }
   });
+  return child;
 }
-console.log("[dev] 웹과 워커를 함께 시작합니다. 종료: Ctrl+C");
+
+function startApp() {
+  start("웹", process.execPath, ["node_modules/next/dist/bin/next", "dev", "--port", process.env.PORT || "25647"]);
+  start("워커", process.execPath, ["--conditions=react-server", "--import", "tsx", "--watch", "worker/worker.ts"]);
+  console.log("[dev] 웹과 워커를 함께 시작합니다. 종료: Ctrl+C");
+}
+
+if (withAladin) {
+  if (process.platform !== "linux") throw new Error("dev:aladin은 Linux 개발 환경에서 실행하세요.");
+  const { default: nextEnv } = await import("@next/env");
+  nextEnv.loadEnvConfig(cwd, true);
+  process.env.PORT ||= process.env.SERVER_PORT || "25647";
+  process.env.ALADIN_BROWSER_URL = "http://127.0.0.1:4444";
+  // Selenium also interprets SERVER_PORT. Give the desktop only its own settings.
+  const browserEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+    /^(ALADIN_BROWSER_|LC_)/.test(key) ||
+    ["HOME", "PATH", "LANG", "TMPDIR", "JAVA_HOME", "XDG_CACHE_HOME", "LD_LIBRARY_PATH", "PYTHONPATH", "NOVNC_WEB_DIR"].includes(key) ||
+    /^(https?_proxy|no_proxy|all_proxy)$/i.test(key)
+  ));
+  const browser = start("알라딘 브라우저", "bash", ["scripts/dev-aladin.sh"], {
+    env: browserEnv, stdio: ["inherit", "inherit", "inherit", "pipe"]
+  });
+  browser.stdio[3].once("data", () => {
+    if (!stopping) startApp();
+  });
+} else {
+  startApp();
+}

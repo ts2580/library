@@ -19,7 +19,16 @@ const envSchema = z.object({
   BOOKSHELF_COOKIE_SECURE: z.enum(["auto", "true", "false"]).default("auto"),
   BOOKSHELF_AUTO_BACKUP: z.string().default("true").transform((value) => value !== "false"),
   BOOKSHELF_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  ALADIN_BROWSER_URL: z.string().url().optional(),
+  ALADIN_BROWSER_URL: z.string().url().default("http://aladin-browser:4444"),
+  ALADIN_BROWSER_VNC_PORT: z.preprocess(
+    value => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(65535).default(7900)
+  ),
+  ALADIN_BROWSER_PUBLIC_URL: z.union([
+    z.hostname().transform(host => `https://${host}/aladin-browser/vnc.html?path=%2Faladin-browser%2Fwebsockify`),
+    z.httpUrl(),
+    z.literal("")
+  ]).optional(),
   ALADIN_BROWSER_OWNER: z.string().min(1).optional(),
   ALADIN_PAGE_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
   ALADIN_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
